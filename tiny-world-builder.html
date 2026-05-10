@@ -490,7 +490,7 @@
         <button class="modal-close" id="gen-close" title="Close">×</button>
       </div>
       <label>Prompt
-        <textarea id="gen-prompt" rows="3" placeholder="a small fishing village by a river, trees on the far hill, a crop field next to two cottages"></textarea>
+        <textarea id="gen-prompt" rows="3" placeholder="a small fishing village by a river, a crop field next to two cottages, rocky outcrops on edges"></textarea>
       </label>
       <div class="row">
         <label>Provider
@@ -850,8 +850,8 @@
   let camera = softCam;
 
   // orbit state
-  let azimuth = Math.PI * 0.25;   // around Y
-  let polar   = Math.PI * 0.32;   // from +Y axis
+  let azimuth = Math.PI * 0.35;   // around Y - slightly rotated for better initial view
+  let polar   = Math.PI * 0.28;   // from +Y axis - slightly lower for more isometric feel
   const target = new THREE.Vector3(0, 0, 0);
   const panRight = new THREE.Vector3();
   const panForward = new THREE.Vector3();
@@ -1002,9 +1002,6 @@
     rockDk:    new THREE.MeshLambertMaterial({ color: 0x707066 }),
     rockHi:    new THREE.MeshLambertMaterial({ color: 0xc3c0b2 }),
     rockMoss:  new THREE.MeshLambertMaterial({ color: 0x6f8a3a }),
-    hillGrass: new THREE.MeshLambertMaterial({ color: 0x8fcf3e }),
-    hillGrassD:new THREE.MeshLambertMaterial({ color: 0x6fb52f }),
-    hillDirt:  new THREE.MeshLambertMaterial({ color: 0x8a5a2b }),
     bridgeWood:  new THREE.MeshLambertMaterial({ color: 0x8b5a32 }),
     bridgeWoodD: new THREE.MeshLambertMaterial({ color: 0x5f3a20 }),
 
@@ -1384,91 +1381,6 @@
     return g;
   }
 
-  function makeHill(neighbors) {
-    const g = new THREE.Group();
-    const n = neighbors || { n: false, s: false, e: false, w: false };
-    const links = countNeighbors(n);
-
-    const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.46 + links * 0.035, 0.56 + links * 0.045, 0.14 + links * 0.012, 7), M.hillDirt);
-    skirt.position.y = 0.07;
-    skirt.rotation.y = Math.PI / 7;
-    g.add(skirt);
-
-    const mound = new THREE.Mesh(new THREE.CylinderGeometry(0.18 + links * 0.035, 0.48 + links * 0.060, 0.50 + links * 0.075, 7), M.hillGrass);
-    mound.position.y = 0.38 + links * 0.040;
-    mound.rotation.y = -Math.PI / 12;
-    g.add(mound);
-
-    function addRidge(dir) {
-      const alongX = dir === 'n' || dir === 's';
-      const dirt = new THREE.Mesh(
-        new THREE.BoxGeometry(alongX ? 0.58 : 0.40, 0.22, alongX ? 0.44 : 0.58),
-        M.hillDirt
-      );
-      dirt.position.set(
-        dir === 'w' ? -0.33 : dir === 'e' ? 0.33 : 0,
-        0.15,
-        dir === 'n' ? -0.33 : dir === 's' ? 0.33 : 0
-      );
-      dirt.rotation.y = alongX ? 0.06 : -0.08;
-      g.add(dirt);
-
-      const grass = new THREE.Mesh(
-        new THREE.BoxGeometry(alongX ? 0.54 : 0.34, 0.17, alongX ? 0.36 : 0.54),
-        M.hillGrassD
-      );
-      grass.position.set(dirt.position.x, 0.34 + links * 0.018, dirt.position.z);
-      grass.rotation.y = dirt.rotation.y;
-      g.add(grass);
-
-      const crest = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.15, 0.18, 6), M.hillGrass);
-      crest.position.set(
-        dir === 'w' ? -0.40 : dir === 'e' ? 0.40 : (dir === 'n' ? -0.08 : 0.08),
-        0.48 + links * 0.025,
-        dir === 'n' ? -0.40 : dir === 's' ? 0.40 : (dir === 'w' ? 0.08 : -0.08)
-      );
-      crest.rotation.y = dir === 'n' ? 0.2 : dir === 's' ? -0.2 : dir === 'e' ? 0.7 : -0.7;
-      g.add(crest);
-    }
-    if (n.n) addRidge('n');
-    if (n.s) addRidge('s');
-    if (n.e) addRidge('e');
-    if (n.w) addRidge('w');
-
-    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.08 + links * 0.012, 0.16 + links * 0.018, 0.08 + links * 0.010, 6), links >= 2 ? M.rockDk : M.rockHi);
-    cap.position.set(-0.05, 0.67 + links * 0.08, 0.04);
-    cap.rotation.y = 0.4;
-    g.add(cap);
-
-    if (links >= 1) {
-      const shoulder = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.24 + links * 0.025, 0.18, 6), M.hillGrassD);
-      shoulder.position.set(0.17, 0.57 + links * 0.055, -0.13);
-      shoulder.rotation.y = -0.3;
-      g.add(shoulder);
-    }
-    if (links >= 3) {
-      const summit = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.32, 6), M.rockHi);
-      summit.position.set(0.08, 0.92 + links * 0.045, 0.06);
-      summit.rotation.set(0.10, -0.2, 0.06);
-      g.add(summit);
-    }
-    if (links >= 4) {
-      const plateau = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.08, 7), M.hillGrassD);
-      plateau.position.set(0, 0.84, 0);
-      plateau.rotation.y = 0.25;
-      g.add(plateau);
-    }
-
-    const pebble = new THREE.Mesh(new THREE.DodecahedronGeometry(0.08, 0), M.rockDk);
-    pebble.scale.y = 0.6;
-    pebble.position.set(0.20, 0.08, -0.22);
-    g.add(pebble);
-
-    g.userData = { kind: 'hill', neighborCount: links };
-    castReceive(g);
-    return g;
-  }
-
   function makeBridge(orientation) {
     const g = new THREE.Group();
     const deckY = 0.09;
@@ -1524,20 +1436,6 @@
         pebble.scale.y = 0.55;
         pebble.position.set(Math.cos(a) * 0.34, 0.035, Math.sin(a) * 0.30);
         g.add(pebble);
-      }
-    } else if (kind === 'hill') {
-      g.scale.set(1 + extra * 0.035, 1 + extra * 0.085, 1 + extra * 0.035);
-      if (level >= 3) {
-        const lookout = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.035, 0.10), M.fence);
-        lookout.position.set(0.00, 0.82, -0.12);
-        lookout.rotation.y = 0.25;
-        g.add(lookout);
-      }
-      if (level >= 5) {
-        const marker = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.18, 5), M.flagRed);
-        marker.position.set(0.10, 0.95, 0.08);
-        marker.rotation.y = 0.3;
-        g.add(marker);
       }
     } else if (kind === 'bridge') {
       const s = 1 + Math.min(extra, 3) * 0.025;
@@ -2919,7 +2817,7 @@
       const r = cellRand(boardX + i, boardZ - i, seed);
       cells[x][z] = {
         terrain: 'grass',
-        kind: r < 0.55 ? 'tree' : (r < 0.75 ? 'tuft' : (r < 0.9 ? 'rock' : 'hill')),
+        kind: r < 0.55 ? 'tree' : (r < 0.80 ? 'tuft' : 'rock'),
         floors: 1 + Math.floor(cellRand(boardX - i, boardZ + i, seed) * 3),
         buildingType: null,
         fenceSide: null,
@@ -3058,7 +2956,6 @@
     let mesh = null;
     if      (cell.kind === 'tree')      mesh = makeTree();
     else if (cell.kind === 'rock')      mesh = makeRock(getGhostRockNeighbors(cells, x, z), level, x + 1000, z + 1000);
-    else if (cell.kind === 'hill')      mesh = makeHill(getGhostNeighbors(cells, x, z, 'kind', 'hill'));
     else if (cell.kind === 'bridge')    mesh = makeBridge(ghostBridgeOrientation(cells, x, z));
     else if (cell.kind === 'tuft')      mesh = makeTuft();
     else if (cell.kind === 'crop')      mesh = makeCrop();
@@ -3593,7 +3490,6 @@
 
     if      (kind === 'tree')      mesh = makeTree();
     else if (kind === 'rock')      mesh = makeRock(getRockNeighbors(x, z), level, x, z);
-    else if (kind === 'hill')      mesh = makeHill(getKindNeighbors(x, z, 'hill'));
     else if (kind === 'bridge')    mesh = makeBridge(getBridgeOrientation(x, z));
     else if (kind === 'tuft')      mesh = makeTuft();
     else if (kind === 'crop')      mesh = makeCrop();
@@ -3731,9 +3627,8 @@
     if (terrainChanged && !forceTile) {
       for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const nx = x + dx, nz = z + dz;
-        if (nx < 0 || nx >= GRID || nz < 0 || nz >= GRID) continue;
         renderCellTile(nx, nz, { animate: false });
-        if (world[nx][nz].kind === 'bridge') renderCellObject(nx, nz, { animate: false });
+        if (world[nx] && world[nx][nz] && world[nx][nz].kind === 'bridge') renderCellObject(nx, nz, { animate: false });
       }
       if (world[x][z].kind === 'bridge') renderCellObject(x, z, { animate: false });
     }
@@ -3763,7 +3658,7 @@
       const nx = x + dx, nz = z + dz;
       if (nx < 0 || nx >= GRID || nz < 0 || nz >= GRID) continue;
       const nk = world[nx][nz].kind;
-      if (nk === 'rock' || nk === 'hill') {
+      if (nk === 'rock') {
         toRefresh.set(nx + ',' + nz, { x: nx, z: nz });
       } else if (nk === 'fence') {
         toRefresh.set(nx + ',' + nz, { x: nx, z: nz });
@@ -3855,7 +3750,7 @@
         layout[x + ',' + z] = { terrain: 'grass', kind: null };
 
     // Build a richer starter diorama: river + bridge, cottage lane, tiny
-    // turret-wall, farm plots, and landmark hills. It exercises the adjacency
+    // turret-wall, farm plots, and landmark rocks. It exercises the adjacency
     // systems instead of hiding most tools in the palette.
     for (let x = 0; x < GRID; x++) layout[x + ',2'] = { terrain: 'water', kind: null };
     for (let z = 0; z < GRID; z++) {
@@ -3886,8 +3781,8 @@
     layout['5,0'] = { terrain: 'grass', kind: 'rock' };
     layout['5,1'] = { terrain: 'grass', kind: 'tree' };
     layout['6,1'] = { terrain: 'grass', kind: 'tree' };
-    layout['7,0'] = { terrain: 'grass', kind: 'hill', floors: 3 };
-    layout['7,1'] = { terrain: 'grass', kind: 'hill', floors: 2 };
+    layout['7,0'] = { terrain: 'grass', kind: 'rock', floors: 3 };
+    layout['7,1'] = { terrain: 'grass', kind: 'tree', floors: 2 };
     layout['6,0'] = { terrain: 'grass', kind: 'rock', floors: 2 };
     layout['0,3'] = { terrain: 'grass', kind: 'tuft' };
     layout['4,1'] = { terrain: 'grass', kind: 'tuft' };
@@ -4027,8 +3922,7 @@
       ],
     },
     { id: 'rock',   label: 'Rock',   kind: 'rock',  color: '#9b9a8f', shortcut: '8', group: 'nature' },
-    { id: 'hill',   label: 'Hill',   kind: 'hill',  color: '#8fcf3e', shortcut: '9', group: 'nature' },
-    { id: 'bridge', label: 'Bridge', kind: 'bridge', terrainOverride: 'water', color: '#8b5a32', shortcut: 'b', group: 'build' },
+    { id: 'bridge', label: 'Bridge', kind: 'bridge', terrainOverride: 'water', color: '#8b5a32', shortcut: '9', group: 'build' },
     { id: 'crop',      label: 'Crop',      kind: 'crop',      terrainOverride: 'dirt', color: '#86c544', shortcut: 'g', group: 'crops' },
     { id: 'corn',      label: 'Corn',      kind: 'corn',      terrainOverride: 'dirt', color: '#f2c849', shortcut: 'n', group: 'crops' },
     { id: 'wheat',     label: 'Wheat',     kind: 'wheat',     terrainOverride: 'dirt', color: '#e6c354', shortcut: 'w', group: 'crops' },
@@ -4387,10 +4281,25 @@
   document.getElementById('export').addEventListener('click', () => {
     const cells = [];
     for (let x = 0; x < GRID; x++) {
+      if (!world[x]) continue;
       for (let z = 0; z < GRID; z++) {
         const c = world[x][z];
-        const entry = serializeCell(x, z, c);
-        if (entry) cells.push(entry);
+        if (c) {
+          const entry = serializeCell(x, z, c);
+          if (entry) cells.push(entry);
+        }
+      }
+    }
+    // Also export cells outside the 8x8 home board
+    for (let x = -GRID; x < GRID * 2; x++) {
+      if (x >= 0 && x < GRID) continue;
+      if (!world[x]) continue;
+      for (let z = -GRID; z < GRID * 2; z++) {
+        const c = world[x][z];
+        if (c) {
+          const entry = serializeCell(x, z, c);
+          if (entry) cells.push(entry);
+        }
       }
     }
     const data = { v: STORAGE_VERSION, cells, cameraMode, toolId: selectedTool && selectedTool.id };
@@ -4834,7 +4743,6 @@
             "tree",
             "fence",
             "rock",
-            "hill",
             "bridge",
             "crop",
             "corn",
@@ -4844,7 +4752,7 @@
             "sunflower",
             "tuft"
           ],
-          "description": "Object placed on the cell, or null for none. House uses 'floors' and optional 'buildingType'. Fence uses 'fenceSide' to render a single side/leaf on one tile edge or centre line. Fences on perpendicular sides of a house can promote it to a castle turret and the connected fence component to a stone wall. Rock and hill are low-poly landmark props. Bridge is the only kind that may sit on water and auto-orients toward nearby path/land. Crop-type kinds (crop/corn/wheat/pumpkin/carrot/sunflower) imply terrain='dirt'."
+          "description": "Object placed on the cell, or null for none. House uses 'floors' and optional 'buildingType'. Fence uses 'fenceSide' to render a single side/leaf on one tile edge or centre line. Fences on perpendicular sides of a house can promote it to a castle turret and the connected fence component to a stone wall. Rock is a low-poly landmark prop. Bridge is the only kind that may sit on water and auto-orients toward nearby path/land. Crop-type kinds (crop/corn/wheat/pumpkin/carrot/sunflower) imply terrain='dirt'."
         },
         "floors": {
           "type": "integer",
@@ -4953,10 +4861,25 @@
   function snapshotCells() {
     const cells = [];
     for (let x = 0; x < GRID; x++) {
+      if (!world[x]) continue;
       for (let z = 0; z < GRID; z++) {
         const c = world[x][z];
-        const entry = serializeCell(x, z, c);
-        if (entry) cells.push(entry);
+        if (c) {
+          const entry = serializeCell(x, z, c);
+          if (entry) cells.push(entry);
+        }
+      }
+    }
+    // Also save any cells outside the 8x8 home board
+    for (let x = -GRID; x < GRID * 2; x++) {
+      if (x >= 0 && x < GRID) continue; // already saved above
+      if (!world[x]) continue;
+      for (let z = -GRID; z < GRID * 2; z++) {
+        const c = world[x][z];
+        if (c) {
+          const entry = serializeCell(x, z, c);
+          if (entry) cells.push(entry);
+        }
       }
     }
     return cells;
@@ -4969,15 +4892,15 @@
       'Grid coordinates: x in 0..7 (left-right), z in 0..7 (front-back). Default cell is grass with no object.',
       'Only emit cells that differ from defaults — the renderer fills the rest.',
       'Houses cluster automatically when buildingType is null: adjacent houses merge into linear, L/T/+, or 2x2 forms. To force a single-cell variant set buildingType to cottage|manor|tower|skyscraper.',
-      'Repeat-tapping the same object increases floors/intensity: houses grow upward; trees, rocks, hills, bridges, fences, tufts, and crops become larger, denser, or more detailed.',
+      'Repeat-tapping the same object increases floors/intensity: houses grow upward; trees, rocks, bridges, fences, tufts, and crops become larger, denser, or more detailed.',
       'A fence is a single side/leaf, not a full square. Set fenceSide to n|s|e|w for tile edges or center-x|center-z for centre-line walls.',
       'Fences placed on two perpendicular sides of a house can promote it to a castle turret and turn connected fence cells into stone wall — use this for castles.',
       'Think like a low-poly diorama designer, not a random tile filler: start from a readable scene concept, use strong silhouettes, and leave negative space.',
       'Use low-poly worldbuilding cues: readable silhouettes, a few landmark cells, modular clusters, paths that lead the eye, and color-blocked terrain.',
       'Terrain should compose the scene: paths lead the eye, water creates crossings, dirt groups crops, grass creates breathing room, and raised terrain can imply mesas or Monument Valley-style landforms.',
-      'Rock and hill are scenic landmark props. Bridge may sit on water and auto-orients toward nearby path or land; other water cells should not host any kind.',
+      'Rock is a scenic landmark prop. Bridge may sit on water and auto-orients toward nearby path or land; other water cells should not host any kind.',
       'Crops (crop, corn, wheat, pumpkin, carrot, sunflower) imply terrain=dirt; the renderer enforces that, but you may set terrain explicitly.',
-      'Trees and tufts read best on grass. Hills and rocks work as edges, overlooks, or focal points.',
+      'Trees and tufts read best on grass. Rocks work as edges, overlooks, or focal points.',
       'Use floors/intensity deliberately: terrain stacks into height, repeated objects gain size/detail, and fences vary from wood to wire/stone/steel wall styles.',
       'Avoid noise and full-grid filling. Aim for a coherent, readable scene — vary heights, leave breathing room, group related elements.',
       '',
@@ -4992,8 +4915,8 @@
       'Read the current home-board JSON and produce a ranked batch of candidate tile actions the player may place next.',
       'Do not choose coordinates and do not replace the whole world. The player will still choose the clicked tile locally.',
       'Base the suggestions on the current sparse world state, nearby patterns, and what would be coherent next manual placements.',
-      'Prefer extending visible structures: paths continue, fences align as side/leaf wall runs, crops form fields, houses cluster, trees/rocks/hills frame empty edges, bridges belong on water crossings.',
-      'Use floors/intensity as variation: repeated fences can become taller wood, wire, stone wall, or steel wall; repeated rocks, trees, hills, bridges, crops, and tufts gain size/detail.',
+      'Prefer extending visible structures: paths continue, fences align as side/leaf wall runs, crops form fields, houses cluster, trees/rocks frame empty edges, bridges belong on water crossings.',
+      'Use floors/intensity as variation: repeated fences can become taller wood, wire, stone wall, or steel wall; repeated rocks, trees, bridges, crops, and tufts gain size/detail.',
       'Return varied suggestions, ordered best first: include structural options, terrain/path options, nature/detail options, and intensify/repeat options when useful.',
       'Suggestions must be reusable across several placements, so avoid relying on a single exact coordinate.',
       'Return a JSON object that strictly matches the schema. Do not include prose, markdown fences, or explanations.',
@@ -5371,10 +5294,25 @@
       try {
         const cells = [];
         for (let x = 0; x < GRID; x++) {
+          if (!world[x]) continue;
           for (let z = 0; z < GRID; z++) {
             const c = world[x][z];
-            const entry = serializeCell(x, z, c);
-            if (entry) cells.push(entry);
+            if (c) {
+              const entry = serializeCell(x, z, c);
+              if (entry) cells.push(entry);
+            }
+          }
+        }
+        // Also save cells outside the 8x8 home board
+        for (let x = -GRID; x < GRID * 2; x++) {
+          if (x >= 0 && x < GRID) continue;
+          if (!world[x]) continue;
+          for (let z = -GRID; z < GRID * 2; z++) {
+            const c = world[x][z];
+            if (c) {
+              const entry = serializeCell(x, z, c);
+              if (entry) cells.push(entry);
+            }
           }
         }
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
