@@ -42,8 +42,8 @@
         },
         "kind": {
           "type": ["string", "null"],
-          "enum": [null, "house", "tree", "fence", "rock", "hill", "bridge", "crop", "corn", "wheat", "pumpkin", "carrot", "sunflower", "tuft"],
-          "description": "Object placed on the cell, or null for none. House uses 'floors' and optional 'buildingType'. Fence uses 'fenceSide' to render a single side/leaf on one tile edge or centre line. Fences on perpendicular sides of a house can promote it to a castle turret and the connected fence component to a stone wall. Rock and hill are low-poly landmark props. Bridge is the only kind that may sit on water and auto-orients toward nearby path/land. Crop-type kinds (crop/corn/wheat/pumpkin/carrot/sunflower) imply terrain='dirt'."
+          "enum": [null, "house", "tree", "fence", "rock", "bridge", "crop", "corn", "wheat", "pumpkin", "carrot", "sunflower", "tuft"],
+          "description": "Object placed on the cell, or null for none. House uses 'floors' and optional 'buildingType'. Fence uses 'fenceSide' to render a single side/leaf on one tile edge or centre line. Fences on perpendicular sides of a house can promote it to a castle turret and the connected fence component to a stone wall. Rock is a low-poly landmark prop. Bridge is the only kind that may sit on water and auto-orients toward nearby path/land. Crop-type kinds (crop/corn/wheat/pumpkin/carrot/sunflower) imply terrain='dirt'."
         },
         "floors": {
           "type": "integer",

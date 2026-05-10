@@ -835,7 +835,7 @@
 
   // -------- cameras (orthographic + soft + perspective) --------
   let viewSize = 7.5;
-  let cameraMode = 'ortho'; // 'ortho' | 'soft' | 'perspective'
+  let cameraMode = 'soft'; // 'ortho' | 'soft' | 'perspective'
 
   const aspect0 = window.innerWidth / window.innerHeight;
   const orthoCam = new THREE.OrthographicCamera(
@@ -847,7 +847,7 @@
   // sits closest to the iso aesthetic while still showing real depth.
   const softCam = new THREE.PerspectiveCamera(12, aspect0, 0.1, 300);
   const persCam = new THREE.PerspectiveCamera(28, aspect0, 0.1, 200);
-  let camera = orthoCam;
+  let camera = softCam;
 
   // orbit state
   let azimuth = Math.PI * 0.25;   // around Y
@@ -4076,6 +4076,12 @@
       }
       btn.addEventListener('click', () => selectTool(t));
       if (t === selectedTool) btn.classList.add('active');
+      // Disable auto tool if no API key
+      if (t.auto) {
+        const genKey = document.getElementById('gen-key').value;
+        btn.disabled = !genKey;
+        btn.title += genKey ? '' : ' (add API key to enable)';
+      }
       bar.appendChild(btn);
     });
   }
@@ -4144,12 +4150,33 @@
   }
 
   // -------- click → place / erase --------
+  function applyToolToCell(cell) {
+    // Handle both home board and ghost board cells
+    if (cell.boardX || cell.boardZ) {
+      // Ghost board click: materialize the cell and apply tool
+      const ghostCells = makeGhostWorld(cell.boardX, cell.boardZ);
+      const ghostCell = ghostCells[cell.x][cell.z];
+      const x = cell.x + (cell.boardX || 0) * GRID;
+      const z = cell.z + (cell.boardZ || 0) * GRID;
+      if (!world[x]) world[x] = [];
+      world[x][z] = { ...ghostCell };
+      applyTool(x, z);
+    } else {
+      // Home board click
+      applyTool(cell.x, cell.z);
+    }
+  }
+
   function applyTool(x, z) {
     if (selectedTool.auto) {
+      const genKey = document.getElementById('gen-key').value;
+      if (!genKey) return; // Can't auto-place without API key
       applyAutoTool(x, z);
       return;
     }
-    const cell = world[x][z];
+    // Ensure world row exists
+    if (!world[x]) world[x] = [];
+    const cell = world[x][z] || { terrain: 'grass', terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null };
     if (selectedTool.erase) {
       if (cell.kind) setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: null, floors: 1 });
       else if (cell.terrain !== 'grass') setCell(x, z, { terrain: 'grass', terrainFloors: terrainLevelForCell(cell), kind: null, floors: 1 });
@@ -4294,7 +4321,7 @@
   renderer.domElement.addEventListener('pointerup', e => {
     renderer.domElement.classList.remove('dragging');
     if (pointerDown && !didDrag && currentHover && dragMode !== 'pan') {
-      applyTool(currentHover.x, currentHover.z);
+      applyToolToCell(currentHover);
     }
     pointerDown = null;
     lastPointer = null;
@@ -5268,6 +5295,9 @@
       if (modelEl.value) localStorage.setItem(AI_LS.model(provider), modelEl.value);
       if (keyEl.value)   localStorage.setItem(AI_LS.key(provider),   keyEl.value);
       if (promptEl.value) localStorage.setItem(AI_LS.prompt, promptEl.value);
+      // Update auto tool button state
+      const autoBtn = document.querySelector('.tool[data-id="generate"]');
+      if (autoBtn) autoBtn.disabled = !keyEl.value;
     }
 
     function open() {

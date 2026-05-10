@@ -29,16 +29,16 @@ python3 -m http.server 8000
 ## Tools
 
 `Grass` · `Path` · `Dirt` · `Water` · `House` · `Tree` · `Fence` · `Rock` ·
-`Hill` · `Bridge` · `Crop` · `Corn` · `Wheat` · `Pumpkin` · `Carrot` ·
-`Sunflower` · `Tuft` · `Erase`.
+`Bridge` · `Crop` · `Corn` · `Wheat` · `Pumpkin` · `Carrot` · `Sunflower` ·
+`Tuft` · `Erase`.
 
 Terrain/object rules are normalized by the renderer: crops force dirt
 underneath, bridges force water, and ordinary objects do not float on water.
-Paths, shorelines, water foam, bridges, fences, castle walls, houses, rocks,
-and hills are adjacency-aware — placing a neighbor re-renders surrounding cells
+Paths, shorelines, water foam, bridges, fences, castle walls, houses, and
+rocks are adjacency-aware — placing a neighbor re-renders surrounding cells
 so roads join, rivers get banks, bridge direction updates, fence walls connect,
-house clusters form L/T/+/square buildings, rock cells become craggy outcrops,
-and hill cells grow into ridges/summits.
+house clusters form L/T/+/square buildings, and rock cells grow into craggy
+outcrops.
 
 ## Architecture
 
