@@ -6573,16 +6573,27 @@
       if (!world[x]) world[x] = [];
       world[x][z] = { ...ghostCell, userEdited: true };
       removeGhostCellMesh(cell.boardX, cell.boardZ, cell.x, cell.z);
-      // Materialise the home cellMesh first. setCell (called inside
-      // applyTool) only rebuilds the tile when terrain or height
-      // changes — so without this, planting a tree / rock on a grass
-      // ghost cell would leave the cell with no ground under the new
-      // object.
       renderCellTile(x, z, { animate: false });
       if (world[x][z].kind) renderCellObject(x, z, { animate: false });
+      // Mark the fresh meshes as revealed and force them visible — they
+      // inherit no sticky-reveal state from the ghost mesh we removed,
+      // so without this they'd start invisible whenever the cell sits
+      // outside the small visible window (raw opacityAtWorldPosition
+      // would return 0 and leave a hole).
+      const _entry = cellMeshes[x + ',' + z];
+      if (_entry) {
+        if (_entry.tile)   { _entry.tile.userData.revealed = true;   setElementOpacity(_entry.tile, 1, true); }
+        if (_entry.object) { _entry.object.userData.revealed = true; setElementOpacity(_entry.object, 1, true); }
+      }
       applyTool(x, z);
-      // Re-stamp the flag after setCell rewrote the cell.
+      // After setCell ran inside applyTool, re-stamp the override flag
+      // AND re-force revealed/visible on whatever the latest mesh is.
       if (world[x] && world[x][z]) world[x][z].userEdited = true;
+      const _entry2 = cellMeshes[x + ',' + z];
+      if (_entry2) {
+        if (_entry2.tile)   { _entry2.tile.userData.revealed = true;   setElementOpacity(_entry2.tile, 1, true); }
+        if (_entry2.object) { _entry2.object.userData.revealed = true; setElementOpacity(_entry2.object, 1, true); }
+      }
     } else {
       applyTool(cell.x, cell.z);
     }
