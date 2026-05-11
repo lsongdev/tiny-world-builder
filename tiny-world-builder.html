@@ -1405,7 +1405,15 @@
       cloudLayer.style.opacity = '0';
       cloudLayer.style.animationPlayState = 'paused';
     }
-    if (typeof syncCloudPopulation === 'function') syncCloudPopulation();
+    // syncCloudPopulation is a hoisted function declaration but the
+    // cloud-system constants (CLOUD_MAX, the clouds array, etc.) are
+    // declared further down the file. The first applyCloudSettings()
+    // call happens during early init, before that block runs, so guard
+    // against the temporal-dead-zone access — the cloud block calls
+    // syncCloudPopulation() itself once it's ready.
+    try {
+      if (typeof syncCloudPopulation === 'function') syncCloudPopulation();
+    } catch (_) { /* cloud system not initialized yet */ }
   }
 
   function applyTiltShiftSettings() {
