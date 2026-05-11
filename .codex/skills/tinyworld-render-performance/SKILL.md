@@ -14,6 +14,13 @@ Current renderer contract:
 - Cap DPR; do not return to uncapped `devicePixelRatio`.
 - Main WebGL context uses `antialias: false`; the post shader handles mild smoothing.
 - Use `WebGLMultisampleRenderTarget` when WebGL2 is available to avoid jagged post-processed edges.
+
+GPU caches (introduced for low-end GPU + visible-distance scaling):
+
+- `geomCache` memoizes `roundedSlab` / `roundedBox` ExtrudeGeometries by their numeric args. Geometries are tagged `userData.cached = true` and shared across every mesh that asks for the same shape. Disposal goes through `safeDisposeGeometry(geo)` — never call `geo.dispose()` directly on these. If you add a new geometry helper that's called more than a handful of times, cache it the same way.
+- `fadeMatCache` shares fade materials in `FADE_BUCKETS = 16` opacity buckets keyed by (base material UUID, grayscale flag, bucket). `prepareFadeable` and `applyElementOpacity` look up via `pickFadeMaterial(baseMat, grayscale, displayOpacity)` instead of cloning per mesh. Cached materials are tagged `userData.cachedFade = true` and must never be mutated or disposed — they're shared by every mesh in their bucket. If you need a per-instance opacity (e.g. squash anim), clone the material yourself and tag it so it gets disposed individually.
+- Ghost boards are built incrementally via `pendingGhostBoards` queue, drained inside `animate()` by `processGhostBoardQueue(budgetMs)` with a small per-frame budget. `ensureGhostBoardsAroundTarget` only enqueues — it must never build synchronously, or load/reset/visible-distance changes hitch the main thread.
+- Stats overlay (`?stats=1` or backtick key) reads `renderer.info` and reports FPS, draws, tris, geoms, mats, programs, textures, ghost-board count + queue depth. Use it to measure any rendering change.
 - Default color grade should stay neutral: saturation 1, contrast 1, warmth 0, mild vignette only.
 - Render settings are user-adjustable and persisted in `localStorage` under `tinyworld:render:*`.
 - Scene/screen controls must keep working with post-processing disabled: resolution, shadow quality, lighting, visible distance, visible size, clouds, tilt-shift blur/focus, and ghost opacity.

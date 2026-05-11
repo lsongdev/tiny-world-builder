@@ -1434,20 +1434,95 @@
     document.body.style.setProperty('--tilt-edge-bottom', Math.min(100, clearBottom + edge).toFixed(1) + '%');
   }
 
+  // Disable auto-reset so we can read renderer.info totals across both passes,
+  // then reset once per frame after the stats overlay samples them.
+  renderer.info.autoReset = false;
+
   function renderScene() {
+    renderer.info.reset();
     if (!postProcessingEnabled) {
       renderer.render(scene, camera);
-      return;
+    } else {
+      renderer.setRenderTarget(postTarget);
+      renderer.render(scene, camera);
+      renderer.setRenderTarget(null);
+      renderer.render(postScene, postCamera);
     }
-    renderer.setRenderTarget(postTarget);
-    renderer.render(scene, camera);
-    renderer.setRenderTarget(null);
-    renderer.render(postScene, postCamera);
+    if (statsOverlay) sampleStats();
   }
   {
     const { w, h } = stageSize();
     resizePostTarget(w, h);
   }
+
+  // -------- stats overlay --------
+  // Toggle with backtick (`) or load with ?stats=1. Reads renderer.info to
+  // show frame draw calls, triangles, geometries, programs, textures. Used
+  // for measuring perf changes — keep zero cost when hidden.
+  let statsOverlay = null;
+  let statsFrameTimes = [];
+  let statsLastSample = 0;
+  let statsLastReport = 0;
+  function ensureStatsOverlay() {
+    if (statsOverlay) return statsOverlay;
+    const el = document.createElement('div');
+    el.id = 'stats-overlay';
+    el.style.cssText = [
+      'position:fixed','top:8px','right:8px','z-index:9999',
+      'font:11px/1.35 ui-monospace,Menlo,monospace',
+      'background:rgba(0,0,0,0.72)','color:#9be17a',
+      'padding:6px 9px','border-radius:6px','pointer-events:none',
+      'min-width:140px','white-space:pre','letter-spacing:0.02em',
+    ].join(';');
+    document.body.appendChild(el);
+    statsOverlay = el;
+    return el;
+  }
+  function removeStatsOverlay() {
+    if (statsOverlay && statsOverlay.parentNode) statsOverlay.parentNode.removeChild(statsOverlay);
+    statsOverlay = null;
+  }
+  function sampleStats() {
+    const now = performance.now();
+    if (statsLastSample) statsFrameTimes.push(now - statsLastSample);
+    statsLastSample = now;
+    if (statsFrameTimes.length > 60) statsFrameTimes.shift();
+    if (now - statsLastReport < 250) return; // throttle DOM writes
+    statsLastReport = now;
+    const sum = statsFrameTimes.reduce((a, b) => a + b, 0);
+    const avg = sum > 0 ? sum / statsFrameTimes.length : 0;
+    const fps = avg > 0 ? (1000 / avg) : 0;
+    const r = renderer.info.render;
+    const m = renderer.info.memory;
+    const programs = (renderer.info.programs && renderer.info.programs.length) || 0;
+    const ghostQueue = (typeof pendingGhostBoards !== 'undefined') ? pendingGhostBoards.length : 0;
+    statsOverlay.textContent =
+      'fps     ' + fps.toFixed(1) + '\n' +
+      'frame   ' + avg.toFixed(2) + 'ms\n' +
+      'draws   ' + r.calls + '\n' +
+      'tris    ' + r.triangles.toLocaleString() + '\n' +
+      'geoms   ' + m.geometries + '\n' +
+      'mats    ' + (typeof fadeMatCache !== 'undefined' ? fadeMatCache.size : '-') + '\n' +
+      'progs   ' + programs + '\n' +
+      'texs    ' + m.textures + '\n' +
+      'ghosts  ' + (typeof ghostBoards !== 'undefined' ? ghostBoards.size : 0) +
+        (ghostQueue ? ' (+' + ghostQueue + ')' : '');
+  }
+  function toggleStatsOverlay() {
+    if (statsOverlay) removeStatsOverlay();
+    else ensureStatsOverlay();
+  }
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('stats') === '1') ensureStatsOverlay();
+  } catch (_) {}
+  window.addEventListener('keydown', (e) => {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) return;
+    if (e.key === '`' || e.key === '~') {
+      e.preventDefault();
+      toggleStatsOverlay();
+    }
+  });
 
   // -------- cameras (orthographic + soft + perspective) --------
   const DEFAULT_VIEW_SIZE = 6.2;
@@ -1548,8 +1623,22 @@
   applyTiltShiftSettings();
 
   // -------- geometry helpers --------
+  // roundedSlab / roundedBox are extruded geometries that get built many
+  // thousands of times across home + ghost boards (every tile, every leaf,
+  // every cloud puff). Cache them by their numeric args — the geometry has
+  // no per-instance state, so the same VBO can back any number of meshes.
+  // safeDisposeGeometry() skips disposal for cached entries, preserving the
+  // shared VBO when an individual mesh is torn down.
+  const geomCache = new Map();
+  function safeDisposeGeometry(geo) {
+    if (geo && !(geo.userData && geo.userData.cached)) geo.dispose();
+  }
+
   // A rounded extruded slab — used for tile pieces.
   function roundedSlab(size, height, radius = 0.07) {
+    const key = 'slab|' + size + '|' + height + '|' + radius;
+    const hit = geomCache.get(key);
+    if (hit) return hit;
     const w = size / 2;
     const r = Math.min(radius, w - 0.01);
     const shape = new THREE.Shape();
@@ -1573,11 +1662,16 @@
     });
     geo.rotateX(-Math.PI / 2);
     // After rotation Y spans [0, height]
+    geo.userData.cached = true;
+    geomCache.set(key, geo);
     return geo;
   }
 
   // A rounded box — for some objects we want a softer cube look.
   function roundedBox(w, h, d, r = 0.05) {
+    const key = 'box|' + w + '|' + h + '|' + d + '|' + r;
+    const hit = geomCache.get(key);
+    if (hit) return hit;
     const shape = new THREE.Shape();
     const hw = w / 2, hd = d / 2;
     const rr = Math.min(r, hw - 0.001, hd - 0.001);
@@ -1599,7 +1693,8 @@
       curveSegments: 3
     });
     geo.rotateX(-Math.PI / 2);
-    geo.translate(0, 0, 0);
+    geo.userData.cached = true;
+    geomCache.set(key, geo);
     return geo;
   }
 
@@ -3721,11 +3816,47 @@
     mat.userData.grayscaled = true;
   }
 
+  // -------- fade material cache --------
+  // Every faded mesh used to clone its own material. That meant tens of
+  // thousands of unique materials across home + ghost boards, which kills
+  // GPU batching and inflates memory. Instead we share a small pool of
+  // materials keyed by (base material UUID, grayscale flag, opacity bucket).
+  // applyElementOpacity now swaps mesh.material to the right bucket entry
+  // rather than mutating opacity on a private clone.
+  const FADE_BUCKETS = 16;
+  const fadeMatCache = new Map();
+  function fadeBucketFor(displayOpacity) {
+    if (!(displayOpacity > 0)) return 0;
+    if (displayOpacity >= 1) return FADE_BUCKETS;
+    return Math.max(1, Math.min(FADE_BUCKETS - 1, Math.round(displayOpacity * FADE_BUCKETS)));
+  }
+  function pickFadeMaterial(baseMat, grayscale, displayOpacity) {
+    const bucket = fadeBucketFor(displayOpacity);
+    // Fully opaque, non-grayscale → use the shared base material directly.
+    // This is the best case (most home-grid meshes hit it) — no clone at all.
+    if (bucket === FADE_BUCKETS && !grayscale) return baseMat;
+    const key = baseMat.uuid + '|' + (grayscale ? 1 : 0) + '|' + bucket;
+    const hit = fadeMatCache.get(key);
+    if (hit) return hit;
+    const mat = baseMat.clone();
+    if (grayscale) desaturateMaterial(mat);
+    const baseOp = baseMat.opacity === undefined ? 1 : baseMat.opacity;
+    const factor = bucket / FADE_BUCKETS;
+    mat.opacity = baseOp * factor;
+    mat.transparent = factor < 1 || baseOp < 1;
+    mat.depthWrite = factor >= 1 && baseOp >= 1;
+    mat.userData = mat.userData || {};
+    mat.userData.cachedFade = true;
+    fadeMatCache.set(key, mat);
+    return mat;
+  }
+
   function prepareFadeable(group, opts) {
     const { ghost = false, opacity = 1, grayscale = false } = opts || {};
     const displayOpacity = displayOpacityForRole(group, opacity);
     group.userData.currentOpacity = opacity;
     group.userData.targetOpacity = opacity;
+    group.visible = displayOpacity > 0.001;
     opacityRoots.add(group);
     group.traverse(o => {
       if (!o.isMesh || !o.material) return;
@@ -3733,12 +3864,24 @@
         o.castShadow = false;
         o.receiveShadow = false;
       }
-      o.material = o.material.clone();
-      if (grayscale) desaturateMaterial(o.material);
+      // Array materials are vanishingly rare in this codebase, but stay safe.
+      if (Array.isArray(o.material)) {
+        o.material = o.material.map(m => m.clone());
+        const mats = o.material;
+        mats.forEach(m => {
+          if (grayscale) desaturateMaterial(m);
+          m.transparent = true;
+          m.opacity = (m.opacity === undefined ? 1 : m.opacity) * displayOpacity;
+          m.depthWrite = displayOpacity >= 1;
+        });
+        o.userData.baseOpacity = 1;
+        return;
+      }
+      o.userData.baseMat = o.material;
+      o.userData.grayMat = !!grayscale;
       o.userData.baseOpacity = o.material.opacity === undefined ? 1 : o.material.opacity;
-      o.material.transparent = true;
-      o.material.opacity = o.userData.baseOpacity * displayOpacity;
-      o.material.depthWrite = displayOpacity >= 1 && o.userData.baseOpacity >= 1;
+      o.userData._fadeBucket = fadeBucketFor(displayOpacity);
+      o.material = pickFadeMaterial(o.material, !!grayscale, displayOpacity);
     });
     return group;
   }
@@ -3755,12 +3898,28 @@
 
   function applyElementOpacity(root, opacity) {
     const displayOpacity = displayOpacityForRole(root, opacity);
+    // Hide invisible roots entirely so the renderer skips their draws.
+    root.visible = displayOpacity > 0.001;
+    if (!root.visible) return;
     root.traverse(o => {
-      if (!o.isMesh || !o.material) return;
-      const base = o.userData.baseOpacity === undefined ? 1 : o.userData.baseOpacity;
-      o.material.transparent = displayOpacity < 1 || base < 1;
-      o.material.opacity = base * displayOpacity;
-      o.material.depthWrite = displayOpacity >= 1 && base >= 1;
+      if (!o.isMesh) return;
+      // Array materials kept their private clones in prepareFadeable, mutate them.
+      if (Array.isArray(o.material)) {
+        const base = o.userData.baseOpacity === undefined ? 1 : o.userData.baseOpacity;
+        o.material.forEach(m => {
+          m.transparent = displayOpacity < 1 || base < 1;
+          m.opacity = base * displayOpacity;
+          m.depthWrite = displayOpacity >= 1 && base >= 1;
+        });
+        return;
+      }
+      if (!o.userData.baseMat) return;
+      // Skip material swaps when the quantized bucket hasn't changed — most
+      // frames this means a single int compare per mesh and no map lookup.
+      const bucket = fadeBucketFor(displayOpacity);
+      if (o.userData._fadeBucket === bucket) return;
+      o.userData._fadeBucket = bucket;
+      o.material = pickFadeMaterial(o.userData.baseMat, o.userData.grayMat, displayOpacity);
     });
   }
 
@@ -3974,14 +4133,54 @@
     }
   }
 
+  // Build queue — adding boards synchronously stalls the main thread for
+  // hundreds of ms on Reset / Clear / increasing visible distance. Instead
+  // we enqueue and let the animation loop drain ~6ms of board builds per
+  // frame, sorted nearest-first so the area around the camera fills in
+  // visibly while distant boards trail in.
+  const pendingGhostBoards = [];
+  const pendingGhostBoardSet = new Set();
+  function enqueueGhostBoard(bx, bz) {
+    if (bx === 0 && bz === 0) return;
+    const key = ghostBoardKey(bx, bz);
+    if (ghostBoards.has(key) || pendingGhostBoardSet.has(key)) return;
+    pendingGhostBoards.push([bx, bz, key]);
+    pendingGhostBoardSet.add(key);
+  }
+  function sortPendingByDistance() {
+    const cx = boardFromTargetCoord(target.x);
+    const cz = boardFromTargetCoord(target.z);
+    pendingGhostBoards.sort((a, b) => {
+      const da = Math.max(Math.abs(a[0] - cx), Math.abs(a[1] - cz));
+      const db = Math.max(Math.abs(b[0] - cx), Math.abs(b[1] - cz));
+      return da - db;
+    });
+  }
+  function processGhostBoardQueue(budgetMs) {
+    if (!pendingGhostBoards.length) return;
+    const start = performance.now();
+    let built = 0;
+    while (pendingGhostBoards.length && performance.now() - start < budgetMs) {
+      const [bx, bz, key] = pendingGhostBoards.shift();
+      pendingGhostBoardSet.delete(key);
+      if (ghostBoards.has(key)) continue;
+      buildGhostBoard(bx, bz);
+      built++;
+      // Cap per-frame builds even if budget allows more — keeps GC from
+      // bunching and lets renderScene actually paint between batches.
+      if (built >= 3) break;
+    }
+    if (built) updateGhostRenderBubble();
+  }
   function ensureGhostBoardsAroundTarget() {
     const cx = boardFromTargetCoord(target.x);
     const cz = boardFromTargetCoord(target.z);
     for (let bx = cx - ghostPreloadRadius; bx <= cx + ghostPreloadRadius; bx++) {
       for (let bz = cz - ghostPreloadRadius; bz <= cz + ghostPreloadRadius; bz++) {
-        buildGhostBoard(bx, bz);
+        enqueueGhostBoard(bx, bz);
       }
     }
+    sortPendingByDistance();
     updateGhostRenderBubble();
   }
 
@@ -4909,11 +5108,10 @@
   function disposeGroup(group) {
     opacityRoots.delete(group);
     group.traverse(o => {
-      if (o.geometry) o.geometry.dispose();
-      if (o.material && o.userData.baseOpacity !== undefined) {
-        if (Array.isArray(o.material)) o.material.forEach(m => m.dispose && m.dispose());
-        else if (o.material.dispose) o.material.dispose();
-      }
+      safeDisposeGeometry(o.geometry);
+      // Materials are shared (M.* and the fadeMatCache buckets), so we never
+      // dispose them here — same contract as before, just enforced via the
+      // cachedFade flag now that prepareFadeable no longer clones.
     });
   }
 
@@ -5419,7 +5617,7 @@
     const tool = TOOLS.find(t => t.id === toolId);
     if (!tool) return;
     // Dispose the old scene geometry (materials are shared, leave them).
-    old.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+    old.scene.traverse(o => safeDisposeGeometry(o.geometry));
     thumbScenes.delete(toolId);
     buildToolThumb(tool, old.canvas);
   }
@@ -5427,7 +5625,7 @@
   function buildToolbar() {
     const bar = document.getElementById('toolbar');
     bar.innerHTML = '';
-    thumbScenes.forEach(t => { try { t.scene.traverse(o => o.geometry && o.geometry.dispose()); } catch(_) {} });
+    thumbScenes.forEach(t => { try { t.scene.traverse(o => safeDisposeGeometry(o.geometry)); } catch(_) {} });
     thumbScenes.clear();
     TOOLS.forEach((t, i) => {
       if (t.hidden) return;
@@ -6388,9 +6586,14 @@
     // Remove from the opacity tick system so its baseOpacity *
     // displayOpacity doesn't reset our fade to 1 every frame.
     opacityRoots.delete(old);
-    // Wipe baseOpacity on every child so any stray opacity pass leaves
-    // the material alone.
-    old.traverse(o => { if (o.isMesh) o.userData.baseOpacity = undefined; });
+    // Wipe baseOpacity + baseMat on every child so any stray opacity pass
+    // leaves the material alone (applyElementOpacity skips when baseMat is
+    // missing, and dispose code keys off _squashCloned now).
+    old.traverse(o => {
+      if (!o.isMesh) return;
+      o.userData.baseOpacity = undefined;
+      o.userData.baseMat = undefined;
+    });
     // Make sure the mesh isn't still tweening downward from a drop-in.
     old.userData.landing = false;
 
@@ -6446,8 +6649,11 @@
       if (u >= 1) {
         worldGroup.remove(a.mesh);
         a.mesh.traverse(o => {
-          if (o.geometry) o.geometry.dispose();
-          if (o.material) {
+          safeDisposeGeometry(o.geometry);
+          // Materials here are the private per-squash clones (see line ~6510),
+          // so they are safe to dispose — but only if they're not the shared
+          // fade-cache bucket. _squashCloned proves we cloned them ourselves.
+          if (o.material && o.userData._squashCloned) {
             if (Array.isArray(o.material)) o.material.forEach(m => m.dispose && m.dispose());
             else if (o.material.dispose) o.material.dispose();
           }
@@ -6540,7 +6746,7 @@
     while (clouds.length > target) {
       const c = clouds.pop();
       cloudGroup.remove(c);
-      c.traverse(o => o.geometry && o.geometry.dispose());
+      c.traverse(o => safeDisposeGeometry(o.geometry));
     }
     while (clouds.length < target) {
       spawnCloud(true);
@@ -6580,6 +6786,9 @@
     tickSquashAnims(dt);
     if (rippleAnims.length) tickRippleAnims(dt);
     updateClouds(dt);
+    // Drain the ghost-board build queue in small slices so visible-distance
+    // changes and Reset don't lock up the frame.
+    if (pendingGhostBoards.length) processGhostBoardQueue(6);
 
     // sway trees / bob crops / wiggle tufts
     for (const key in cellMeshes) {
