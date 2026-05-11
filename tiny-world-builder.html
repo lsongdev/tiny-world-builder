@@ -74,7 +74,14 @@
         rgba(244, 237, 224, 0.92) 100%
       );
   }
-  #app { position: fixed; inset: 0; z-index: 2; }
+  #app {
+    position: fixed;
+    top: 0; left: 0;
+    width: max(100vw, 1440px);
+    height: max(100vh, 860px);
+    z-index: 2;
+    overflow: hidden;
+  }
   canvas { display: block; cursor: grab; }
   canvas.placing { cursor: crosshair; }
   canvas.dragging { cursor: grabbing; }
@@ -1087,6 +1094,14 @@
   // -------- scene / renderer --------
   const container = document.getElementById('app');
   const canvasEl = document.createElement('canvas');
+  const MIN_STAGE_W = 1440;
+  const MIN_STAGE_H = 860;
+  function stageSize() {
+    return {
+      w: Math.max(window.innerWidth, MIN_STAGE_W),
+      h: Math.max(window.innerHeight, MIN_STAGE_H),
+    };
+  }
   const BASE_DPR_CAP = window.matchMedia && window.matchMedia('(max-width: 800px)').matches ? 1.25 : 1.5;
   let postProcessingEnabled = localStorage.getItem(RENDER_LS.post) === '1';
   let renderResolutionScale = storedNumber(RENDER_LS.resolution, 1, 0.55, 1);
@@ -1108,7 +1123,10 @@
     powerPreference: 'high-performance',
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, BASE_DPR_CAP) * renderResolutionScale);
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  {
+    const { w, h } = stageSize();
+    renderer.setSize(w, h);
+  }
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.outputEncoding = THREE.sRGBEncoding;
@@ -1194,7 +1212,8 @@
   function setRenderResolutionScale(value) {
     renderResolutionScale = Math.max(0.55, Math.min(1, value));
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, BASE_DPR_CAP) * renderResolutionScale);
-    resizePostTarget(window.innerWidth, window.innerHeight);
+    const { w, h } = stageSize();
+    resizePostTarget(w, h);
   }
 
   function setRenderVisibleDistance(value) {
@@ -1242,7 +1261,10 @@
     renderer.setRenderTarget(null);
     renderer.render(postScene, postCamera);
   }
-  resizePostTarget(window.innerWidth, window.innerHeight);
+  {
+    const { w, h } = stageSize();
+    resizePostTarget(w, h);
+  }
 
   // -------- cameras (orthographic + soft + perspective) --------
   const DEFAULT_VIEW_SIZE = 6.2;
@@ -5057,7 +5079,9 @@
 
   // -------- resize --------
   function onResize() {
-    const w = window.innerWidth, h = window.innerHeight;
+    const { w, h } = stageSize();
+    container.style.width = w + 'px';
+    container.style.height = h + 'px';
     const aspect = w / h;
 
     orthoCam.left = -viewSize * aspect;
