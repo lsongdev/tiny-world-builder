@@ -153,6 +153,10 @@
     justify-content: center;
     color: var(--ink);
   }
+  .btn.icon.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
   .btn.icon svg {
     width: 18px;
     height: 18px;
@@ -6104,15 +6108,24 @@
   });
 
   function togglePerspective() {
+    if (postProcessingEnabled) {
+      // Post-processing pipeline is tuned for the isometric framing —
+      // perspective modes break the shader, so the toggle is locked.
+      setCameraMode('ortho');
+      return;
+    }
     const next = cameraMode === 'ortho' ? 'soft' : (cameraMode === 'soft' ? 'perspective' : 'ortho');
     setCameraMode(next);
   }
 
   function setCameraMode(mode) {
-    cameraMode = ['ortho', 'soft', 'perspective'].includes(mode) ? mode : 'ortho';
+    const requested = ['ortho', 'soft', 'perspective'].includes(mode) ? mode : 'ortho';
+    cameraMode = postProcessingEnabled ? 'ortho' : requested;
     camera = cameraMode === 'ortho' ? orthoCam : (cameraMode === 'soft' ? softCam : persCam);
     perspBtn.classList.toggle('on', cameraMode !== 'ortho');
+    perspBtn.classList.toggle('disabled', postProcessingEnabled);
     perspBtn.setAttribute('data-tooltip',
+      postProcessingEnabled ? 'Isometric (locked — disable post-processing to change)' :
       cameraMode === 'ortho' ? 'Isometric' :
       cameraMode === 'soft'  ? 'Soft perspective' : 'Perspective');
     onResize();
@@ -6308,7 +6321,12 @@
     }
 
     function applyFromControls() {
+      const wasPost = postProcessingEnabled;
       postProcessingEnabled = postEl.checked;
+      // Force isometric whenever post-processing turns on — the shader
+      // pipeline depends on the ortho framing.
+      if (postProcessingEnabled && cameraMode !== 'ortho') setCameraMode('ortho');
+      else if (postProcessingEnabled !== wasPost) setCameraMode(cameraMode);
       setShadowQuality(shadowEl.value);
       setRenderResolutionScale(parseInt(resolutionEl.value, 10) / 100);
       setRenderVisibleDistance(parseInt(distanceEl.value, 10));
