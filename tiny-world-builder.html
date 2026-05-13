@@ -912,6 +912,123 @@
     margin-left: 4px;
   }
 
+  /* --- Command palette (⌘K) --- */
+  .palette-overlay {
+    position: fixed; inset: 0;
+    background: rgba(20, 18, 16, 0.34);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 80;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 96px 20px 20px;
+  }
+  .palette-overlay[hidden] { display: none; }
+  .palette {
+    width: min(560px, 100%);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: 0 24px 60px -16px rgba(40, 28, 8, 0.32), 0 4px 14px -4px rgba(40, 28, 8, 0.14);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    font-size: 13px;
+  }
+  .palette-search-icon {
+    position: absolute;
+    margin: 16px 0 0 16px;
+    color: var(--muted);
+    pointer-events: none;
+  }
+  .palette-search {
+    appearance: none; outline: none;
+    width: 100%;
+    border: none;
+    border-bottom: 1px solid var(--line);
+    font: inherit;
+    font-size: 15px;
+    padding: 16px 16px 16px 44px;
+    background: transparent;
+    color: var(--ink);
+  }
+  .palette-search::placeholder { color: var(--muted); }
+  .palette-results {
+    max-height: 360px;
+    overflow-y: auto;
+    padding: 6px;
+    background: var(--panel);
+  }
+  .palette-group {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 10px 12px 4px;
+  }
+  .palette-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--ink);
+    line-height: 1.3;
+  }
+  .palette-item:hover,
+  .palette-item.active {
+    background: #faf2dc;
+  }
+  .palette-item-icon {
+    width: 22px; height: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 6px;
+    background: #f3ecdc;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .palette-item-icon svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .palette-item-icon .swatch { width: 10px; height: 10px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08); }
+  .palette-item-body { flex: 1; min-width: 0; }
+  .palette-item-label {
+    font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .palette-item-hint {
+    font-size: 11.5px;
+    color: var(--muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .palette-item-kbd {
+    font-size: 10.5px;
+    color: var(--muted);
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    padding: 2px 5px;
+    background: #f3ecdc;
+    border-radius: 5px;
+  }
+  .palette-empty {
+    padding: 26px 16px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+  .palette-footer {
+    display: flex; gap: 14px;
+    padding: 8px 14px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 11px;
+    background: var(--bg);
+  }
+  .palette-footer kbd {
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 10.5px;
+    padding: 1px 5px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    margin-right: 3px;
+  }
+
   .confirm-card { width: min(380px, 100%); }
   .confirm-card .modal-head strong {
     font-family: 'Fraunces', Georgia, serif;
@@ -1929,7 +2046,23 @@
   <div class="flyout" id="flyout" hidden></div>
 
   <div class="help">
-    Tools: <kbd>1-9</kbd> + letters · <kbd>E</kbd> erase · Right-drag / <kbd>Space</kbd> drag pan · <kbd>P</kbd> perspective
+    Tools: <kbd>1-9</kbd> + letters · <kbd>E</kbd> erase · Right-drag / <kbd>Space</kbd> drag pan · <kbd>P</kbd> perspective · <kbd>⌘K</kbd> search
+  </div>
+
+  <!-- Command palette ⌘K -->
+  <div class="palette-overlay" id="palette-overlay" hidden>
+    <div class="palette">
+      <span class="palette-search-icon" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </span>
+      <input class="palette-search" id="palette-search" placeholder="Search tools, commands, settings…" autocomplete="off" />
+      <div class="palette-results" id="palette-results" role="listbox"></div>
+      <div class="palette-footer">
+        <span><kbd>↑↓</kbd> navigate</span>
+        <span><kbd>↵</kbd> select</span>
+        <span><kbd>esc</kbd> close</span>
+      </div>
+    </div>
   </div>
 
   <script src="auth.js"></script>
@@ -11565,6 +11698,200 @@
     onResize();
     requestAnimationFrame(animate);
   }
+
+  // -------- command palette (⌘K) --------
+  // Indexes tools, top-bar buttons, and settings tabs into a fuzzy-search
+  // overlay. Selection routes through existing wiring (selectTool / .click()
+  // on the underlying DOM nodes) so the palette stays a thin shortcut —
+  // never duplicates business logic.
+  (function wireCommandPalette() {
+    const overlay = document.getElementById('palette-overlay');
+    const input = document.getElementById('palette-search');
+    const results = document.getElementById('palette-results');
+    if (!overlay || !input || !results) return;
+
+    function topBtnAction(id) {
+      return () => {
+        const el = document.getElementById(id);
+        if (el && !el.hidden) el.click();
+      };
+    }
+    function settingsTab(name) {
+      return () => {
+        const btn = document.getElementById('render-settings');
+        if (btn) btn.click();
+        // After modal opens, switch the tab.
+        requestAnimationFrame(() => {
+          const tab = document.querySelector('.settings-tab[data-settings-tab="' + name + '"]');
+          if (tab) tab.click();
+        });
+      };
+    }
+    function shortcutLabel(shortcut) {
+      if (!shortcut) return '';
+      return shortcut.length === 1 ? shortcut.toUpperCase() : shortcut;
+    }
+
+    function buildEntries() {
+      const items = [];
+      // Tools (skip auto/hidden)
+      try {
+        if (Array.isArray(TOOLS)) {
+          for (const t of TOOLS) {
+            if (t.hidden) continue;
+            const group = (t.group === 'tools') ? 'Tools'
+                       : (t.group === 'terrain') ? 'Terrain'
+                       : (t.group === 'build')   ? 'Build'
+                       : (t.group === 'nature')  ? 'Nature'
+                       : (t.group === 'crops')   ? 'Crops'
+                       : 'Tools';
+            items.push({
+              group,
+              label: 'Select ' + (t.label || t.id),
+              hint: t.kind ? ('place ' + t.kind) : (t.terrain ? ('paint ' + t.terrain) : ''),
+              kbd: shortcutLabel(t.shortcut),
+              swatch: t.color || null,
+              run: () => { try { selectTool(t); } catch (_) {} },
+            });
+          }
+        }
+      } catch (_) {}
+      // Top-bar buttons
+      items.push({ group: 'Camera', label: 'Toggle perspective', hint: 'orbit vs orthographic', kbd: 'P', run: topBtnAction('persp') });
+      items.push({ group: 'Camera', label: 'Center on home grid', hint: 'frame the 8×8 board', kbd: 'H', run: topBtnAction('home') });
+      items.push({ group: 'World', label: 'Reset world', hint: 'back to the starter scene', run: topBtnAction('reset') });
+      items.push({ group: 'World', label: 'Clear to grass', hint: 'wipe to empty grass', run: topBtnAction('clear') });
+      items.push({ group: 'World', label: 'Export world as JSON', run: topBtnAction('export') });
+      items.push({ group: 'World', label: 'Import world from JSON', run: topBtnAction('import') });
+      items.push({ group: 'World', label: 'Generate from prompt…', hint: 'AI generation panel', kbd: '⌘G', run: () => {
+        if (typeof openGenerateModal === 'function') openGenerateModal();
+        else topBtnAction('generate')();
+      } });
+      // Settings tabs (router into the Settings modal)
+      items.push({ group: 'Settings', label: 'Settings — Screen', run: settingsTab('screen') });
+      items.push({ group: 'Settings', label: 'Settings — World',  run: settingsTab('world') });
+      items.push({ group: 'Settings', label: 'Settings — Sky',    run: settingsTab('sky') });
+      items.push({ group: 'Settings', label: 'Settings — Post FX',run: settingsTab('post') });
+      items.push({ group: 'Settings', label: 'Settings — AI',     run: settingsTab('ai') });
+      // Account
+      items.push({ group: 'Account', label: 'Open account / My Builds', run: topBtnAction('account-btn') });
+      items.push({ group: 'Account', label: 'Sign in', run: topBtnAction('auth-login-btn-top') });
+      items.push({ group: 'Account', label: 'Sign out', run: topBtnAction('auth-logout-btn') });
+      return items;
+    }
+
+    let entries = [];
+    let filtered = [];
+    let cursor = 0;
+
+    function fuzzyScore(q, s) {
+      // Lightweight subsequence + token-prefix scorer. Returns null if no match.
+      if (!q) return 1;
+      const Q = q.toLowerCase();
+      const S = s.toLowerCase();
+      if (S.includes(Q)) return 100 + (S.startsWith(Q) ? 50 : 0) - S.length * 0.1;
+      let i = 0, score = 0;
+      for (const ch of Q) {
+        const idx = S.indexOf(ch, i);
+        if (idx === -1) return null;
+        score += (idx === i ? 2 : 1);
+        i = idx + 1;
+      }
+      return score;
+    }
+
+    function refresh() {
+      const q = input.value.trim();
+      filtered = entries
+        .map(e => {
+          const hay = e.label + ' ' + (e.hint || '') + ' ' + (e.group || '');
+          const s = fuzzyScore(q, hay);
+          return s == null ? null : { e, s };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.s - a.s)
+        .slice(0, 80)
+        .map(x => x.e);
+      cursor = 0;
+      paint();
+    }
+
+    function paint() {
+      if (filtered.length === 0) {
+        results.innerHTML = '<div class="palette-empty">No matches.</div>';
+        return;
+      }
+      let html = '';
+      let lastGroup = null;
+      filtered.forEach((e, i) => {
+        if (e.group !== lastGroup) {
+          html += '<div class="palette-group">' + e.group + '</div>';
+          lastGroup = e.group;
+        }
+        const icon = e.swatch
+          ? '<span class="swatch" style="background:' + e.swatch + '"></span>'
+          : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/></svg>';
+        const hint = e.hint ? '<div class="palette-item-hint">' + e.hint + '</div>' : '';
+        const kbd  = e.kbd  ? '<span class="palette-item-kbd">' + e.kbd + '</span>' : '';
+        html += '<div class="palette-item' + (i === cursor ? ' active' : '') +
+                '" role="option" data-i="' + i + '">' +
+                '<span class="palette-item-icon">' + icon + '</span>' +
+                '<div class="palette-item-body">' +
+                  '<div class="palette-item-label">' + e.label + '</div>' + hint +
+                '</div>' + kbd +
+                '</div>';
+      });
+      results.innerHTML = html;
+      const active = results.querySelector('.palette-item.active');
+      if (active && typeof active.scrollIntoView === 'function') {
+        active.scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    function open() {
+      entries = buildEntries();
+      input.value = '';
+      refresh();
+      overlay.hidden = false;
+      setTimeout(() => input.focus(), 0);
+    }
+    function close() { overlay.hidden = true; }
+    function pick(i) {
+      const e = filtered[i];
+      if (!e) return;
+      close();
+      try { e.run(); } catch (err) { console.warn('[palette] command failed:', err); }
+    }
+
+    input.addEventListener('input', refresh);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { close(); e.preventDefault(); return; }
+      if (e.key === 'ArrowDown') { cursor = Math.min(filtered.length - 1, cursor + 1); paint(); e.preventDefault(); return; }
+      if (e.key === 'ArrowUp')   { cursor = Math.max(0, cursor - 1); paint(); e.preventDefault(); return; }
+      if (e.key === 'Enter')     { pick(cursor); e.preventDefault(); return; }
+    });
+    results.addEventListener('click', e => {
+      const item = e.target.closest('.palette-item');
+      if (!item) return;
+      pick(Number(item.getAttribute('data-i')) || 0);
+    });
+    results.addEventListener('mousemove', e => {
+      const item = e.target.closest('.palette-item');
+      if (!item) return;
+      const i = Number(item.getAttribute('data-i')) || 0;
+      if (i !== cursor) { cursor = i; paint(); }
+    });
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    window.addEventListener('keydown', e => {
+      const isK = (e.key === 'k' || e.key === 'K');
+      if ((e.metaKey || e.ctrlKey) && isK) {
+        if (overlay.hidden) open(); else close();
+        e.preventDefault();
+      }
+    });
+
+    window.__openCommandPalette = open;
+  })();
 
   initAuth();
   </script>
