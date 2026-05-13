@@ -912,6 +912,131 @@
     margin-left: 4px;
   }
 
+  /* --- Topbar popups (view / time / weather) --- */
+  .topbar-popup {
+    position: fixed;
+    top: 78px; right: 28px;
+    z-index: 60;
+    width: 240px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 18px 50px -16px rgba(40, 28, 8, 0.28), 0 4px 12px -4px rgba(40, 28, 8, 0.12);
+    padding: 8px;
+    font-size: 13px;
+    color: var(--ink);
+    animation: world-menu-pop 0.14s ease-out;
+  }
+  .topbar-popup[hidden] { display: none; }
+  .topbar-popup-title {
+    font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--muted);
+    padding: 4px 6px 8px;
+  }
+  .view-option {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%;
+    background: transparent;
+    border: 1px solid transparent;
+    text-align: left;
+    padding: 7px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--ink);
+    font: inherit;
+  }
+  .view-option:hover { background: #faf2dc; }
+  .view-option.active { background: #f4ecd8; border-color: #d8c79e; }
+  .view-thumb {
+    width: 40px; height: 36px;
+    border-radius: 6px;
+    background: #f3ecdc;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .view-body { display: flex; flex-direction: column; line-height: 1.25; }
+  .view-body strong { font-size: 12.5px; font-weight: 500; color: var(--ink); }
+  .view-body em { font-style: normal; font-size: 11px; color: var(--muted); }
+
+  .time-popup { width: 280px; }
+  .time-row {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 6px 8px;
+  }
+  .time-row-label {
+    font-size: 11px; font-weight: 500;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+  .time-row input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 4px;
+    background: var(--line); border-radius: 999px; outline: none;
+  }
+  .time-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--panel); border: 1.5px solid #a88b4a;
+    cursor: pointer;
+  }
+  .time-row-val {
+    font-variant-numeric: tabular-nums;
+    color: var(--ink); font-size: 12.5px;
+    align-self: flex-end;
+  }
+  .time-row-pills { gap: 6px; }
+  .pill-row { display: flex; gap: 4px; flex-wrap: wrap; }
+  .pill {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    padding: 4px 9px;
+    border-radius: 999px;
+    font: inherit;
+    font-size: 11.5px;
+    cursor: pointer;
+  }
+  .pill:hover { background: #faf5ea; }
+  .pill.active {
+    background: #f4ecd8; border-color: #d8c79e;
+    color: var(--ink); font-weight: 500;
+  }
+  .time-foot {
+    padding: 6px 8px 2px;
+    color: var(--muted);
+    font-size: 10.5px;
+  }
+  .time-foot em { font-style: normal; }
+
+  /* Subtle time-of-day + weather tint overlay (separate element so it
+     never clobbers the live #cloud-layer animation). Sits above the canvas
+     but below tooltips / modals. */
+  #tod-tint {
+    position: fixed; inset: 0;
+    z-index: 9;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease, background 0.4s ease;
+    background: transparent;
+  }
+  body.tod-dawn  #tod-tint { opacity: 1; background: linear-gradient(180deg, rgba(255, 200, 150, 0.18), transparent 55%); }
+  body.tod-day   #tod-tint { opacity: 0; }
+  body.tod-dusk  #tod-tint { opacity: 1; background: linear-gradient(180deg, rgba(255, 140, 90, 0.24), transparent 55%); }
+  body.tod-night #tod-tint { opacity: 1; background: linear-gradient(180deg, rgba(10, 30, 70, 0.36), rgba(10, 30, 70, 0.1) 60%, transparent); }
+  body.weather-rain  #tod-tint { background-image:
+    linear-gradient(180deg, rgba(80,110,140,0.2), transparent 60%),
+    repeating-linear-gradient(105deg, rgba(255,255,255,0.06) 0 1px, transparent 1px 6px);
+    opacity: 1; }
+  body.weather-snow  #tod-tint { background-image:
+    linear-gradient(180deg, rgba(220,230,240,0.22), transparent 60%),
+    radial-gradient(circle at 10% 20%, rgba(255,255,255,0.16) 0 1.5px, transparent 2px),
+    radial-gradient(circle at 40% 60%, rgba(255,255,255,0.14) 0 1.5px, transparent 2px),
+    radial-gradient(circle at 70% 30%, rgba(255,255,255,0.16) 0 1.5px, transparent 2px),
+    radial-gradient(circle at 90% 80%, rgba(255,255,255,0.18) 0 1.5px, transparent 2px);
+    opacity: 1; }
+  body.weather-cloudy #tod-tint { background: linear-gradient(180deg, rgba(180,180,180,0.18), transparent 70%); opacity: 1; }
+
   /* --- Brand → World menu popup --- */
   .brand-title-btn {
     pointer-events: auto;
@@ -1637,6 +1762,7 @@
 <body>
   <div id="app"></div>
   <div id="cloud-layer"></div>
+  <div id="tod-tint" aria-hidden="true"></div>
 
   <div class="brand">
     <button type="button" class="title brand-title-btn" id="world-menu-btn" aria-haspopup="menu" aria-expanded="false">
@@ -1644,6 +1770,60 @@
       <svg class="brand-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
     </button>
     <div class="sub">Tap to place · drag to orbit · pinch or scroll to zoom</div>
+  </div>
+
+  <!-- View modes popup -->
+  <div class="topbar-popup" id="view-popup" hidden role="menu">
+    <div class="topbar-popup-title">Camera view</div>
+    <button class="view-option" data-view="ortho" role="menuitem">
+      <span class="view-thumb" aria-hidden="true">
+        <svg viewBox="0 0 32 28" width="36" height="32"><path d="M16 4 28 11l-12 7L4 11z" fill="#cdb98a"/><path d="M16 18l12-7v9l-12 7z" fill="#a08454"/><path d="M16 18l-12-7v9l12 7z" fill="#8a6f44"/></svg>
+      </span>
+      <span class="view-body"><strong>Top-down</strong><em>isometric, locked</em></span>
+    </button>
+    <button class="view-option" data-view="soft" role="menuitem">
+      <span class="view-thumb" aria-hidden="true">
+        <svg viewBox="0 0 32 28" width="36" height="32"><path d="M16 7 27 12l-11 6L5 12z" fill="#cdb98a"/><path d="M16 18l11-6v8l-11 5z" fill="#a08454"/><path d="M16 18l-11-6v8l11 5z" fill="#8a6f44"/></svg>
+      </span>
+      <span class="view-body"><strong>Soft</strong><em>tilted perspective</em></span>
+    </button>
+    <button class="view-option" data-view="perspective" role="menuitem">
+      <span class="view-thumb" aria-hidden="true">
+        <svg viewBox="0 0 32 28" width="36" height="32"><path d="M16 10 26 12l-10 4L6 12z" fill="#cdb98a"/><path d="M16 16l10-4v6l-10 4z" fill="#a08454"/><path d="M16 16l-10-4v6l10 4z" fill="#8a6f44"/></svg>
+      </span>
+      <span class="view-body"><strong>First-person</strong><em>close orbit</em></span>
+    </button>
+  </div>
+
+  <!-- Time / season / weather popup -->
+  <div class="topbar-popup time-popup" id="time-popup" hidden role="menu">
+    <div class="topbar-popup-title">Time &amp; weather</div>
+    <label class="time-row">
+      <span class="time-row-label">Time of day</span>
+      <input id="time-range" type="range" min="0" max="1440" step="5" value="720" />
+      <span class="time-row-val" id="time-readout">12:00</span>
+    </label>
+    <div class="time-row time-row-pills">
+      <span class="time-row-label">Season</span>
+      <div class="pill-row" id="season-pills">
+        <button class="pill" data-season="spring">Spring</button>
+        <button class="pill" data-season="summer">Summer</button>
+        <button class="pill" data-season="autumn">Autumn</button>
+        <button class="pill" data-season="winter">Winter</button>
+      </div>
+    </div>
+    <div class="time-row time-row-pills">
+      <span class="time-row-label">Weather</span>
+      <div class="pill-row" id="weather-pills">
+        <button class="pill" data-weather="clear">Clear</button>
+        <button class="pill" data-weather="cloudy">Cloudy</button>
+        <button class="pill" data-weather="rain">Rain</button>
+        <button class="pill" data-weather="snow">Snow</button>
+      </div>
+    </div>
+    <div class="time-foot">
+      <em>Visual tint only — affects sky overlay and brand accent.</em>
+    </div>
   </div>
 
   <!-- World-name popup menu -->
@@ -1718,6 +1898,15 @@
     </a>
     <button class="btn icon" id="persp" data-tooltip="Perspective" aria-label="Toggle camera mode">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
+    </button>
+    <button class="btn icon" id="view-modes" data-tooltip="View modes" aria-label="Pick a camera view">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+    <button class="btn icon" id="time-weather" data-tooltip="Time &amp; weather" aria-label="Time and weather">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+    </button>
+    <button class="btn icon" id="dev-mode" data-tooltip="Developer overlay (`)" aria-label="Developer overlay">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
     </button>
     <button class="btn icon" id="home" data-tooltip="Center on your grid" aria-label="Center on your 8 by 8 grid">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z"/></svg>
@@ -11904,6 +12093,175 @@
     onResize();
     requestAnimationFrame(animate);
   }
+
+  // -------- view-modes / time-weather / dev-mode popups --------
+  // Three independent popups anchored to the top-right controls. The view
+  // popup binds directly to the existing 'setCameraMode' (declared in the
+  // perspective section) — we look it up via window so the wiring stays
+  // order-independent. Time/weather changes are CSS-only (tod-* / weather-*
+  // body classes drive #tod-tint). Dev mode delegates to toggleStatsOverlay.
+  (function wireTopbarPopups() {
+    const viewBtn = document.getElementById('view-modes');
+    const viewPopup = document.getElementById('view-popup');
+    const timeBtn = document.getElementById('time-weather');
+    const timePopup = document.getElementById('time-popup');
+    const devBtn = document.getElementById('dev-mode');
+
+    function closeAllPopups() {
+      if (viewPopup) viewPopup.hidden = true;
+      if (timePopup) timePopup.hidden = true;
+    }
+    function togglePopup(el) {
+      if (!el) return;
+      const wasOpen = !el.hidden;
+      closeAllPopups();
+      el.hidden = wasOpen;
+    }
+
+    // -- view modes --
+    if (viewBtn && viewPopup) {
+      function paintViewActive() {
+        const mode = (typeof cameraMode !== 'undefined') ? cameraMode : 'ortho';
+        viewPopup.querySelectorAll('.view-option').forEach(opt => {
+          opt.classList.toggle('active', opt.getAttribute('data-view') === mode);
+        });
+      }
+      viewBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        paintViewActive();
+        togglePopup(viewPopup);
+      });
+      viewPopup.addEventListener('click', e => {
+        e.stopPropagation();
+        const opt = e.target.closest('.view-option');
+        if (!opt) return;
+        const target = opt.getAttribute('data-view');
+        if (typeof setCameraMode === 'function') {
+          try { setCameraMode(target); } catch (err) { console.warn('[view] setCameraMode failed:', err); }
+        }
+        paintViewActive();
+        viewPopup.hidden = true;
+      });
+    }
+
+    // -- time / weather --
+    const TOD_LS = 'tinyworld:tod.v1';
+    const SEASON_LS = 'tinyworld:season.v1';
+    const WEATHER_LS = 'tinyworld:weather.v1';
+    function todClassFromMinutes(min) {
+      if (min < 360 || min >= 1260) return 'tod-night'; // 21:00 - 06:00
+      if (min < 480) return 'tod-dawn';                  // 06:00 - 08:00
+      if (min < 1080) return 'tod-day';                  // 08:00 - 18:00
+      return 'tod-dusk';                                 // 18:00 - 21:00
+    }
+    function applyTod(min) {
+      document.body.classList.remove('tod-dawn','tod-day','tod-dusk','tod-night');
+      document.body.classList.add(todClassFromMinutes(min));
+    }
+    function applySeason(season) {
+      document.body.classList.remove('season-spring','season-summer','season-autumn','season-winter');
+      document.body.classList.add('season-' + season);
+    }
+    function applyWeather(weather) {
+      document.body.classList.remove('weather-clear','weather-cloudy','weather-rain','weather-snow');
+      document.body.classList.add('weather-' + weather);
+    }
+    function formatTime(min) {
+      const h = String(Math.floor(min / 60) % 24).padStart(2, '0');
+      const m = String(min % 60).padStart(2, '0');
+      return h + ':' + m;
+    }
+
+    let todMinutes = 720;
+    let season = 'summer';
+    let weather = 'clear';
+    try {
+      const t = parseInt(localStorage.getItem(TOD_LS), 10);
+      if (Number.isFinite(t)) todMinutes = Math.max(0, Math.min(1439, t));
+      const s = localStorage.getItem(SEASON_LS);
+      if (s && ['spring','summer','autumn','winter'].includes(s)) season = s;
+      const w = localStorage.getItem(WEATHER_LS);
+      if (w && ['clear','cloudy','rain','snow'].includes(w)) weather = w;
+    } catch (_) {}
+    applyTod(todMinutes);
+    applySeason(season);
+    applyWeather(weather);
+
+    if (timeBtn && timePopup) {
+      const range = document.getElementById('time-range');
+      const readout = document.getElementById('time-readout');
+      const seasonPills = document.getElementById('season-pills');
+      const weatherPills = document.getElementById('weather-pills');
+
+      function paintPills() {
+        if (seasonPills) seasonPills.querySelectorAll('.pill').forEach(p => {
+          p.classList.toggle('active', p.getAttribute('data-season') === season);
+        });
+        if (weatherPills) weatherPills.querySelectorAll('.pill').forEach(p => {
+          p.classList.toggle('active', p.getAttribute('data-weather') === weather);
+        });
+      }
+      function paintReadout() {
+        if (range) range.value = String(todMinutes);
+        if (readout) readout.textContent = formatTime(todMinutes);
+      }
+      paintPills(); paintReadout();
+
+      timeBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        togglePopup(timePopup);
+        paintPills(); paintReadout();
+      });
+      timePopup.addEventListener('click', e => e.stopPropagation());
+      if (range) {
+        range.addEventListener('input', () => {
+          todMinutes = Math.max(0, Math.min(1439, parseInt(range.value, 10) || 0));
+          applyTod(todMinutes);
+          paintReadout();
+          try { localStorage.setItem(TOD_LS, String(todMinutes)); } catch (_) {}
+        });
+      }
+      if (seasonPills) {
+        seasonPills.addEventListener('click', e => {
+          const p = e.target.closest('.pill');
+          if (!p) return;
+          season = p.getAttribute('data-season');
+          applySeason(season);
+          paintPills();
+          try { localStorage.setItem(SEASON_LS, season); } catch (_) {}
+        });
+      }
+      if (weatherPills) {
+        weatherPills.addEventListener('click', e => {
+          const p = e.target.closest('.pill');
+          if (!p) return;
+          weather = p.getAttribute('data-weather');
+          applyWeather(weather);
+          paintPills();
+          try { localStorage.setItem(WEATHER_LS, weather); } catch (_) {}
+        });
+      }
+    }
+
+    // -- dev mode (FPS overlay reuses existing stats overlay) --
+    if (devBtn) {
+      function syncDevState() {
+        const on = !!statsOverlay;
+        devBtn.classList.toggle('on', on);
+      }
+      devBtn.addEventListener('click', () => {
+        if (typeof toggleStatsOverlay === 'function') toggleStatsOverlay();
+        syncDevState();
+      });
+      syncDevState();
+    }
+
+    // Outside-click + escape close.
+    document.addEventListener('click', () => closeAllPopups());
+    window.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeAllPopups();
+    });
+  })();
 
   // -------- world-name popup menu (multi-world local slots) --------
   // Maintains an array of named local slots in localStorage keyed by id.
