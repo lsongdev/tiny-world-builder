@@ -12,14 +12,21 @@ python3 -m http.server 8000
 
 ## Deploy
 
-The app deploys to Vercel as a static site. `vercel.json` runs `./publish.sh`
-and serves the generated `dist/` directory. Three.js r128 and GLTFLoader are
-self-hosted from `vendor/three/` so deploys do not depend on runtime CDNs.
+The app deploys as a static site on Vercel or Netlify. Both host configs run
+`./publish.sh` and serve the generated `dist/` directory. Three.js r128 and
+GLTFLoader are self-hosted from `vendor/three/` so deploys do not depend on
+runtime CDNs.
 
 ```bash
 npm test
 npm run build
+
+# Vercel
 vercel deploy
+
+# Netlify
+netlify deploy --build
+# or connect the repo in Netlify; netlify.toml supplies build/publish settings
 ```
 
 ## Controls

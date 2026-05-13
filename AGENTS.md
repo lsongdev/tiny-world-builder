@@ -8,6 +8,8 @@ Guidance for AI coding agents working in this repo. Read this before touching
 - Main app: `tiny-world-builder.html`. Inline CSS in `<style>`, inline JS in a
   single `<script>` block at the bottom. Three.js **r128** and GLTFLoader are
   self-hosted under `vendor/three/` and copied to `dist/` by `publish.sh`.
+  Vercel (`vercel.json`) and Netlify (`netlify.toml`) both use that same static
+  build output.
 - No bundler and no npm runtime dependencies. Use `npm test` for static checks,
   `npm run build` for dist generation, then reload the browser.
 - If a `tiny-world-builder BACKUP.html` snapshot exists, don't auto-update it.

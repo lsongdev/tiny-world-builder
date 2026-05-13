@@ -27,6 +27,11 @@ requireIncludes('customDepthMaterial', 'cloud shadow depth material');
 requireIncludes('vendor/three/three.r128.min.js', 'self-hosted Three.js');
 requireIncludes('vendor/three/GLTFLoader.r128.js', 'self-hosted GLTFLoader');
 
+const netlifyToml = fs.readFileSync(path.join(root, 'netlify.toml'), 'utf8');
+if (!netlifyToml.includes('publish = "dist"') || !netlifyToml.includes('command = "./publish.sh"')) {
+  fail('netlify.toml does not point Netlify at publish.sh/dist');
+}
+
 requireNotIncludes('cdnjs.cloudflare.com/ajax/libs/three.js', 'Three.js CDN');
 requireNotIncludes('cdn.jsdelivr.net/npm/three', 'GLTFLoader CDN');
 requireNotIncludes('postTarget', 'post-processing render target');

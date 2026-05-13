@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, '..');
 const htmlPath = path.join(root, 'tiny-world-builder.html');
 const schemaPath = path.join(root, 'world.schema.json');
 const vercelPath = path.join(root, 'vercel.json');
+const netlifyPath = path.join(root, 'netlify.toml');
 const html = fs.readFileSync(htmlPath, 'utf8');
 
 function fail(message) {
@@ -74,6 +75,22 @@ try {
 const headers = ((vercel.headers || [])[0] || {}).headers || [];
 if (!headers.some(h => h.key === 'Content-Security-Policy' && /script-src 'self'/.test(h.value || ''))) {
   fail('vercel.json missing self-hosted runtime CSP');
+}
+
+let netlifyText;
+try {
+  netlifyText = fs.readFileSync(netlifyPath, 'utf8');
+} catch (err) {
+  fail('netlify.toml missing or unreadable: ' + err.message);
+}
+for (const [needle, label] of [
+  ['command = "./publish.sh"', 'Netlify build command'],
+  ['publish = "dist"', 'Netlify publish directory'],
+  ['NODE_VERSION = "22"', 'Netlify Node version'],
+  ['Content-Security-Policy = "default-src', 'Netlify CSP header'],
+  ['script-src \'self\'', 'Netlify self-hosted script policy'],
+]) {
+  if (!netlifyText.includes(needle)) fail('netlify.toml missing ' + label);
 }
 
 console.log('ok');
