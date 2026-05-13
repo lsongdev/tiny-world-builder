@@ -10816,19 +10816,32 @@
     // provider-maintained "latest" aliases where available so this app
     // doesn't silently age back to last year's models.
     openai: {
-      model: 'chat-latest',
+      model: 'gpt-5.2-latest',
       endpoint: 'https://api.openai.com/v1/chat/completions',
-      models: ['chat-latest', 'gpt-5.1', 'gpt-5.1-chat-latest', 'gpt-5.1-mini'],
+      // Suggestions only — the input is a free-text field; type any
+      // model your key has access to.  Provider-maintained "-latest"
+      // aliases first so this list doesn't silently age out.
+      models: [
+        'gpt-5.2-latest', 'gpt-5.2', 'gpt-5.2-mini',
+        'chat-latest',
+        'gpt-5.1', 'gpt-5.1-chat-latest', 'gpt-5.1-mini',
+      ],
     },
     anthropic: {
       model: 'claude-opus-4-7',
       endpoint: 'https://api.anthropic.com/v1/messages',
-      models: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
+      models: [
+        'claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5',
+        'claude-opus-4-7-1m',
+      ],
     },
     xai: {
       model: 'grok-4.3-latest',
       endpoint: 'https://api.x.ai/v1/chat/completions',
-      models: ['grok-4.3-latest', 'grok-4.3', 'grok-4.20-reasoning', 'grok-4.20-non-reasoning'],
+      models: [
+        'grok-4.3-latest', 'grok-4.3',
+        'grok-4.20-reasoning', 'grok-4.20-non-reasoning',
+      ],
     },
   };
   const AI_LS = {
@@ -11098,6 +11111,12 @@
         ],
         response_format: { type: 'json_object' },
         temperature: 0.6,
+        // Lift the default output cap so large grids don't truncate
+        // mid-JSON.  48x48 = 2304 cells, each ~60 tokens of object form
+        // → up to ~140k output tokens worst case.  16k is a safe value
+        // for everyday 8-32 grids on gpt-5.x; users on capped tiers
+        // can dial down via the model picker.
+        max_tokens: 16000,
       }),
     });
     if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()).slice(0, 200));
@@ -11833,16 +11852,20 @@
       const def = AI_DEFAULTS[provider] || AI_DEFAULTS.openai;
       const models = def.models || [def.model];
       const stored = selectedModel || localStorage.getItem(AI_LS.model(provider)) || def.model;
-      const wanted = models.includes(stored) ? stored : def.model;
-      modelEl.innerHTML = '';
-      models.forEach(model => {
-        const opt = document.createElement('option');
-        opt.value = model;
-        opt.textContent = model;
-        modelEl.appendChild(opt);
-      });
-      modelEl.value = wanted;
-      localStorage.setItem(AI_LS.model(provider), wanted);
+      // Suggestions go into the datalist; the input itself stays a free
+      // text field so the user can type any model their key has access
+      // to (newer than our suggestion list included).
+      const datalist = document.getElementById('gen-model-list');
+      if (datalist) {
+        datalist.innerHTML = '';
+        models.forEach(model => {
+          const opt = document.createElement('option');
+          opt.value = model;
+          datalist.appendChild(opt);
+        });
+      }
+      modelEl.value = stored;
+      localStorage.setItem(AI_LS.model(provider), stored);
     }
 
     function loadProviderState() {
