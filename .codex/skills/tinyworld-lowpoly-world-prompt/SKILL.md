@@ -12,11 +12,14 @@ Prompt principles:
 - Generate should be text-only by default: use OpenAI `gpt-5.5` for validated
   world JSON and do not add an image-generation topology prepass unless the
   user explicitly asks for images again.
+- Honour the selected generation board size. The Generate dialog can request
+  any `HOME_GRID_OPTIONS` size, so prompts must include the requested
+  `gridSize` and coordinate bounds instead of assuming 8x8.
 - Start from a readable scene concept: village, farm, canal, ridge, market, castle, garden, or mixed landmark.
 - Use strong silhouettes: tall/short contrast, clustered houses, towers, hills, trees, walls, and clear negative space.
 - Make terrain do composition work: paths lead the eye, water creates crossings, dirt groups crops, grass gives breathing room.
 - Use adjacency intentionally: house clusters merge, fences connect, bridges belong on water crossings, crops form fields.
-- Avoid noise: do not fill all 64 cells; leave open cells and visible paths.
+- Avoid noise: do not fill every board cell; leave open cells and visible paths.
 - Use `floors` as variation/intensity, including terrain stacking and object detail.
 - Use forced `buildingType` only when a distinct one-cell variant is wanted; otherwise leave houses as `buildingType: null` so cluster logic can work.
 - Keep output strictly machine-parseable JSON matching the schema.

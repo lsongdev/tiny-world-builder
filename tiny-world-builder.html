@@ -60,6 +60,9 @@
       #000 100%
     );
   }
+  body.tilt-shift-paused::before {
+    display: none;
+  }
   body::after {
     content: '';
     position: fixed;
@@ -3950,6 +3953,16 @@
     if (typeof ensureGhostBoardsAroundTarget === 'function') ensureGhostBoardsAroundTarget();
   }
 
+  function shouldCullHomeBoardByRenderWindow() {
+    return GRID >= 32 && renderVisibleSize < GRID;
+  }
+
+  function isWorldPositionInsideRenderWindow(x, z) {
+    const visibleHalf = renderVisibleSize / 2 + 6;
+    const dist = Math.max(Math.abs(x - target.x), Math.abs(z - target.z));
+    return dist <= visibleHalf;
+  }
+
   function applyAutoPreviewSettingsForGrid(opts = {}) {
     const settings = previewSettingsForGrid(GRID, opts.explored !== undefined ? opts.explored : hasUserPanned);
     if (opts.deferEnsure) {
@@ -3992,6 +4005,17 @@
     document.body.style.setProperty('--tilt-soft-bottom', Math.min(100, clearBottom + soft).toFixed(1) + '%');
     document.body.style.setProperty('--tilt-edge-top', Math.max(0, clearTop - edge).toFixed(1) + '%');
     document.body.style.setProperty('--tilt-edge-bottom', Math.min(100, clearBottom + edge).toFixed(1) + '%');
+  }
+
+  let tiltShiftResumeTimer = 0;
+  function markCameraMoving() {
+    if (renderTiltBlur <= 0) return;
+    document.body.classList.add('tilt-shift-paused');
+    clearTimeout(tiltShiftResumeTimer);
+    tiltShiftResumeTimer = setTimeout(() => {
+      document.body.classList.remove('tilt-shift-paused');
+      tiltShiftResumeTimer = 0;
+    }, 180);
   }
 
   // Disable auto-reset so we can read renderer.info totals, then reset once
@@ -4117,6 +4141,7 @@
     if (typeof updateSunFollow === 'function') updateSunFollow();
   }
   function panCameraByPixels(dx, dy) {
+    markCameraMoving();
     const scale = (viewSize * 2) / Math.max(1, window.innerHeight);
     camera.updateMatrixWorld();
     panRight.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
@@ -4132,6 +4157,7 @@
     if (typeof requestMinimapRepaint === 'function') requestMinimapRepaint();
   }
   function panCameraByCells(dx, dz) {
+    markCameraMoving();
     target.x += dx;
     target.z += dz;
     expandVisibleSizeOnFirstMove();
@@ -6704,6 +6730,31 @@
   // (fences, houses) re-render when a neighbor changes.
   const world = [];
   const cellMeshes = {}; // 'x,z' -> { tile, object }
+  const animatedCellObjects = new Set();
+  const smokeHouseObjects = new Set();
+
+  function registerRuntimeObject(obj) {
+    if (!obj || !obj.userData) return;
+    const kind = obj.userData.kind;
+    if (kind === 'tree' || kind === 'tuft') animatedCellObjects.add(obj);
+    if (kind === 'house') smokeHouseObjects.add(obj);
+  }
+
+  function unregisterRuntimeObject(root) {
+    if (!root) return;
+    animatedCellObjects.delete(root);
+    smokeHouseObjects.delete(root);
+    if (root.traverse) {
+      root.traverse(o => {
+        animatedCellObjects.delete(o);
+        smokeHouseObjects.delete(o);
+      });
+    }
+  }
+
+  function runtimeRootVisible(obj) {
+    return !!(obj && obj.parent && obj.visible);
+  }
 
   // Pre-allocate world[][] up to HOME_GRID_MAX so adjacency lookups for
   // tiles at the edge of any future grid size find a real neighbour cell
@@ -7427,7 +7478,9 @@
   }
 
   // Visibility model:
-  //  - The home GRID x GRID board is always fully rendered.
+  //  - Small home boards are always fully rendered. Large 32+ boards use
+  //    the render window as a lightweight visibility bubble so 48x48 worlds
+  //    don't keep thousands of far-away roots in the draw list.
   //  - Outside the home board, cells are revealed once they enter the
   //    visible square around the camera target — and stay revealed
   //    afterwards (the user keeps the breadcrumb trail behind them).
@@ -7436,7 +7489,10 @@
   //    "is it currently in the visible window?" question.
   function opacityAtWorldPosition(x, z) {
     const homeHalf = GRID / 2;
-    if (Math.abs(x) <= homeHalf && Math.abs(z) <= homeHalf) return 1;
+    if (Math.abs(x) <= homeHalf && Math.abs(z) <= homeHalf) {
+      if (!shouldCullHomeBoardByRenderWindow()) return 1;
+      return isWorldPositionInsideRenderWindow(x, z) ? 1 : 0;
+    }
     const visibleHalf = renderVisibleSize / 2;
     const dist = Math.max(Math.abs(x - target.x), Math.abs(z - target.z));
     return dist <= visibleHalf ? 1 : 0;
@@ -7601,10 +7657,18 @@
       const insideHome = !isOutsideHomeGrid(kx, kz);
       const entry = cellMeshes[key];
       if (entry.tile) {
-        setElementOpacity(entry.tile, insideHome ? 1 : revealOpacityFor(entry.tile));
+        const op = insideHome ? opacityAtWorldPosition(entry.tile.position.x, entry.tile.position.z) : revealOpacityFor(entry.tile);
+        setElementOpacity(entry.tile, op, insideHome);
       }
       if (entry.object) {
-        setElementOpacity(entry.object, insideHome ? 1 : revealOpacityFor(entry.object));
+        const op = insideHome ? opacityAtWorldPosition(entry.object.position.x, entry.object.position.z) : revealOpacityFor(entry.object);
+        setElementOpacity(entry.object, op, insideHome);
+      }
+      if (entry.extras) {
+        for (const extra of entry.extras) {
+          const op = insideHome ? opacityAtWorldPosition(extra.position.x, extra.position.z) : revealOpacityFor(extra);
+          setElementOpacity(extra, op, insideHome);
+        }
       }
     }
   }
@@ -8441,6 +8505,7 @@
     prepareFadeable(mesh, { opacity: opacityAtWorldPosition(posX, posZ), grayscale: isOutsideHomeGrid(x, z) });
     worldGroup.add(mesh);
     entry.object = mesh;
+    registerRuntimeObject(mesh);
     if (animate) animateDrop(mesh, 2.0, 0.5, delay, easeOutBack, impactDust);
   }
 
@@ -8736,6 +8801,7 @@
 
   function disposeGroup(group) {
     opacityRoots.delete(group);
+    unregisterRuntimeObject(group);
     group.traverse(o => {
       safeDisposeGeometry(o.geometry);
       // Materials are shared (M.* and the fadeMatCache buckets), so we never
@@ -8751,6 +8817,7 @@
       const e = cellMeshes[key];
       if (e.tile) { worldGroup.remove(e.tile); disposeGroup(e.tile); }
       if (e.object) { worldGroup.remove(e.object); disposeGroup(e.object); }
+      if (e.extras) for (const m of e.extras) { worldGroup.remove(m); disposeGroup(m); }
     }
     for (const k of Object.keys(cellMeshes)) delete cellMeshes[k];
     for (let x = 0; x < GRID; x++)
@@ -9929,6 +9996,7 @@
     }
 
     if (dragMode === 'pinch' && activePointers.size >= 2) {
+      markCameraMoving();
       const pts = [...activePointers.values()];
       const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
       const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
@@ -9966,6 +10034,7 @@
             setRectangleSelection(selectionDragAnchor.hit, hit, 'replace');
           }
         } else {
+          markCameraMoving();
           azimuth -= ddx * 0.008;
           polar = Math.max(0.18, Math.min(1.25, polar - ddy * 0.006));
           updateCamera();
@@ -10053,6 +10122,7 @@
   renderer.domElement.addEventListener('wheel', e => {
     e.preventDefault();
     if (generationViewLocked) return;
+    markCameraMoving();
     viewSize = Math.max(4, Math.min(22, viewSize + e.deltaY * 0.005));
     onResize();
   }, { passive: false });
@@ -10391,6 +10461,7 @@
   });
   document.addEventListener('mousemove', e => {
     if (!fp.active || document.pointerLockElement !== renderer.domElement) return;
+    markCameraMoving();
     fp.yaw -= e.movementX * 0.0022;
     fp.pitch = Math.max(-1.4, Math.min(1.4, fp.pitch - e.movementY * 0.0022));
   });
@@ -10421,6 +10492,7 @@
     const speed = FP_SPEED * sprint * dt;
     const len = Math.hypot(fx, fz);
     if (len > 0) {
+      markCameraMoving();
       const ux = fx / len, uz = fz / len;
       fp.pos.x += ux * speed;
       fp.pos.z += uz * speed;
@@ -10433,6 +10505,7 @@
     // Ground-following + gravity.
     const groundY = fpGroundYAt(fp.pos.x, fp.pos.z);
     if (!fp.grounded) {
+      markCameraMoving();
       fp.vy -= FP_GRAVITY * dt;
       fp.pos.y += fp.vy * dt;
       if (fp.pos.y <= groundY) {
@@ -10618,6 +10691,7 @@
   }
   function tickHomeTween(dt) {
     if (!homeTween) return;
+    markCameraMoving();
     homeTween.t = Math.min(1, homeTween.t + dt / homeTween.dur);
     const u = easeOutCubic(homeTween.t);
     const { start, end } = homeTween;
@@ -12488,10 +12562,13 @@
     // changes and Reset don't lock up the frame.
     if (pendingGhostBoards.length) processGhostBoardQueue(6);
 
-    // sway trees / bob crops / wiggle tufts
-    for (const key in cellMeshes) {
-      const obj = cellMeshes[key].object;
-      if (!obj) continue;
+    // Sway only the roots that can actually animate. Scanning every cell
+    // every frame becomes noticeable once generated worlds reach 32/48.
+    for (const obj of animatedCellObjects) {
+      if (!runtimeRootVisible(obj)) {
+        if (!obj || !obj.parent) animatedCellObjects.delete(obj);
+        continue;
+      }
       const k = obj.userData.kind;
       if (k === 'tree') {
         obj.rotation.z = Math.sin(t * 0.85 + obj.userData.swayPhase) * 0.022;
@@ -12506,8 +12583,11 @@
     if (smokeTimer > 0.32) {
       smokeTimer = 0;
       let spawned = 0;
-      for (const key in cellMeshes) {
-        const o = cellMeshes[key].object;
+      for (const o of smokeHouseObjects) {
+        if (!runtimeRootVisible(o)) {
+          if (!o || !o.parent) smokeHouseObjects.delete(o);
+          continue;
+        }
         if (o && o.userData.kind === 'house' && !o.userData.landing) {
           spawnSmoke(o);
           spawned++;
@@ -14997,14 +15077,32 @@
     }
 
     function finishApplyState() {
-      // Final pass: rebuild every tile so adjacency-aware terrains
-      // (path / shore / dirt edges) settle correctly now that all
-      // neighbours exist.
+      // Final pass: settle only adjacency-aware terrain. On 32/48 boards,
+      // rebuilding every default grass tile doubled generation cost even
+      // though most cells cannot gain path trims, shore lips, or bridge
+      // re-orientation.
+      const settle = new Set();
+      function markSettle(x, z) {
+        if (x < 0 || x >= GRID || z < 0 || z >= GRID) return;
+        settle.add(x + ',' + z);
+      }
       for (let x = 0; x < GRID; x++) {
         for (let z = 0; z < GRID; z++) {
-          renderCellTile(x, z, { animate: false });
-          if (world[x][z].kind === 'bridge') renderCellObject(x, z, { animate: false });
+          const c = world[x][z];
+          if (!c) continue;
+          if (c.terrain === 'path' || c.terrain === 'water' || c.kind === 'bridge') {
+            markSettle(x, z);
+            markSettle(x + 1, z);
+            markSettle(x - 1, z);
+            markSettle(x, z + 1);
+            markSettle(x, z - 1);
+          }
         }
+      }
+      for (const key of settle) {
+        const [x, z] = key.split(',').map(Number);
+        renderCellTile(x, z, { animate: false });
+        if (world[x][z].kind === 'bridge') renderCellObject(x, z, { animate: false });
       }
 
       // Replay out-of-home overrides — ghost board cells the user has
