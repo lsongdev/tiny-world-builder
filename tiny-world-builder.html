@@ -1646,6 +1646,28 @@
     transition: opacity 0.5s ease;
   }
   body.showcase .controls #showcase-mode { opacity: 1; pointer-events: auto; }
+  .showcase-exit {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    z-index: 130;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.72);
+    background: rgba(42,39,34,0.72);
+    color: #fff8ea;
+    font: 800 13px/1 var(--ui-font);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.28);
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+  }
+  body.showcase .showcase-exit { display: inline-flex; }
+  .showcase-exit:hover { background: rgba(42,39,34,0.88); }
 
   /* --- Minimap --- */
   .minimap-wrap {
@@ -2979,6 +3001,10 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>
   </div>
+
+  <button class="showcase-exit" id="showcase-exit" type="button" aria-label="Exit showcase mode">
+    Exit showcase <span aria-hidden="true">Esc</span>
+  </button>
 
   <div id="account-modal" class="modal" hidden>
     <form class="modal-card" role="dialog" aria-modal="true" aria-labelledby="account-title" onsubmit="return false">
@@ -16390,18 +16416,22 @@
     // Toggles a body.showcase class that hides toolbars / chrome and
     // starts a slow camera orbit driven by per-frame azimuth advance.
     const showcaseBtn = document.getElementById('showcase-mode');
+    const showcaseExit = document.getElementById('showcase-exit');
     let showcaseActive = false;
+    function setShowcaseActive(on) {
+      showcaseActive = !!on;
+      document.body.classList.toggle('showcase', showcaseActive);
+      if (showcaseBtn) showcaseBtn.classList.toggle('on', showcaseActive);
+      if (showcaseActive) {
+        // Pop to soft perspective for a more cinematic angle.
+        if (typeof setCameraMode === 'function' && cameraMode === 'ortho') {
+          try { setCameraMode('soft'); } catch (_) {}
+        }
+      }
+    }
     if (showcaseBtn) {
       showcaseBtn.addEventListener('click', () => {
-        showcaseActive = !showcaseActive;
-        document.body.classList.toggle('showcase', showcaseActive);
-        showcaseBtn.classList.toggle('on', showcaseActive);
-        if (showcaseActive) {
-          // Pop to soft perspective for a more cinematic angle.
-          if (typeof setCameraMode === 'function' && cameraMode === 'ortho') {
-            try { setCameraMode('soft'); } catch (_) {}
-          }
-        }
+        setShowcaseActive(!showcaseActive);
       });
       window.__showcaseTick = (dt) => {
         if (!showcaseActive) return;
@@ -16411,11 +16441,16 @@
         }
       };
     }
+    if (showcaseExit) showcaseExit.addEventListener('click', () => setShowcaseActive(false));
+    window.__exitShowcase = () => setShowcaseActive(false);
 
     // Outside-click + escape close.
     document.addEventListener('click', () => closeAllPopups());
     window.addEventListener('keydown', e => {
-      if (e.key === 'Escape') closeAllPopups();
+      if (e.key === 'Escape') {
+        if (showcaseActive) setShowcaseActive(false);
+        closeAllPopups();
+      }
     });
   })();
 
