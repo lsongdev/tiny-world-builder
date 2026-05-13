@@ -11056,24 +11056,47 @@
     m.transparent = true;
     m.opacity = opacity;
     m.depthWrite = false;
-    // alphaTest drives the shadow caster — pixels below the threshold
-    // are discarded by the depth pass, so the cloud's shadow becomes
-    // more or less broken-up. Higher renderCloudShadow → lower
-    // alphaTest → more puffs contribute to the shadow.
-    m.alphaTest = Math.max(0, Math.min(0.99, 1 - renderCloudShadow));
+    // Keep visual cloud opacity independent from the shadow slider. Shadow
+    // breakup is handled by per-mesh customDepthMaterial below; using
+    // material.alphaTest here would also discard visible cloud puffs when
+    // Cloud shadow is low.
+    m.alphaTest = 0;
     m.userData = m.userData || {};
     m.userData.cloudInstance = true;
+    m.userData.cloudOpacity = opacity;
     return m;
+  }
+
+  function cloudShadowAlphaTest() {
+    // Higher renderCloudShadow → lower threshold → more puffs contribute to
+    // the depth pass. At 0%, almost all puffs fail shadow casting, while
+    // their regular materials still render visibly.
+    return Math.max(0, Math.min(0.99, 1 - renderCloudShadow));
+  }
+
+  function configureCloudShadowMesh(mesh) {
+    const mat = mesh.material;
+    const opacity = mat && mat.userData && mat.userData.cloudOpacity !== undefined
+      ? mat.userData.cloudOpacity
+      : (mat && mat.opacity !== undefined ? mat.opacity : 1);
+    const depthMat = new THREE.MeshDepthMaterial({
+      depthPacking: THREE.RGBADepthPacking,
+      alphaTest: cloudShadowAlphaTest(),
+      opacity,
+    });
+    depthMat.userData = depthMat.userData || {};
+    depthMat.userData.cloudShadowDepth = true;
+    mesh.customDepthMaterial = depthMat;
   }
 
   function applyCloudShadowSetting() {
     if (!clouds) return;
-    const at = Math.max(0, Math.min(0.99, 1 - renderCloudShadow));
+    const at = cloudShadowAlphaTest();
     for (const c of clouds) {
       c.traverse(o => {
-        if (o.material && o.material.userData && o.material.userData.cloudInstance) {
-          o.material.alphaTest = at;
-          o.material.needsUpdate = true;
+        if (o.customDepthMaterial && o.customDepthMaterial.userData && o.customDepthMaterial.userData.cloudShadowDepth) {
+          o.customDepthMaterial.alphaTest = at;
+          o.customDepthMaterial.needsUpdate = true;
         }
       });
     }
@@ -11108,8 +11131,16 @@
     base.position.set(0, -0.22, 0);
     g.add(base);
     // Clouds cast shadows on the world below but don't catch shadows
-    // themselves (sky shouldn't show shadows from anything else).
-    g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; } });
+    // themselves (sky shouldn't show shadows from anything else). Shadow
+    // alpha is driven by a custom depth material so lowering Cloud shadow
+    // never makes the visible cloud puffs disappear.
+    g.traverse(o => {
+      if (o.isMesh) {
+        configureCloudShadowMesh(o);
+        o.castShadow = true;
+        o.receiveShadow = false;
+      }
+    });
     return g;
   }
 
@@ -11161,6 +11192,9 @@
       cloudGroup.remove(c);
       c.traverse(o => {
         safeDisposeGeometry(o.geometry);
+        if (o.customDepthMaterial && o.customDepthMaterial.userData && o.customDepthMaterial.userData.cloudShadowDepth) {
+          o.customDepthMaterial.dispose();
+        }
         if (o.material && o.material.userData && o.material.userData.cloudInstance) {
           o.material.dispose();
         }

@@ -40,6 +40,7 @@ GPU caches (introduced for low-end GPU + visible-distance scaling):
   directional sun. All three are scaled by the lighting slider in
   `applyLightingSettings()`.
 - Ghost boards DO participate in the shadow pass — same sun, same shadows everywhere. `prepareFadeable` no longer forces castShadow/receiveShadow off on ghost meshes; the factory-level `castReceive` / `groundReceiveOnly` choices apply uniformly.
+- Voxel cloud visual opacity is independent from Cloud shadow. Do not drive visible cloud materials with `alphaTest`; cloud shadow breakup belongs on each puff's `customDepthMaterial` so lowering the shadow slider never hides the clouds themselves.
 - Smoke particles must be capped and must not cast/receive shadows.
 
 Validation:
