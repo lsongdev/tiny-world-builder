@@ -35,14 +35,15 @@ GPU caches (introduced for low-end GPU + visible-distance scaling):
 - Stats overlay (`?stats=1` or backtick key) reads `renderer.info` and reports FPS, draws, tris, geoms, mats, programs, textures, ghost-board count + queue depth. Use it to measure any rendering change.
 - Default color grade should stay neutral: brightness 1, saturation 1, contrast 1.
 - Render settings are user-adjustable and persisted in `localStorage` under `tinyworld:render:*`.
-- Tilt-shift blur is suspended while the camera is moving, panning, zooming,
-  home-tweening, or first-person walking/look-moving. Keep movement events
-  routed through `markCameraMoving()` so the expensive blur pseudo-element is
-  hidden during interaction and restored after the idle delay.
+- Tilt-shift blur stays active while the camera is moving, panning, zooming,
+  home-tweening, or first-person walking/look-moving. Keep `markCameraMoving()`
+  as a stable no-op hook for those movement paths, but do not hide or pause the
+  tilt-shift pseudo-element during interaction unless the user explicitly asks.
 - Scene/screen controls must keep working in the direct-render path: resolution, shadow quality, lighting, visible distance, visible size, clouds, tilt-shift blur/focus, and ghost opacity.
 - Preview window is the reveal square around the camera target in tile-width units. It auto-scales by board size and can be user-adjusted, but it must never be smaller than `GRID`. Do not subtract half a tile from this radius, or the board edge starts fading inside the requested size.
 - Preview opacity / floors / objects are user-adjustable display multipliers for surrounding preview boards. The home board stays fully opaque regardless of those controls.
 - Do not reintroduce post-only shader controls unless the user explicitly asks for a post pipeline.
+- Atmosphere fade should use native `scene.fog` (`THREE.Fog`) so distant scenery colour-fades toward the live sky/background inside the direct renderer path. Keep fog color matched to the current time/weather `scene.background`, recompute near/far from camera distance + visible span after camera updates, expose it as a persisted render setting, and disable it when `scene.background === null` for AR passthrough.
 - Shadow maps should stay modest unless a visual defect proves otherwise.
 - Rain/snow should use in-world instanced box particles. Rain impacts use transient instanced ring-ripple splash pools plus heavy-rain/storm circular puddle buildup; snow impacts add persistent low-opacity square surface patches that visually build up. Snow is winter-only: selecting snow switches to winter, and changing to any non-winter season clears snow weather. Keep impact decals lifted above beveled tile tops (`WEATHER_SURFACE_PAD` + decal/ripple lift), but leave depth testing enabled so they cannot render through terrain sides, objects, or underside geometry. Do not reintroduce CSS/screen-space rain/snow overlays or always-on per-tile weather panels. Impacts should only appear on rendered tile surfaces. Weather state should affect every visible element through shared material tinting, including preview boards. Weather intensity is severity: low = light rain/flurries, high = storms/snowstorms with stronger slant, darker ambience, more active instances, global material tint strength, and water/snow buildup. Intensity and splash/buildup controls intentionally overdrive up to 300%; keep emission/opacity visibly obvious at max. Storm is an explicit rain mode that forces storm-strength rain visuals while preserving the same splash/buildup controls. Seed surface marks when weather or splash/intensity changes so puddles/snow are visible immediately, not only after waiting for random impacts. Clamp impact decals inside their tile footprint so rings/puddles/snow patches never overhang visible board edges.
 - The sun is the only shadow caster. Its angle is fixed in world space

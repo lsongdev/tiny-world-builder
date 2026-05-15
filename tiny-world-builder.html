@@ -60,9 +60,6 @@
       #000 100%
     );
   }
-  body.tilt-shift-paused::before {
-    display: none;
-  }
   body::after {
     content: '';
     position: fixed;
@@ -3869,6 +3866,11 @@
               <output id="render-cloud-shadow-value"></output>
             </div>
             <div class="range-row">
+              <span>Atmosphere fade</span>
+              <input id="render-distance-mist" type="range" min="0" max="100" step="1" />
+              <output id="render-distance-mist-value"></output>
+            </div>
+            <div class="range-row">
               <span>Tilt blur</span>
               <input id="render-tilt-blur" type="range" min="0" max="8" step="0.5" />
               <output id="render-tilt-blur-value"></output>
@@ -4116,6 +4118,7 @@
     cloudSpeed: 'tinyworld:render:cloudSpeed',
     cloudHeight: 'tinyworld:render:cloudHeight',
     cloudShadow: 'tinyworld:render:cloudShadow',
+    distanceMist: 'tinyworld:render:distanceMist',
     tiltBlur: 'tinyworld:render:tiltBlur',
     tiltFocus: 'tinyworld:render:tiltFocus',
     ghostOpacity: 'tinyworld:render:ghostOpacity',
@@ -4151,6 +4154,7 @@
     cloudSpeed: '0.35',
     cloudHeight: '6',
     cloudShadow: '0',
+    distanceMist: '0.28',
     tiltBlur: '1.0',
     tiltFocus: '65',
     ghostOpacity: '1',
@@ -4274,6 +4278,7 @@
   // Cloud shadow strength — controls per-puff alphaTest so only the
   // denser parts of each cloud cast on the world below.
   let renderCloudShadow = storedNumber(RENDER_LS.cloudShadow, 0.5, 0, 1);
+  let renderDistanceMist = storedNumber(RENDER_LS.distanceMist, 0.28, 0, 1);
   let renderTiltBlur = storedNumber(RENDER_LS.tiltBlur, 1.0, 0, 8);
   let renderTiltFocus = storedNumber(RENDER_LS.tiltFocus, 65, 15, 80);
   let renderGhostOpacity = storedNumber(RENDER_LS.ghostOpacity, 1, 0.05, 1);
@@ -4301,6 +4306,27 @@
   xrWorldRoot.name = 'xr-world-root';
   scene.add(xrWorldRoot);
   const cloudLayer = document.getElementById('cloud-layer');
+
+  function applyDistanceMistSettings(colorHex) {
+    const amount = Math.max(0, Math.min(1, renderDistanceMist || 0));
+    // Atmospheric perspective: fade distant scenery toward the live sky
+    // colour. This is a colour fade, not per-object opacity or ground mist.
+    // AR needs transparent passthrough, not opaque scene fog.
+    if (amount <= 0 || !scene.background) {
+      scene.fog = null;
+      return;
+    }
+    const bgHex = Number.isFinite(colorHex)
+      ? colorHex
+      : (scene.background && scene.background.isColor ? scene.background.getHex() : 0xf4ede0);
+    const camDistance = (typeof camera !== 'undefined' && camera && typeof target !== 'undefined')
+      ? camera.position.distanceTo(target)
+      : 48;
+    const span = Math.max(GRID, renderVisibleSize || GRID, viewSize || GRID, DEFAULT_VIEW_SIZE);
+    const near = camDistance + span * (0.26 + (1 - amount) * 0.72);
+    const far = camDistance + span * (1.04 + (1 - amount) * 1.10);
+    scene.fog = new THREE.Fog(bgHex, near, Math.max(near + span * 0.45, far));
+  }
 
   function setRenderResolutionScale(value) {
     renderResolutionScale = Math.max(0.55, Math.min(1.5, value));
@@ -4378,15 +4404,9 @@
     document.body.style.setProperty('--tilt-edge-bottom', Math.min(100, clearBottom + edge).toFixed(1) + '%');
   }
 
-  let tiltShiftResumeTimer = 0;
   function markCameraMoving() {
-    if (renderTiltBlur <= 0) return;
-    document.body.classList.add('tilt-shift-paused');
-    clearTimeout(tiltShiftResumeTimer);
-    tiltShiftResumeTimer = setTimeout(() => {
-      document.body.classList.remove('tilt-shift-paused');
-      tiltShiftResumeTimer = 0;
-    }, 180);
+    // Keep the tilt-shift overlay active during movement. This hook remains
+    // as a stable call site for pan/orbit/zoom/first-person code paths.
   }
 
   // Disable auto-reset so we can read renderer.info totals, then reset once
@@ -4512,6 +4532,7 @@
     }
     camera.lookAt(target);
     if (typeof updateSunFollow === 'function') updateSunFollow();
+    applyDistanceMistSettings();
   }
   function panCameraByPixels(dx, dy) {
     markCameraMoving();
@@ -12271,6 +12292,7 @@
       xrWasShowcase = document.body.classList.contains('showcase');
       document.body.classList.add('xr-active');
       scene.background = sessionMode === 'immersive-ar' ? null : defaultSceneBackground.clone();
+      applyDistanceMistSettings();
       if (mode === 'surface') {
         xrBoardPlaced = false;
         xrWorldRoot.visible = false;
@@ -12292,6 +12314,7 @@
         xrAnchor = null;
         xrReticle.visible = false;
         scene.background = defaultSceneBackground.clone();
+        applyDistanceMistSettings();
         document.body.classList.remove('xr-active');
         resetXRWorldTransform();
         setXRButtonsDisabled(false);
@@ -12305,6 +12328,7 @@
       resetXRWorldTransform();
       xrReticle.visible = false;
       scene.background = defaultSceneBackground.clone();
+      applyDistanceMistSettings();
       document.body.classList.remove('xr-active');
       setXRButtonsDisabled(false);
       setXRStatus('Could not start XR: ' + String(err && err.message ? err.message : err).slice(0, 120));
@@ -14211,6 +14235,7 @@
     const cloudSpeedEl = document.getElementById('render-cloud-speed');
     const cloudHeightEl = document.getElementById('render-cloud-height');
     const cloudShadowEl = document.getElementById('render-cloud-shadow');
+    const distanceMistEl = document.getElementById('render-distance-mist');
     const tiltBlurEl = document.getElementById('render-tilt-blur');
     const tiltFocusEl = document.getElementById('render-tilt-focus');
     const ghostOpacityEl = document.getElementById('render-ghost-opacity');
@@ -14227,6 +14252,7 @@
     const cloudSpeedValue = document.getElementById('render-cloud-speed-value');
     const cloudHeightValue = document.getElementById('render-cloud-height-value');
     const cloudShadowValue = document.getElementById('render-cloud-shadow-value');
+    const distanceMistValue = document.getElementById('render-distance-mist-value');
     const tiltBlurValue = document.getElementById('render-tilt-blur-value');
     const tiltFocusValue = document.getElementById('render-tilt-focus-value');
     const ghostOpacityValue = document.getElementById('render-ghost-opacity-value');
@@ -14259,6 +14285,7 @@
       cloudSpeedEl.value = String(Math.round(renderCloudSpeed * 100));
       cloudHeightEl.value = String(renderCloudHeight);
       cloudShadowEl.value = String(Math.round(renderCloudShadow * 100));
+      distanceMistEl.value = String(Math.round(renderDistanceMist * 100));
       tiltBlurEl.value = String(renderTiltBlur);
       tiltFocusEl.value = String(Math.round(renderTiltFocus));
       ghostOpacityEl.value = String(Math.round(renderGhostOpacity * 100));
@@ -14275,12 +14302,13 @@
       cloudSpeedValue.textContent = cloudSpeedEl.value + '%';
       cloudHeightValue.textContent = cloudHeightEl.value;
       cloudShadowValue.textContent = cloudShadowEl.value + '%';
+      distanceMistValue.textContent = distanceMistEl.value + '%';
       tiltBlurValue.textContent = tiltBlurEl.value + 'px';
       tiltFocusValue.textContent = tiltFocusEl.value + '%';
       ghostOpacityValue.textContent = ghostOpacityEl.value + '%';
       floorOpacityValue.textContent = floorOpacityEl.value + '%';
       objectOpacityValue.textContent = objectOpacityEl.value + '%';
-      status.textContent = 'DPR ' + renderer.getPixelRatio().toFixed(2) + ' · shadow ' + sun.shadow.mapSize.x + ' · preview ' + renderVisibleDistance + ' / ' + renderVisibleSize + 'x' + renderVisibleSize;
+      status.textContent = 'DPR ' + renderer.getPixelRatio().toFixed(2) + ' · shadow ' + sun.shadow.mapSize.x + ' · preview ' + renderVisibleDistance + ' / ' + renderVisibleSize + 'x' + renderVisibleSize + ' · atmosphere ' + distanceMistEl.value + '%';
     }
 
     function persistSettings() {
@@ -14296,6 +14324,7 @@
       localStorage.setItem(RENDER_LS.cloudSpeed, renderCloudSpeed.toFixed(2));
       localStorage.setItem(RENDER_LS.cloudHeight, renderCloudHeight.toFixed(1));
       localStorage.setItem(RENDER_LS.cloudShadow, renderCloudShadow.toFixed(2));
+      localStorage.setItem(RENDER_LS.distanceMist, renderDistanceMist.toFixed(2));
       localStorage.setItem(RENDER_LS.tiltBlur, renderTiltBlur.toFixed(1));
       localStorage.setItem(RENDER_LS.tiltFocus, renderTiltFocus.toFixed(0));
       localStorage.setItem(RENDER_LS.ghostOpacity, renderGhostOpacity.toFixed(2));
@@ -14320,6 +14349,8 @@
       if (typeof applyCloudShadowSetting === 'function') applyCloudShadowSetting();
       applyCloudSettings();
       if (typeof applyCloudHeight === 'function') applyCloudHeight();
+      renderDistanceMist = parseInt(distanceMistEl.value, 10) / 100;
+      applyDistanceMistSettings();
       renderTiltBlur = parseFloat(tiltBlurEl.value);
       renderTiltFocus = parseInt(tiltFocusEl.value, 10);
       applyTiltShiftSettings();
@@ -14362,7 +14393,7 @@
     });
     closeBtn.addEventListener('click', () => { closeTinyModal(modal); });
     modal.addEventListener('click', e => { if (e.target === modal) closeTinyModal(modal); });
-    for (const el of [shadowEl, resolutionEl, distanceEl, visibleSizeEl, brightnessEl, lightingEl, saturationEl, contrastEl, cloudsEl, cloudSpeedEl, cloudHeightEl, cloudShadowEl, tiltBlurEl, tiltFocusEl, ghostOpacityEl, floorOpacityEl, objectOpacityEl]) {
+    for (const el of [shadowEl, resolutionEl, distanceEl, visibleSizeEl, brightnessEl, lightingEl, saturationEl, contrastEl, cloudsEl, cloudSpeedEl, cloudHeightEl, cloudShadowEl, distanceMistEl, tiltBlurEl, tiltFocusEl, ghostOpacityEl, floorOpacityEl, objectOpacityEl]) {
       if (!el) continue;
       el.addEventListener('input', applyFromControls);
       el.addEventListener('change', applyFromControls);
@@ -14390,6 +14421,8 @@
       renderCloudShadow = 0.5;
       applyCloudSettings();
       if (typeof applyCloudHeight === 'function') applyCloudHeight();
+      renderDistanceMist = 0.28;
+      applyDistanceMistSettings();
       renderTiltBlur = 3.5;
       renderTiltFocus = 18;
       applyTiltShiftSettings();
@@ -20321,6 +20354,7 @@
         if (wx.tint != null) bgHex = lerpColor(bgHex, wx.tint, 0.30);
         if (scene && scene.background) scene.background.setHex(bgHex);
         if (renderer && renderer.setClearColor) renderer.setClearColor(bgHex, 1);
+        if (typeof applyDistanceMistSettings === 'function') applyDistanceMistSettings(bgHex);
         // Drive the CSS --bg variable so the page chrome around the
         // canvas (vignette, body backdrop) follows the same colour.
         document.documentElement.style.setProperty('--bg', '#' + bgHex.toString(16).padStart(6, '0'));

@@ -18,7 +18,7 @@ Checks:
 - Orbit still works with normal left-drag.
 - Ghost boards do not become editable.
 - The opacity torch is smooth and does not reveal square board seams.
-- Tilt-shift overlays have `pointer-events: none` and stay below UI controls.
+- Tilt-shift overlays have `pointer-events: none`, stay below UI controls, and remain visible during pan/orbit/zoom movement.
 - Cloud shadow at 0% / low values should reduce ground shadow strength without hiding visible cloud puffs.
 - Building details should be believable: manor portico columns stay entry-scale, windows have frames/crossbars, and tall buildings do not stretch entry features unrealistically.
 
