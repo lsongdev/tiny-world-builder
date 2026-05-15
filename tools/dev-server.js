@@ -31,8 +31,6 @@ function send(res, status, body, headers = {}) {
   res.end(body);
 }
 
-const vehicleDemoPath = '/tiny-world-builder?demo=vehicles&seed=tide-ridge-428';
-
 function redirect(res, location) {
   res.writeHead(302, {
     Location: location,
@@ -44,9 +42,11 @@ function redirect(res, location) {
 function routeForRequest(reqUrl) {
   const parsed = new URL(reqUrl, 'http://localhost');
   const pathname = decodeURIComponent(parsed.pathname);
-  if (pathname === '/') return { redirect: vehicleDemoPath };
-  if (pathname === '/tiny-world-builder' && !parsed.search) return { redirect: vehicleDemoPath };
+
+  // Normal access: show the welcome menu (defaults to Farm)
+  if (pathname === '/') return { redirect: '/tiny-world-builder' };
   if (pathname === '/tiny-world-builder') return { file: path.resolve(root, 'tiny-world-builder.html') };
+
   const resolved = path.resolve(root, '.' + pathname);
   if (!resolved.startsWith(root + path.sep) && resolved !== root) return null;
   return { file: resolved };
@@ -96,7 +96,9 @@ server.on('error', (err) => {
 });
 
 server.listen(port, '127.0.0.1', () => {
-  console.log(`Tiny World dev server: http://localhost:${port}${vehicleDemoPath}`);
-  console.log(`Bare port redirects to vehicle demo: http://localhost:${port}/`);
+  console.log(`Tiny World dev server: http://localhost:${port}/tiny-world-builder`);
+  console.log(`  → Shows welcome menu (defaults to Farm preset)`);
+  console.log(`  → Click "Vehicle Demo" button for cars/trucks`);
+  console.log(`  Or append ?demo=vehicles to jump straight to vehicle demo`);
   console.log('Press Ctrl+C to stop.');
 });

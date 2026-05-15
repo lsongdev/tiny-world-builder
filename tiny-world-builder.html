@@ -186,26 +186,34 @@
     z-index: 16;
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 7px;
-    border: 1px solid rgba(255, 255, 255, 0.58);
+    gap: 2px;
+    padding: 3px;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.55);
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.66);
-    box-shadow: var(--shadow);
+    box-shadow: 0 4px 12px -4px rgba(40, 50, 80, 0.18);
     backdrop-filter: blur(22px) saturate(180%);
     -webkit-backdrop-filter: blur(22px) saturate(180%);
   }
-  .xr-panel .btn {
-    padding: 7px 10px;
+
+  .xr-panel .xr-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     border-radius: 999px;
-    white-space: nowrap;
+    color: var(--ink);
   }
-  .xr-status {
-    max-width: 260px;
-    color: var(--muted);
-    font-size: 11px;
-    line-height: 1.2;
-    padding: 0 6px;
+
+  .xr-panel .xr-btn:hover {
+    background: rgba(255, 255, 255, 0.75);
+  }
+
+  .xr-panel .xr-btn svg {
+    width: 17px;
+    height: 17px;
   }
   body.xr-active .xr-panel { background: rgba(42, 39, 34, 0.72); }
   body.xr-active .xr-status { color: rgba(255, 255, 255, 0.86); }
@@ -223,7 +231,7 @@
     background: transparent;
     border: 1px solid transparent;
     padding: 9px 14px;
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     font-family: inherit;
     font-size: 13px;
     font-weight: 500;
@@ -369,7 +377,7 @@
     width: 18px;
     height: 14px;
     margin-top: -5px;
-    border-radius: 5px;
+    border-radius: var(--radius-sm);
     background: rgba(255, 255, 255, 0.85);
     border: 1px solid rgba(255, 255, 255, 0.6);
     box-shadow:
@@ -382,7 +390,7 @@
   .audio-row input[type="range"]::-moz-range-thumb {
     width: 18px;
     height: 14px;
-    border-radius: 5px;
+    border-radius: var(--radius-sm);
     background: rgba(255, 255, 255, 0.85);
     border: 1px solid rgba(255, 255, 255, 0.6);
     box-shadow:
@@ -1071,6 +1079,30 @@
     padding: 8px;
   }
   .agent-input.dragging { opacity: 0.92; }
+
+  /* Pulse border when the agent is thinking / generating */
+  .agent-input.busy {
+    animation: agent-input-pulse 2.2s ease-in-out infinite;
+  }
+
+  @keyframes agent-input-pulse {
+    0%, 100% {
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.85) inset,
+        0 -1px 0 rgba(120, 130, 150, 0.10) inset,
+        0 1px 2px rgba(20, 30, 50, 0.05),
+        0 12px 36px -12px rgba(40, 50, 80, 0.22),
+        0 0 0 0 rgba(160, 132, 84, 0.45);
+    }
+    50% {
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.85) inset,
+        0 -1px 0 rgba(120, 130, 150, 0.10) inset,
+        0 1px 2px rgba(20, 30, 50, 0.05),
+        0 12px 36px -12px rgba(40, 50, 80, 0.22),
+        0 0 0 10px rgba(160, 132, 84, 0);
+    }
+  }
   body.tool-flyout-open .agent-input {
     transform: translate(-50%, -92px);
     transition: transform 0.24s cubic-bezier(0.34, 1.36, 0.64, 1);
@@ -1111,7 +1143,9 @@
     box-shadow: 0 0 0 0 rgba(33, 245, 172, 0.52), 0 0 18px rgba(33, 245, 172, 0.82);
     animation: vehicle-demo-pulse 1.1s ease-in-out infinite;
   }
-  body.vehicle-demo-active .agent-input {
+  body.vehicle-demo-active .agent-input,
+  body.vehicle-demo-active #agent-panel,
+  body.vehicle-demo-active #agent-panel-handle {
     display: none;
   }
   @keyframes vehicle-demo-pulse {
@@ -1211,13 +1245,12 @@
   .agent-send:disabled { opacity: 0.45; cursor: wait; }
   .agent-panel {
     position: fixed;
-    bottom: 20px;
     right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
     z-index: 12;
     width: min(360px, calc(100vw - 40px));
-    /* Expanded height grows upward from the bottom anchor. Stops below
-       the minimap (top-right, ~240px reserved) so they never overlap. */
-    max-height: min(60vh, calc(100vh - 260px));
+    max-height: min(70vh, calc(100vh - 120px));
     background: rgba(255, 255, 255, 0.6);
     border: 1px solid rgba(255, 255, 255, 0.55);
     border-radius: 20px;
@@ -1231,7 +1264,7 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    transform-origin: bottom right;
+    transform-origin: right center;
     transition:
       width 0.32s cubic-bezier(0.22, 1, 0.36, 1),
       max-height 0.32s cubic-bezier(0.22, 1, 0.36, 1),
@@ -1239,22 +1272,73 @@
       transform 0.36s cubic-bezier(0.22, 1, 0.36, 1),
       opacity 0.28s ease;
   }
-  /* Toast / collapsed state: same bottom-right anchor, shrinks to a
-     low-rounded rectangle. */
+  /* Legacy collapsed toast pill (bottom-right era). We no longer auto-collapse
+     the right-middle panel into a tiny ticker; we slide it fully off-screen instead.
+     The class is still toggled by some paths, so we keep minimal rules. */
   .agent-panel.collapsed {
-    width: min(320px, calc(100vw - 40px));
-    max-height: 38px;
-    border-radius: 10px;
-    cursor: pointer;
+    max-height: 42px;
+    border-radius: 14px;
+    overflow: hidden;
   }
-  /* Hidden state — slides off-screen to the right. Used as the "no
-     activity" resting state so the panel only shows up when there's
-     something to say (toast behavior). */
+
+  /* Hidden state: panel is slid completely off the right edge of the screen.
+     Nothing is visible until the user clicks the separate right-edge grip handle
+     (only shown when there is actual conversation history). */
   .agent-panel.hidden {
-    transform: translateX(calc(100% + 40px));
-    opacity: 0;
+    transform: translateX(100%);
+    opacity: 0.0;
     pointer-events: none;
+    transition:
+      transform 0.36s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.28s ease;
   }
+
+  /* The persistent right-edge grip handle. Exact same glassmorphism, blur,
+     border, shadow stack and border-radius language as .agent-input.
+     It only appears after real agent activity and when the panel is hidden.
+     The ⋮⋮ cue is the same left-grip icon used on the input bar. */
+  .agent-panel-handle {
+    position: fixed;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 13;
+    width: 34px;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    letter-spacing: -1px;
+    color: #8a7a58;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-radius: 20px;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.85) inset,
+      0 -1px 0 rgba(120, 130, 150, 0.10) inset,
+      0 1px 2px rgba(20, 30, 50, 0.05),
+      0 12px 36px -12px rgba(40, 50, 80, 0.22);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, color 0.12s;
+    user-select: none;
+  }
+  .agent-panel-handle:hover {
+    color: var(--ink);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.9) inset,
+      0 -1px 0 rgba(120, 130, 150, 0.10) inset,
+      0 1px 3px rgba(20, 30, 50, 0.08),
+      0 16px 40px -10px rgba(40, 50, 80, 0.28);
+    transform: translateY(-50%) scale(1.02);
+  }
+  .agent-panel-handle:active { transform: translateY(-50%) scale(0.98); }
+
+  /* Visibility gate: the handle only exists in the layout when there has been
+     at least one real assistant message or selection activity. */
+  .agent-panel-handle[hidden] { display: none; }
   .agent-panel-head {
     display: flex;
     align-items: center;
@@ -1382,8 +1466,16 @@
     margin-left: 28px;
     background: #eaf3d1;
     border-color: #d6e7a8;
+    /* Flatter right side for user messages */
+    border-radius: 14px 14px 4px 14px;
   }
-  .agent-msg.assistant { margin-right: 28px; }
+  .agent-msg.assistant {
+    margin-right: 28px;
+    /* Distinct left side treatment for AI messages (flatter left, subtle accent) */
+    border-radius: 14px 14px 14px 4px;
+    border-left: 3px solid #c5a87a;
+    padding-left: 9px;
+  }
   .agent-msg.error {
     background: #f7e4df;
     border-color: #e2b8ac;
@@ -1437,11 +1529,30 @@
     padding: 80px 20px 20px;
   }
   .modal[hidden] { display: none; }
+
+  /* Hide the floating agent input bar, conversation panel, its right-edge
+     grip handle, the main toolbar, and XR panel while the welcome chooser
+     modal is open. Gives a completely clean launcher experience. */
+  #welcome-modal:not([hidden]) ~ #agent-input,
+  #welcome-modal:not([hidden]) ~ #agent-panel,
+  #welcome-modal:not([hidden]) ~ #agent-panel-handle,
+  #welcome-modal:not([hidden]) ~ .toolbar,
+  #welcome-modal:not([hidden]) ~ #xr-panel {
+    display: none !important;
+  }
+
+  :root {
+    --radius-sm: 6px;
+    --radius-md: 10px;   /* buttons, inputs, small controls */
+    --radius-lg: 14px;   /* cards inside modals, options, panels */
+    --radius-xl: 20px;   /* main modal cards */
+  }
+
   .modal-card {
     background: rgba(255, 255, 255, 0.6);
     color: var(--ink);
     border: 1px solid rgba(255, 255, 255, 0.55);
-    border-radius: 20px;
+    border-radius: var(--radius-xl);
     padding: 18px 18px 14px;
     width: min(520px, 100%);
     box-shadow:
@@ -1535,7 +1646,7 @@
     width: 18px;
     height: 14px;
     margin-top: -5px;
-    border-radius: 5px;
+    border-radius: var(--radius-sm);
     background: rgba(255, 255, 255, 0.85);
     border: 1px solid rgba(255, 255, 255, 0.7);
     box-shadow:
@@ -1552,7 +1663,7 @@
   .gen-slider-row input[type="range"]::-moz-range-thumb {
     width: 18px;
     height: 14px;
-    border-radius: 5px;
+    border-radius: var(--radius-sm);
     background: rgba(255, 255, 255, 0.85);
     border: 1px solid rgba(255, 255, 255, 0.7);
     box-shadow:
@@ -1736,38 +1847,8 @@
     box-shadow: inset 0 0 0 1px rgba(0,0,0,0.10);
     display: inline-block;
   }
-  .modal-card .gen-slider-row input[type=range] {
-    width: 100%;
-    height: 18px;
-    margin: 0;
-  }
-  .modal-card .gen-slider-row input[type=range]::-webkit-slider-runnable-track {
-    height: 3px;
-    background: rgba(42,39,34,0.20);
-    box-shadow: 0 1px 0 rgba(255,255,255,0.70);
-  }
-  .modal-card .gen-slider-row input[type=range]::-moz-range-track {
-    height: 3px;
-    background: rgba(42,39,34,0.20);
-    box-shadow: 0 1px 0 rgba(255,255,255,0.70);
-  }
-  .modal-card .gen-slider-row input[type=range]::-webkit-slider-thumb {
-    width: 18px;
-    height: 18px;
-    margin-top: -7px;
-    border-radius: 999px;
-    background: #fff;
-    border: 1px solid rgba(120,130,150,0.20);
-    box-shadow: 0 2px 5px rgba(20,30,50,0.18);
-  }
-  .modal-card .gen-slider-row input[type=range]::-moz-range-thumb {
-    width: 18px;
-    height: 18px;
-    border-radius: 999px;
-    background: #fff;
-    border: 1px solid rgba(120,130,150,0.20);
-    box-shadow: 0 2px 5px rgba(20,30,50,0.18);
-  }
+  /* Gen sliders now fully inherit the main frosted rectangular slider style
+     (no more special circular thumbs or thinner tracks) */
   .gen-slider-val {
     text-align: right;
     font-variant-numeric: tabular-nums;
@@ -1803,7 +1884,8 @@
   body.showcase .unsaved-banner,
   body.showcase .minimap-wrap,
   body.showcase #agent-input,
-  body.showcase #agent-panel {
+  body.showcase #agent-panel,
+  body.showcase #agent-panel-handle {
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.5s ease;
@@ -2125,19 +2207,17 @@
 
   .world-menu {
     position: fixed;
-    /* Drop cleanly below the brand sub-line: brand sits at top:26px,
-       title 28px + 6px gap + sub-line 12px = ~72px; allow 8px gutter. */
     top: 86px; left: 28px;
     z-index: 60;
-    width: 320px;
+    width: 340px;                    /* a bit wider for breathing room */
     background: rgba(255, 255, 255, 0.6);
     border: 1px solid rgba(255, 255, 255, 0.55);
-    border-radius: 18px;
+    border-radius: var(--radius-xl);
     box-shadow:
       0 1px 0 rgba(255, 255, 255, 0.85) inset,
       0 -1px 0 rgba(120, 130, 150, 0.10) inset,
       0 1px 2px rgba(20, 30, 50, 0.05),
-      0 12px 36px -12px rgba(40, 50, 80, 0.22);
+      0 16px 48px -14px rgba(40, 50, 80, 0.28);
     backdrop-filter: blur(22px) saturate(180%);
     -webkit-backdrop-filter: blur(22px) saturate(180%);
     overflow: hidden;
@@ -2181,30 +2261,33 @@
   .world-menu-section { padding: 6px; }
   .world-menu-section + .world-menu-section { border-top: 1px solid var(--line-soft); }
   .world-menu-section-title {
-    font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
     text-transform: uppercase; color: var(--muted);
-    padding: 6px 8px 4px;
+    padding: 8px 10px 4px;
+    opacity: 0.75;
   }
   .world-menu-item {
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: center; gap: 12px;
     width: 100%;
     background: transparent;
     border: none;
     text-align: left;
-    padding: 7px 8px;
-    border-radius: 7px;
+    padding: 9px 10px;
+    border-radius: var(--radius-md);
     cursor: pointer;
     color: var(--ink);
-    font: inherit; font-size: 12.5px;
+    font: inherit; font-size: 13px;
+    min-height: 36px;
   }
   .world-menu-item:hover { background: rgba(255, 255, 255, 0.55); }
   .world-menu-icon {
-    width: 22px; height: 22px;
+    width: 28px; height: 28px;     /* even bigger icons */
     display: inline-flex; align-items: center; justify-content: center;
     color: var(--muted);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: #f3ecdc;
     flex-shrink: 0;
+    font-size: 16px;
   }
   .world-menu-label { flex: 1; }
   .world-menu-hint {
@@ -2212,8 +2295,17 @@
     font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   }
   .world-menu-list {
-    list-style: none; margin: 0; padding: 0;
-    max-height: 230px; overflow-y: auto;
+    list-style: none; margin: 0; padding: 4px 0;
+    max-height: 320px;              /* taller before scrolling */
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  .world-menu-list::-webkit-scrollbar {
+    width: 6px;
+  }
+  .world-menu-list::-webkit-scrollbar-thumb {
+    background: rgba(120, 130, 150, 0.35);
+    border-radius: 3px;
   }
   .world-menu-slot {
     display: flex; align-items: center; gap: 8px;
@@ -2350,7 +2442,7 @@
     font-family: ui-monospace, 'SF Mono', Menlo, monospace;
     padding: 2px 5px;
     background: #f3ecdc;
-    border-radius: 5px;
+    border-radius: var(--radius-sm);
   }
   .palette-empty {
     padding: 26px 16px;
@@ -2390,6 +2482,12 @@
     line-height: 1.5;
   }
   .confirm-actions { justify-content: flex-end; gap: 8px; margin-top: 6px; }
+
+  .gen-actions {
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 6px;
+  }
   .btn.confirm-destructive {
     background: #b84838;
     border-color: #a23a2b;
@@ -2397,6 +2495,19 @@
     font-weight: 600;
   }
   .btn.confirm-destructive:hover { background: #a23a2b; }
+
+  /* Strong primary action button for Generate (matches weight of destructive reset button) */
+  #gen-go {
+    background: #3a72c8;
+    border-color: #2f5aa3;
+    color: #fff;
+    font-weight: 600;
+    padding: 8px 18px;
+    border-radius: 10px;
+  }
+  #gen-go:hover {
+    background: #2f5aa3;
+  }
   .range-row {
     display: grid;
     grid-template-columns: 116px 1fr 44px;
@@ -2445,7 +2556,7 @@
     left: 2px;
     width: 16px;
     height: 16px;
-    border-radius: 5px;
+    border-radius: var(--radius-sm);
     background: rgba(255, 255, 255, 0.95);
     border: 1px solid rgba(255, 255, 255, 0.7);
     box-shadow:
@@ -2534,8 +2645,20 @@
   }
   .welcome-card {
     width: min(620px, calc(100vw - 32px));
-    padding: 24px;
-    gap: 14px;
+    padding: 22px 24px 18px;
+    gap: 12px;
+
+    /* Match the lovely frosted glass style of other dialogs */
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-radius: 20px;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.85) inset,
+      0 -1px 0 rgba(120, 130, 150, 0.10) inset,
+      0 1px 2px rgba(20, 30, 50, 0.05),
+      0 24px 56px -16px rgba(40, 50, 80, 0.30);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
   }
   .welcome-title {
     font-family: 'Fraunces', Georgia, serif;
@@ -2572,12 +2695,71 @@
     color: var(--ink);
     margin-bottom: 3px;
   }
-  .welcome-actions {
+  .welcome-subtitle {
+    text-align: center;
+    font-size: 15px;
+    color: #666;
+    margin: 4px 0 16px;
+  }
+
+  .welcome-options {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
     gap: 10px;
+  }
+
+  .welcome-option {
+    text-align: left;
+    padding: 14px 16px;
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(212, 201, 176, 0.6);
+    background: rgba(255, 255, 255, 0.45);
+    transition: all 0.1s ease;
+    cursor: pointer;
+    outline: none;
+    backdrop-filter: blur(10px) saturate(180%);
+    -webkit-backdrop-filter: blur(10px) saturate(180%);
+  }
+
+  .welcome-option:hover {
+    border-color: #a08454;
+    background: rgba(255, 255, 255, 0.65);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-1px);
+  }
+
+  .welcome-option:active {
+    transform: translateY(0);
+  }
+
+  .welcome-option:focus-visible {
+    box-shadow: 0 0 0 3px rgba(160, 132, 84, 0.35);
+    border-color: #a08454;
+  }
+
+  .welcome-option.primary {
+    border-color: #a08454;
+    background: rgba(253, 250, 243, 0.7);
+  }
+
+  .welcome-option .option-title {
+    font-weight: 600;
+    font-size: 15px;
+    color: #222;
+  }
+
+  .welcome-option .option-desc {
+    font-size: 12px;
+    color: #666;
     margin-top: 4px;
+    line-height: 1.4;
+  }
+
+  .welcome-footer {
+    margin-top: 14px;
+    font-size: 11px;
+    text-align: center;
+    color: #888;
   }
   .welcome-dontshow {
     display: inline-flex;
@@ -3192,11 +3374,32 @@
     </button>
   </div>
 
-  <div class="xr-panel" id="xr-panel" aria-label="XR modes">
-    <button class="btn" id="xr-surface" type="button">AR desk</button>
-    <button class="btn" id="xr-float" type="button">Float</button>
-    <button class="btn" id="xr-inside" type="button">Enter world</button>
-    <span class="xr-status" id="xr-status">WebXR needs HTTPS and a compatible headset/browser.</span>
+  <div class="xr-panel" id="xr-panel" aria-label="XR modes" hidden>
+    <button class="btn icon xr-btn" id="xr-surface" type="button" title="AR Desk – Pin the board to a real-world surface (TableTop AR)" aria-label="AR Desk">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <path d="M8 12h8"/>
+        <path d="M12 8v8"/>
+      </svg>
+    </button>
+
+    <button class="btn icon xr-btn" id="xr-float" type="button" title="Float – Suspend the board in mid-air" aria-label="Float">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="5" y="9" width="14" height="6" rx="1"/>
+        <path d="M8 6v3"/>
+        <path d="M16 6v3"/>
+        <path d="M8 15v3"/>
+        <path d="M16 15v3"/>
+      </svg>
+    </button>
+
+    <button class="btn icon xr-btn" id="xr-inside" type="button" title="Enter World – Full VR scale (1:1)" aria-label="Enter World (VR)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 12a10 10 0 0 1 20 0"/>
+        <path d="M12 2v20"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+    </button>
   </div>
 
   <button class="showcase-exit" id="showcase-exit" type="button" aria-label="Exit showcase mode">
@@ -3391,18 +3594,43 @@
         <strong id="welcome-title" class="welcome-title">Tiny World <em>Builder</em></strong>
         <button class="modal-close" id="welcome-close" title="Close" aria-label="Close welcome dialog">×</button>
       </div>
-      <p class="welcome-copy">Build a little voxel world by painting terrain, dropping houses, drawing fences, planting crops, and shaping paths.</p>
-      <div class="welcome-tips" aria-label="Quick tips">
-        <div class="welcome-tip"><strong>Tap or click to build</strong>Select a tool, then tap any tile to place it.</div>
-        <div class="welcome-tip"><strong>Move the camera</strong>One finger or left-drag to orbit · two fingers / right-drag / Space to pan · pinch or scroll to zoom.</div>
-        <div class="welcome-tip"><strong>Keep going</strong>Use Reset, Clear, Export, Import, and Render from the top bar.</div>
+
+      <div class="welcome-subtitle">
+        Choose how you'd like to begin
       </div>
-      <div class="welcome-actions">
-        <label class="welcome-dontshow">
-          <input type="checkbox" id="welcome-dontshow" />
-          <span>Don't show this again</span>
-        </label>
-        <button class="btn" id="welcome-start" type="button">Start building</button>
+
+      <!-- Original instructions / tips -->
+      <div class="welcome-tips">
+        <div class="welcome-tip">
+          <strong>Tap or click to build</strong>
+          Select a tool, then tap any tile to place it.
+        </div>
+        <div class="welcome-tip">
+          <strong>Move the camera</strong>
+          One finger or left-drag to orbit · two fingers / right-drag / Space to pan · pinch or scroll to zoom.
+        </div>
+        <div class="welcome-tip">
+          <strong>Keep going</strong>
+          Use Reset, Clear, Export, Import, and Render from the top bar.
+        </div>
+      </div>
+
+      <div class="welcome-options">
+        <!-- Farm - Primary / Default -->
+        <button class="welcome-option primary" id="welcome-farm" type="button">
+          <div class="option-title">Start with the Farm</div>
+          <div class="option-desc">Classic village with houses, crops, river &amp; bridge</div>
+        </button>
+
+        <!-- Vehicle Demo -->
+        <button class="welcome-option" id="welcome-vehicle" type="button">
+          <div class="option-title">Vehicle Demo</div>
+          <div class="option-desc">Roads + multiple cars &amp; trucks driving around</div>
+        </button>
+      </div>
+
+      <div class="welcome-footer">
+        The Farm is the default starting world. Use <strong>Reset</strong> anytime to return to it.
       </div>
     </form>
   </div>
@@ -3522,7 +3750,7 @@
       </div>
 
       <div class="help-line">Replaces the current world. Model and API key live in Settings → AI.</div>
-      <div class="modal-foot">
+      <div class="modal-foot gen-actions">
         <span id="gen-status"></span>
         <button class="btn" id="gen-go" type="button">Generate</button>
       </div>
@@ -3568,7 +3796,7 @@
             <div class="settings-section-title">World</div>
             <div class="range-row">
               <span>Preview distance</span>
-              <input id="render-distance" type="range" min="1" max="4" step="1" />
+              <input id="render-distance" type="range" min="1" max="6" step="1" />
               <output id="render-distance-value"></output>
             </div>
             <div class="range-row">
@@ -3680,7 +3908,7 @@
     </form>
   </div>
 
-  <div id="agent-panel" class="agent-panel collapsed" data-ai-interface aria-live="polite">
+  <div id="agent-panel" class="agent-panel" data-ai-interface aria-live="polite">
     <div class="agent-panel-head">
       <span id="agent-panel-title">Agent conversation</span>
       <button type="button" class="agent-panel-toggle" id="agent-panel-toggle" aria-label="Close conversation">×</button>
@@ -3692,6 +3920,11 @@
     </div>
     <div class="agent-messages" id="agent-messages"></div>
   </div>
+
+  <!-- Persistent right-edge grip handle. Only visible when the agent panel has
+       real history and is currently slid off-screen. Exact same glassmorphism
+       and ⋮⋮ drag cue as the bottom input bar. -->
+  <button id="agent-panel-handle" class="agent-panel-handle" title="Show agent conversation" aria-label="Show agent conversation" hidden>⋮⋮</button>
 
   <div id="generation-plan-overlay" class="generation-plan-overlay" hidden aria-hidden="true">
     <img id="generation-plan-image" alt="" />
@@ -3899,8 +4132,9 @@
     //   - shadow kept at 'balanced' (PCF filtering 1024 map).  'low'
     //     swaps in BasicShadowMap with no filtering → jagged dropouts.
     //   - preview distance/window are auto-sized from GRID on first load and
-    //     whenever the board size changes, so large boards don't preload too
-    //     much neighbouring preview content.
+    //     whenever the board size changes. Small boards now default higher
+    //     (distance 3) and allow up to 4 rings so you can see more of the
+    //     world you've built when panning far ("where we've come from").
     //   - clouds + cloudShadow trimmed because those are pure CPU/GPU saves
     //     with no aesthetic cost.
     //   - post-processing settings were removed in v14; colour sliders are
@@ -3917,8 +4151,8 @@
     cloudSpeed: '0.35',
     cloudHeight: '6',
     cloudShadow: '0',
-    tiltBlur: '3.5',
-    tiltFocus: '18',
+    tiltBlur: '1.0',
+    tiltFocus: '65',
     ghostOpacity: '1',
     floorOpacity: '1',
     objectOpacity: '1',
@@ -3984,11 +4218,11 @@
   let renderLighting = storedNumber(RENDER_LS.lighting, 1.0, 0.5, 1.45);
   function renderBudgetForGrid(grid) {
     const g = coerceGridSize(grid, GRID);
-    if (g >= 256) return { maxDistance: 0, ghostRadius: 0, visibleScale: 1.0, homeWindowMin: 24, homeWindowMax: 72, queueCap: 72 };
-    if (g >= 128) return { maxDistance: 0, ghostRadius: 0, visibleScale: 1.0, homeWindowMin: 28, homeWindowMax: 88, queueCap: 88 };
-    if (g >= 96)  return { maxDistance: 1, ghostRadius: 1, visibleScale: 1.05, homeWindowMin: 32, homeWindowMax: 112, queueCap: 112 };
-    if (g >= 64)  return { maxDistance: 1, ghostRadius: 1, visibleScale: 1.10, homeWindowMin: 36, homeWindowMax: 128, queueCap: 128 };
-    return { maxDistance: g <= 12 ? 2 : 1, ghostRadius: g <= 12 ? 2 : 1, visibleScale: 1.125, homeWindowMin: g, homeWindowMax: g, queueCap: 256 };
+    if (g >= 256) return { maxDistance: 1, ghostRadius: 1, visibleScale: 1.0, homeWindowMin: 24, homeWindowMax: 72, queueCap: 72 };
+    if (g >= 128) return { maxDistance: 1, ghostRadius: 1, visibleScale: 1.0, homeWindowMin: 28, homeWindowMax: 88, queueCap: 88 };
+    if (g >= 96)  return { maxDistance: 2, ghostRadius: 2, visibleScale: 1.05, homeWindowMin: 32, homeWindowMax: 112, queueCap: 112 };
+    if (g >= 64)  return { maxDistance: 2, ghostRadius: 2, visibleScale: 1.10, homeWindowMin: 36, homeWindowMax: 128, queueCap: 128 };
+    return { maxDistance: g <= 12 ? 4 : 2, ghostRadius: g <= 12 ? 4 : 2, visibleScale: 1.125, homeWindowMin: g, homeWindowMax: g, queueCap: 256 };
   }
 
   function maxRenderVisibleDistanceForGrid(grid) {
@@ -4004,7 +4238,7 @@
   function previewSettingsForGrid(grid, explored) {
     const g = coerceGridSize(grid, GRID);
     const budget = renderBudgetForGrid(g);
-    const distance = Math.min(budget.maxDistance, g <= 12 ? 2 : 1);
+    const distance = Math.min(budget.maxDistance, g <= 12 ? 3 : 2);
     const visibleSize = explored ? maxRenderVisibleSizeForGrid(g) : g;
     return { distance, visibleSize };
   }
@@ -4038,8 +4272,8 @@
   // Cloud shadow strength — controls per-puff alphaTest so only the
   // denser parts of each cloud cast on the world below.
   let renderCloudShadow = storedNumber(RENDER_LS.cloudShadow, 0.5, 0, 1);
-  let renderTiltBlur = storedNumber(RENDER_LS.tiltBlur, 3.5, 0, 8);
-  let renderTiltFocus = storedNumber(RENDER_LS.tiltFocus, 18, 15, 80);
+  let renderTiltBlur = storedNumber(RENDER_LS.tiltBlur, 1.0, 0, 8);
+  let renderTiltFocus = storedNumber(RENDER_LS.tiltFocus, 65, 15, 80);
   let renderGhostOpacity = storedNumber(RENDER_LS.ghostOpacity, 1, 0.05, 1);
   let renderFloorOpacity = storedNumber(RENDER_LS.floorOpacity, 1, 0.10, 1);
   let renderObjectOpacity = storedNumber(RENDER_LS.objectOpacity, 1, 0, 1);
@@ -4093,6 +4327,9 @@
     renderVisibleSize = Math.max(GRID, Math.min(maxRenderVisibleSizeForGrid(GRID), Math.round(value)));
     invalidateHomeFade();
     if (typeof ensureGhostBoardsAroundTarget === 'function') ensureGhostBoardsAroundTarget();
+    // When the user zooms the preview window, some ghost boards may need to
+    // switch between full-quality and cheap representations.
+    reevaluateGhostDetailLevels();
   }
 
   function applyAutoPreviewSettingsForGrid(opts = {}) {
@@ -4492,25 +4729,25 @@
   // Lambert (not Standard): non-PBR diffuse only, much more direct color response.
   // Stylized low-poly looks better with flat shading than physical energy conservation.
   const M = {
-    grass:     new THREE.MeshLambertMaterial({ color: 0xb0d949 }),
-    grassEdge: new THREE.MeshLambertMaterial({ color: 0x95c138 }),
-    dirt:      new THREE.MeshLambertMaterial({ color: 0x7d4519 }),
-    dirtRich:  new THREE.MeshLambertMaterial({ color: 0x462b15 }),
-    path:      new THREE.MeshLambertMaterial({ color: 0xf2d29c }),
-    pathTrim:  new THREE.MeshLambertMaterial({ color: 0xd9b780 }),
-    pathScuff: new THREE.MeshLambertMaterial({ color: 0xc9aa70 }),
-    water:     new THREE.MeshLambertMaterial({ color: 0x3a8fcc }),
-    waterDk:   new THREE.MeshLambertMaterial({ color: 0x2f77ad }),
-    waterFoam: new THREE.MeshLambertMaterial({ color: 0xbbe9ff, transparent: true, opacity: 0.74 }),
-    shore:     new THREE.MeshLambertMaterial({ color: 0xd8c18a }),
+    grass:     new THREE.MeshLambertMaterial({ color: 0xb0d949, side: THREE.FrontSide }),
+    grassEdge: new THREE.MeshLambertMaterial({ color: 0x95c138, side: THREE.FrontSide }),
+    dirt:      new THREE.MeshLambertMaterial({ color: 0x7d4519, side: THREE.FrontSide }),
+    dirtRich:  new THREE.MeshLambertMaterial({ color: 0x462b15, side: THREE.FrontSide }),
+    path:      new THREE.MeshLambertMaterial({ color: 0xf2d29c, side: THREE.FrontSide }),
+    pathTrim:  new THREE.MeshLambertMaterial({ color: 0xd9b780, side: THREE.FrontSide }),
+    pathScuff: new THREE.MeshLambertMaterial({ color: 0xc9aa70, side: THREE.FrontSide }),
+    water:     new THREE.MeshLambertMaterial({ color: 0x3a8fcc, side: THREE.FrontSide }),
+    waterDk:   new THREE.MeshLambertMaterial({ color: 0x2f77ad, side: THREE.FrontSide }),
+    waterFoam: new THREE.MeshLambertMaterial({ color: 0xbbe9ff, transparent: true, opacity: 0.74, side: THREE.FrontSide }),
+    shore:     new THREE.MeshLambertMaterial({ color: 0xd8c18a, side: THREE.FrontSide }),
 
-    rock:      new THREE.MeshLambertMaterial({ color: 0x9b9a8f }),
-    rockDk:    new THREE.MeshLambertMaterial({ color: 0x707066 }),
-    rockHi:    new THREE.MeshLambertMaterial({ color: 0xc3c0b2 }),
-    rockMoss:  new THREE.MeshLambertMaterial({ color: 0x6f8a3a }),
+    rock:      new THREE.MeshLambertMaterial({ color: 0x9b9a8f, side: THREE.FrontSide }),
+    rockDk:    new THREE.MeshLambertMaterial({ color: 0x707066, side: THREE.FrontSide }),
+    rockHi:    new THREE.MeshLambertMaterial({ color: 0xc3c0b2, side: THREE.FrontSide }),
+    rockMoss:  new THREE.MeshLambertMaterial({ color: 0x6f8a3a, side: THREE.FrontSide }),
 
     // New terrains (stone / lava / sand / snow).
-    stone:     new THREE.MeshLambertMaterial({ color: 0x8f8a82 }),
+    stone:     new THREE.MeshLambertMaterial({ color: 0x8f8a82, side: THREE.FrontSide }),
     stoneDk:   new THREE.MeshLambertMaterial({ color: 0x5e5a52 }),
     lava:      new THREE.MeshLambertMaterial({ color: 0xe7592b, emissive: 0xb02410, emissiveIntensity: 0.8 }),
     lavaCrust: new THREE.MeshLambertMaterial({ color: 0x3a201a }),
@@ -4746,12 +4983,44 @@
     // inside the top face at grazing camera angles.
     g.userData.weatherSurfaceY = topY + WEATHER_SURFACE_PAD;
 
-    // Dirt block (sides + bottom of tile). Slightly overlap neighbours so
-    // shallow camera angles can't see background through per-tile bevel gaps
-    // along the world edge.
-    const dirt = new THREE.Mesh(roundedSlab(TILE * 1.04, DIRT_H + rise, 0.04), M.dirt);
-    dirt.position.y = -DIRT_H;
-    g.add(dirt);
+    // Dirt / riser block (sides + bottom of tile).
+    // For grass we *always* use a simple vertical brown dirt wall (BoxGeometry
+    // with no top face) + a larger grass top that overhangs it. This keeps the
+    // classic dirt edges visible on every grass cliff, bank, or drop-off while
+    // completely hiding the brown from above ("if it's grass it's grass").
+    //
+    // Note on hidden faces: both the riser and top cap are currently full closed
+    // meshes (bottom faces + the top of the riser under the decorative cap).
+    // We explicitly set side: FrontSide on the materials so back faces are culled.
+    // The bottom of the riser is the main hidden face (underground). Higher-level
+    // culling (home render window + ghostPreloadRadius + frustum) is what keeps
+    // us from drawing tiles that are completely off-screen. Removing riser bottoms
+    // entirely is a possible further optimization if triangle count becomes an issue.
+    let riserSize = TILE * 1.04;
+    let topSize   = TILE * 0.98;
+    let riserBevel = 0.04;
+    let topBevel   = 0.06;
+
+    if (terrain === 'grass') {
+      riserSize  = TILE * 0.98;
+      topSize    = TILE * 1.04;
+      riserBevel = 0.02;
+      topBevel   = 0.04;
+    }
+
+    if (terrain === 'grass') {
+      // Brown dirt wall for grass — provides the visible dirt edges on any
+      // drop or perimeter. The larger top hides it from the top.
+      const dirtGeo = new THREE.BoxGeometry(riserSize, DIRT_H + rise, riserSize);
+      dirtGeo.translate(0, (DIRT_H + rise) * 0.5, 0);
+      const riser = new THREE.Mesh(dirtGeo, M.dirt);
+      riser.position.y = -DIRT_H;
+      g.add(riser);
+    } else {
+      const riser = new THREE.Mesh(roundedSlab(riserSize, DIRT_H + rise, riserBevel), M.dirt);
+      riser.position.y = -DIRT_H;
+      g.add(riser);
+    }
 
     // top cap
     let topMat = M.grass;
@@ -4763,7 +5032,7 @@
     if (terrain === 'sand')  topMat = M.sand;
     if (terrain === 'snow')  topMat = M.snow;
 
-    const top = new THREE.Mesh(roundedSlab(TILE * 0.98, TOP_H, 0.06), topMat);
+    const top = new THREE.Mesh(roundedSlab(topSize, TOP_H, topBevel), topMat);
     top.position.y = rise;
     g.add(top);
 
@@ -7768,10 +8037,17 @@
   function tickVehicles(dt) {
     if (!vehicleFleet.size) return;
 
+    // Budget vehicle simulation so the Vehicle Demo (with 8–20+ cars) stays smooth
+    // even on mid-range devices. We process as many as fit in ~4ms per frame.
+    const budgetMs = 4.0;
+    const start = performance.now();
+
     const remove = [];
     for (const [id, state] of vehicleFleet) {
       tickVehicle(state, dt);
       if (state.remove) remove.push(id);
+
+      if (performance.now() - start > budgetMs) break;
     }
 
     for (const id of remove) removeVehicle(id);
@@ -8729,11 +9005,55 @@
     return cellInBounds(x, z, homeRenderBounds);
   }
 
-  function pruneHomeRenderWindow(bounds) {
-    for (const key of Object.keys(cellMeshes)) {
-      const [x, z] = key.split(',').map(Number);
-      if (x < 0 || x >= GRID || z < 0 || z >= GRID) continue;
-      if (!cellInBounds(x, z, bounds)) disposeCellMeshEntry(key);
+  function pruneHomeRenderWindow(oldBounds, newBounds) {
+    // Delta-aware prune: only look at cells in the old window that are
+    // now outside the new window. Cost is O(perimeter) instead of O(area)
+    // for typical 1-tile movements during panning.
+    if (!oldBounds) {
+      // First time or after invalidate — do a full (but rare) scan
+      for (const key of Object.keys(cellMeshes)) {
+        const [x, z] = key.split(',').map(Number);
+        if (x < 0 || x >= GRID || z < 0 || z >= GRID) continue;
+        if (!cellInBounds(x, z, newBounds)) disposeCellMeshEntry(key);
+      }
+      return;
+    }
+
+    if (boundsEqual(oldBounds, newBounds)) return;
+
+    const toCheck = [];
+
+    // Left strip that left
+    if (oldBounds.x0 < newBounds.x0) {
+      for (let x = oldBounds.x0; x < newBounds.x0; x++) {
+        for (let z = oldBounds.z0; z <= oldBounds.z1; z++) toCheck.push(x + ',' + z);
+      }
+    }
+    // Right strip that left
+    if (oldBounds.x1 > newBounds.x1) {
+      for (let x = newBounds.x1 + 1; x <= oldBounds.x1; x++) {
+        for (let z = oldBounds.z0; z <= oldBounds.z1; z++) toCheck.push(x + ',' + z);
+      }
+    }
+    // Bottom strip that left
+    if (oldBounds.z0 < newBounds.z0) {
+      for (let z = oldBounds.z0; z < newBounds.z0; z++) {
+        for (let x = Math.max(oldBounds.x0, newBounds.x0); x <= Math.min(oldBounds.x1, newBounds.x1); x++) {
+          toCheck.push(x + ',' + z);
+        }
+      }
+    }
+    // Top strip that left
+    if (oldBounds.z1 > newBounds.z1) {
+      for (let z = newBounds.z1 + 1; z <= oldBounds.z1; z++) {
+        for (let x = Math.max(oldBounds.x0, newBounds.x0); x <= Math.min(oldBounds.x1, newBounds.x1); x++) {
+          toCheck.push(x + ',' + z);
+        }
+      }
+    }
+
+    for (const key of toCheck) {
+      if (cellMeshes[key]) disposeCellMeshEntry(key);
     }
   }
 
@@ -8742,24 +9062,104 @@
     const nextBounds = computeHomeRenderBounds();
     if (!opts.force && boundsEqual(homeRenderBounds, nextBounds) && homeRenderQueue.length) return;
     if (!opts.force && boundsEqual(homeRenderBounds, nextBounds)) return;
+    const oldBounds = homeRenderBounds;
+    const oldBoundsForPrune = homeRenderBounds;
     homeRenderBounds = nextBounds;
-    pruneHomeRenderWindow(homeRenderBounds);
-    homeRenderQueue = [];
-    homeRenderQueued.clear();
-    for (let x = homeRenderBounds.x0; x <= homeRenderBounds.x1; x++) {
-      for (let z = homeRenderBounds.z0; z <= homeRenderBounds.z1; z++) {
-        const key = x + ',' + z;
-        const entry = cellMeshes[key];
-        if (entry && entry.tile) continue;
-        homeRenderQueue.push([x, z, key]);
-        homeRenderQueued.add(key);
+    pruneHomeRenderWindow(oldBoundsForPrune, homeRenderBounds);
+
+    // Delta queue update for common small movements (1-2 tiles):
+    // Instead of rebuilding the entire queue + full sort every frame,
+    // only add the newly visible cells on the far side of the movement.
+    // This keeps panning on 96-256 grids much lighter.
+    const movementX = nextBounds.cx - (oldBounds ? oldBounds.cx : nextBounds.cx);
+    const movementZ = nextBounds.cz - (oldBounds ? oldBounds.cz : nextBounds.cz);
+
+    const isSmallMove = Math.abs(movementX) <= 3 && Math.abs(movementZ) <= 3 && !opts.force;
+
+    if (!isSmallMove || !oldBounds) {
+      // Full rebuild (rare: big jump, first time, or forced)
+      homeRenderQueue = [];
+      homeRenderQueued.clear();
+      for (let x = homeRenderBounds.x0; x <= homeRenderBounds.x1; x++) {
+        for (let z = homeRenderBounds.z0; z <= homeRenderBounds.z1; z++) {
+          const key = x + ',' + z;
+          const entry = cellMeshes[key];
+          if (entry && entry.tile) continue;
+          homeRenderQueue.push([x, z, key]);
+          homeRenderQueued.add(key);
+        }
+      }
+      homeRenderQueue.sort((a, b) => {
+        const adx = a[0] - homeRenderBounds.cx, adz = a[1] - homeRenderBounds.cz;
+        const bdx = b[0] - homeRenderBounds.cx, bdz = b[1] - homeRenderBounds.cz;
+        return (adx * adx + adz * adz) - (bdx * bdx + bdz * bdz);
+      });
+    } else {
+      // Small movement — only enqueue the new entering strips
+      // (the cells that are in newBounds but were not in oldBounds)
+      const entering = [];
+
+      // New left strip
+      if (nextBounds.x0 < oldBounds.x0) {
+        for (let x = nextBounds.x0; x < oldBounds.x0; x++) {
+          for (let z = nextBounds.z0; z <= nextBounds.z1; z++) {
+            const key = x + ',' + z;
+            if (!cellMeshes[key] || !cellMeshes[key].tile) {
+              entering.push([x, z, key]);
+              homeRenderQueued.add(key);
+            }
+          }
+        }
+      }
+      // New right strip
+      if (nextBounds.x1 > oldBounds.x1) {
+        for (let x = oldBounds.x1 + 1; x <= nextBounds.x1; x++) {
+          for (let z = nextBounds.z0; z <= nextBounds.z1; z++) {
+            const key = x + ',' + z;
+            if (!cellMeshes[key] || !cellMeshes[key].tile) {
+              entering.push([x, z, key]);
+              homeRenderQueued.add(key);
+            }
+          }
+        }
+      }
+      // New bottom strip
+      if (nextBounds.z0 < oldBounds.z0) {
+        for (let z = nextBounds.z0; z < oldBounds.z0; z++) {
+          for (let x = nextBounds.x0; x <= nextBounds.x1; x++) {
+            const key = x + ',' + z;
+            if (!cellMeshes[key] || !cellMeshes[key].tile) {
+              entering.push([x, z, key]);
+              homeRenderQueued.add(key);
+            }
+          }
+        }
+      }
+      // New top strip
+      if (nextBounds.z1 > oldBounds.z1) {
+        for (let z = oldBounds.z1 + 1; z <= nextBounds.z1; z++) {
+          for (let x = nextBounds.x0; x <= nextBounds.x1; x++) {
+            const key = x + ',' + z;
+            if (!cellMeshes[key] || !cellMeshes[key].tile) {
+              entering.push([x, z, key]);
+              homeRenderQueued.add(key);
+            }
+          }
+        }
+      }
+
+      if (entering.length) {
+        homeRenderQueue.push(...entering);
+        // Light re-sort only the new entries + a few near the end is overkill;
+        // just do a full sort occasionally or accept slightly suboptimal order.
+        // For now we do a cheap sort — still much better than full rebuild.
+        homeRenderQueue.sort((a, b) => {
+          const adx = a[0] - homeRenderBounds.cx, adz = a[1] - homeRenderBounds.cz;
+          const bdx = b[0] - homeRenderBounds.cx, bdz = b[1] - homeRenderBounds.cz;
+          return (adx * adx + adz * adz) - (bdx * bdx + bdz * bdz);
+        });
       }
     }
-    homeRenderQueue.sort((a, b) => {
-      const adx = a[0] - homeRenderBounds.cx, adz = a[1] - homeRenderBounds.cz;
-      const bdx = b[0] - homeRenderBounds.cx, bdz = b[1] - homeRenderBounds.cz;
-      return (adx * adx + adz * adz) - (bdx * bdx + bdz * bdz);
-    });
   }
 
   function processHomeRenderQueue(budgetMs) {
@@ -9231,6 +9631,14 @@
     // Slower ramp than the snap version — gives the world a noticeable
     // "painting in" feel as the camera explores.
     const step = 1 - Math.exp(-dt * 5);
+
+    // Budget the work so a sudden reveal of thousands of ghost boards
+    // (e.g. user cranks visible distance on a 128+ grid) doesn't cause
+    // a multi-hundred-millisecond frame. We process as many roots as fit
+    // in ~3.5ms and leave the rest for subsequent frames.
+    const budgetMs = 3.5;
+    const start = performance.now();
+
     for (const root of opacityRoots) {
       const targetOpacity = root.userData.targetOpacity;
       if (targetOpacity === undefined) { opacityRoots.delete(root); continue; }
@@ -9281,6 +9689,12 @@
           && !(root.userData.revealDelay > 0)
           && !root.userData.pendingRevealSfx) {
         opacityRoots.delete(root);
+      }
+
+      // Budget check — bail early if we've used our time slice.
+      // The remaining roots will continue transitioning on the next frame.
+      if (performance.now() - start > budgetMs) {
+        break;
       }
     }
   }
@@ -9355,6 +9769,72 @@
     return mesh;
   }
 
+  // Ultra-cheap proxy objects for ghost boards (1-3 meshes max instead of full detailed models).
+  // Used to keep "elements" count reasonable when preview distance is high.
+  function makeCheapGhostObject(cell, worldX, worldZ) {
+    const kind = cell.kind;
+    if (!kind) return null;
+    const level = cell.floors || 1;
+    let g = null;
+
+    if (kind === 'tree' || kind === 'bush') {
+      const trunk = new THREE.Mesh(getBoxGeometry(0.18, 0.6 * level, 0.18), M.dirtRich);
+      const leaves = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.2 * level, 4), M.leaves);
+      leaves.position.y = 0.9 * level;
+      g = new THREE.Group();
+      g.add(trunk, leaves);
+    } else if (kind === 'house' || kind === 'manor' || kind === 'tower' || kind === 'turret' || kind === 'skyscraper') {
+      const h = 1.2 * level;
+      g = new THREE.Mesh(getBoxGeometry(1.2, h, 1.2), M.dirtRich);
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(0.9, 0.6, 4), M.rock);
+      roof.position.y = h + 0.3;
+      const gg = new THREE.Group();
+      gg.add(g, roof);
+      g = gg;
+    } else if (kind === 'rock') {
+      g = new THREE.Mesh(new THREE.OctahedronGeometry(0.5 + (level - 1) * 0.15, 0), M.rock);
+    } else if (['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower', 'flower', 'tuft'].includes(kind)) {
+      g = new THREE.Mesh(getBoxGeometry(0.4, 0.5 + (level - 1) * 0.1, 0.4), M.leaves);
+    } else if (kind === 'cow' || kind === 'sheep') {
+      g = new THREE.Mesh(getBoxGeometry(0.6, 0.5, 0.9), M.dirtRich);
+    } else if (kind === 'fence') {
+      g = new THREE.Mesh(getBoxGeometry(0.9, 0.7, 0.15), M.dirtRich);
+    } else if (kind === 'bridge') {
+      g = new THREE.Mesh(getBoxGeometry(1.6, 0.3, 0.8), M.dirtRich);
+    }
+    return g;
+  }
+
+  // Cheap single-mesh version used for ghost/preview boards.
+  // Full makeTile creates riser + top + decals (multiple meshes per tile).
+  // For ghosts we use one slab with the top material + full height so the
+  // visual layout is still readable when panned far, but element/draw call
+  // count stays reasonable even at high preview distance.
+  function makeGhostTile(terrain, level, worldX, worldZ) {
+    const rise = terrainRiseForLevel(level);
+    const topY = rise + TOP_H;
+
+    let mat = M.grass;
+    if (terrain === 'path')  mat = M.path;
+    if (terrain === 'water') mat = M.water;
+    if (terrain === 'dirt')  mat = M.dirtRich;
+    if (terrain === 'stone') mat = M.stone;
+    if (terrain === 'lava')  mat = M.lava;
+    if (terrain === 'sand')  mat = M.sand;
+    if (terrain === 'snow')  mat = M.snow;
+
+    const height = DIRT_H + rise + TOP_H;
+    const slab = new THREE.Mesh(roundedSlab(TILE * 0.98, height, 0.04), mat);
+    slab.position.y = -DIRT_H;
+
+    slab.userData = {
+      kind: 'ghostTile',
+      terrain,
+      weatherSurfaceY: topY + WEATHER_SURFACE_PAD
+    };
+    return slab;
+  }
+
   function buildGhostBoard(boardX, boardZ) {
     if (!ghostBoardsEnabledForGrid()) return;
     if (boardX === 0 && boardZ === 0) return;
@@ -9362,7 +9842,8 @@
     if (ghostBoards.has(key)) return;
     const cells = makeGhostWorld(boardX, boardZ);
     const board = new THREE.Group();
-    board.userData = { ghostBoard: true, boardX, boardZ };
+    const detail = getDesiredGhostDetail(boardX, boardZ);
+    board.userData = { ghostBoard: true, boardX, boardZ, detail };
     board.renderOrder = -5;
 
     for (let x = 0; x < GRID; x++) {
@@ -9375,10 +9856,15 @@
         const gz = z + boardZ * GRID;
         if (world[gx] && world[gx][gz] && world[gx][gz].userEdited) continue;
 
-        const tile = makeTile(cells[x][z].terrain, {
-          path: getGhostNeighbors(cells, x, z, 'terrain', 'path', boardX, boardZ),
-          terrain: getGhostTerrainNeighbors(cells, x, z, boardX, boardZ),
-        }, x + boardX * GRID, z + boardZ * GRID, tileLevelForCell(cells[x][z]));
+        // Ghost terrain is now always full quality (makeTile) to match the restored quality objects.
+        // No automatic quality reduction on ghosts — only progressive LOD when user zooms the camera out (to be implemented if needed).
+        const tile = (detail === 'full')
+          ? makeTile(cells[x][z].terrain, {
+              path: getGhostNeighbors(cells, x, z, 'terrain', 'path', boardX, boardZ),
+              terrain: getGhostTerrainNeighbors(cells, x, z, boardX, boardZ),
+            }, gx, gz, tileLevelForCell(cells[x][z]))
+          : makeGhostTile(cells[x][z].terrain, tileLevelForCell(cells[x][z]), gx, gz);
+
         tile.position.copy(ghostCellPos(boardX, boardZ, x, z));
         tile.userData.gx = x;
         tile.userData.gz = z;
@@ -9387,9 +9873,27 @@
         tile.userData.fadeRole = 'tile';
         applyWeatherTileEffect(tile);
         prepareFadeable(tile, { ghost: true, grayscale: true, opacity: opacityAtWorldPosition(tile.position.x, tile.position.z) });
+
+        // Force depthWrite on ghost terrain tiles. The fade system turns it off for
+        // reduced-opacity ghosts, which causes the transient z-sorting artifacts
+        // ("strange artifact on paths etc that appears only while they render then goes")
+        // when large batches of faded ground meshes are added during progressive ghost
+        // board population. Ground planes benefit from depthWrite even when faded.
+        tile.traverse(o => {
+          if (o.isMesh && o.material) {
+            const mats = Array.isArray(o.material) ? o.material : [o.material];
+            mats.forEach(m => { m.depthWrite = true; });
+          }
+        });
+
         board.add(tile);
 
-        const obj = makeGhostObject(cells, x, z);
+        // Objects on ghosts use full quality by default. When the user zooms out
+        // (large renderVisibleSize), far ghost boards switch to cheap proxies.
+        // This is the "progressive when zooming out" behaviour requested.
+        const obj = (detail === 'full')
+          ? makeGhostObject(cells, x, z)
+          : makeCheapGhostObject(cells[x][z], gx, gz);
         if (!obj) continue;
         obj.position.copy(ghostCellPos(boardX, boardZ, x, z));
         obj.position.y = TOP_H + terrainRiseForLevel(tileLevelForCell(cells[x][z]));
@@ -9402,6 +9906,22 @@
         board.add(obj);
       }
     }
+
+    // Build a fast O(1) lookup for tiles on this ghost board.
+    // This is heavily used by weatherSurfaceAt during rain/snow, which would
+    // otherwise do a linear scan over thousands of children on large visible distance.
+    const tileLookup = new Map();
+    for (const child of board.children) {
+      if (child && child.userData && child.userData.fadeRole === 'tile') {
+        const k = child.userData.gx + ',' + child.userData.gz;
+        tileLookup.set(k, child);
+      }
+    }
+    board.userData.tileLookup = tileLookup;
+
+    // Merge same-material ghost terrain into batched meshes.
+    // This is the big win for "so many elements" at high preview distance.
+    mergeGhostTerrainByMaterial(board);
 
     worldGroup.add(board);
     ghostBoards.set(key, board);
@@ -9423,6 +9943,70 @@
     const coords = [...ghostBoards.values()].map(board => [board.userData.boardX, board.userData.boardZ]);
     for (const [boardX, boardZ] of coords) rebuildGhostBoard(boardX, boardZ);
     ensureGhostBoardsAroundTarget();
+  }
+
+  // Merge all ghost terrain meshes that share the same material into one
+  // BufferGeometry. This turns "64 meshes per ghost board" into "~number of
+  // terrain types" draw calls, making high preview distances practical.
+  function mergeGhostTerrainByMaterial(board) {
+    const byMat = new Map();
+    const toRemove = [];
+
+    for (const child of board.children) {
+      if (!child || !child.isMesh || child.userData.fadeRole !== 'tile') continue;
+      const mat = child.material;
+      if (!byMat.has(mat)) byMat.set(mat, []);
+      byMat.get(mat).push(child);
+    }
+
+    for (const [mat, meshes] of byMat) {
+      if (meshes.length <= 1) continue;
+
+      let posArr = [];
+      let norArr = [];
+      let uvArr = [];
+
+      for (const m of meshes) {
+        const g = m.geometry;
+        const pos = g.attributes.position.array;
+        const nor = g.attributes.normal ? g.attributes.normal.array : null;
+        const uv = g.attributes.uv ? g.attributes.uv.array : null;
+
+        const px = m.position.x;
+        const py = m.position.y;
+        const pz = m.position.z;
+
+        for (let i = 0; i < pos.length; i += 3) {
+          posArr.push(pos[i] + px, pos[i + 1] + py, pos[i + 2] + pz);
+          if (nor) {
+            norArr.push(nor[i], nor[i + 1], nor[i + 2]);
+          }
+          if (uv) {
+            const j = (i / 3) * 2;
+            uvArr.push(uv[j], uv[j + 1]);
+          }
+        }
+        toRemove.push(m);
+      }
+
+      if (posArr.length === 0) continue;
+
+      const newGeo = new THREE.BufferGeometry();
+      newGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(posArr), 3));
+      if (norArr.length) newGeo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(norArr), 3));
+      if (uvArr.length) newGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uvArr), 2));
+      newGeo.computeBoundingSphere();
+
+      const mergedMesh = new THREE.Mesh(newGeo, mat);
+      mergedMesh.userData = { fadeRole: 'tile', ghostMerged: true };
+      board.add(mergedMesh);
+    }
+
+    // Remove the original per-tile meshes we merged
+    for (const m of toRemove) {
+      board.remove(m);
+      // Don't dispose — geometries are cached/shared via geomCache
+    }
   }
 
   function updateGhostRenderBubble() {
@@ -9516,6 +10100,52 @@
   function clearPendingGhostBoards() {
     pendingGhostBoards.length = 0;
     pendingGhostBoardSet.clear();
+  }
+
+  // Returns 'full' or 'cheap' for a ghost board based on current zoom level.
+  // When the user is zoomed in (small renderVisibleSize), we want full visual
+  // quality on ghost boards so distant content looks good.
+  // Only when the user zooms out (large preview window) do we allow cheaper
+  // representations on far ghost boards (progressive LOD as requested).
+  function getDesiredGhostDetail(boardX, boardZ) {
+    const cx = boardFromTargetCoord(target.x);
+    const cz = boardFromTargetCoord(target.z);
+    const dist = Math.max(Math.abs(boardX - cx), Math.abs(boardZ - cz));
+
+    const viewSize = typeof renderVisibleSize === 'number' ? renderVisibleSize : GRID;
+
+    // Strongly zoomed in → always full quality
+    if (viewSize <= 12) return 'full';
+
+    // As the user zooms out, we become more willing to drop far ghosts to cheap
+    const fullRadius = Math.max(1, Math.floor(viewSize / 9));
+    return dist <= fullRadius ? 'full' : 'cheap';
+  }
+
+  // Called when the user changes zoom (renderVisibleSize) or after significant
+  // camera movement. Rebuilds any ghost boards whose desired detail level has
+  // changed so that quality is only reduced when the user is actually zoomed out.
+  function reevaluateGhostDetailLevels() {
+    for (const board of ghostBoards.values()) {
+      const bx = board.userData.boardX;
+      const bz = board.userData.boardZ;
+      const current = board.userData.detail || 'full';
+      const desired = getDesiredGhostDetail(bx, bz);
+      if (current !== desired) {
+        rebuildGhostBoard(bx, bz);
+      }
+    }
+  }
+
+  // Throttled re-evaluation on camera movement so that panning far away
+  // upgrades nearby ghosts to full quality and downgrades far ones.
+  let lastGhostDetailCheck = 0;
+  function maybeReevaluateGhostDetails() {
+    const now = performance.now();
+    if (now - lastGhostDetailCheck > 350) {   // ~3 times per second is plenty
+      lastGhostDetailCheck = now;
+      reevaluateGhostDetailLevels();
+    }
   }
 
   function processGhostBoardQueue(budgetMs) {
@@ -11276,18 +11906,32 @@
   }
 
   async function refreshXRSupportUI() {
+    const xrPanel = document.getElementById('xr-panel');
+
     const hasXR = !!(navigator.xr && navigator.xr.isSessionSupported);
     if (!hasXR) {
       setXRStatus('WebXR unavailable: open over HTTPS in a compatible headset browser.');
       setXRButtonsDisabled(true);
+      if (xrPanel) xrPanel.hidden = true;
       return;
     }
+
     const ar = await isXRSupported('immersive-ar');
     const vr = await isXRSupported('immersive-vr');
+
+    const supported = ar || vr;
+
+    if (xrPanel) {
+      xrPanel.hidden = !supported;
+    }
+
     if (xrButtons.surface) xrButtons.surface.disabled = !ar;
     if (xrButtons.float) xrButtons.float.disabled = !(ar || vr);
     if (xrButtons.inside) xrButtons.inside.disabled = !vr;
-    setXRStatus(ar || vr ? 'XR ready: AR desk pins the board to a surface; Float suspends it; Enter world scales it 1:1.' : 'No immersive WebXR session is supported on this device.');
+
+    setXRStatus(supported
+      ? 'XR ready: AR desk pins the board to a surface; Float suspends it; Enter world scales it 1:1.'
+      : 'No immersive WebXR session is supported on this device.');
   }
 
   if (xrButtons.surface) xrButtons.surface.addEventListener('click', () => startXRMode('surface'));
@@ -11939,6 +12583,38 @@
     if (selectedTool.select) {
       return;
     }
+
+    // --- Bulk apply to active selection (Shift+select + tool) ---
+    const sel = window.__tinyworldSelection;
+    if (sel && sel.cells.size > 0) {
+      const key = x + ',' + z;
+      if (sel.cells.has(key)) {
+        // Apply current tool to every selected cell
+        if (selectedTool.terrain) {
+          sel.cells.forEach(selKey => {
+            const [sx, sz] = selKey.split(',').map(Number);
+            setCell(sx, sz, { terrain: selectedTool.terrain });
+          });
+        } else if (selectedTool.kind) {
+          sel.cells.forEach(selKey => {
+            const [sx, sz] = selKey.split(',').map(Number);
+            const current = getWorldCell(sx, sz);
+            const terrainForKind = selectedTool.terrainOverride || current.terrain || 'grass';
+            setCell(sx, sz, { kind: selectedTool.kind, terrain: terrainForKind });
+          });
+        } else if (selectedTool.erase) {
+          sel.cells.forEach(selKey => {
+            const [sx, sz] = selKey.split(',').map(Number);
+            const current = getWorldCell(sx, sz);
+            setCell(sx, sz, { terrain: current.terrain, kind: null });
+          });
+        }
+        // Keep selection active for rapid multi-tool use on the area
+        return;
+      }
+    }
+    // ------------------------------------------------------------
+
     // Audible feedback for any user-initiated placement / erase. The
     // per-group rate limiter inside playSfx keeps drag-painting sane.
     if (typeof playSfxForTool === 'function') playSfxForTool(selectedTool);
@@ -12153,11 +12829,10 @@
     }
 
     dragMode = (e.button === 2 || spaceDown) ? 'pan' : 'orbit';
-    // Select tool:
-    //   - Shift+drag  → marquee (rectangular area selection)
-    //   - Plain click → single cell + its object (handled on pointerup)
-    //   - Plain drag  → still orbits the camera, no selection change
-    if (dragMode === 'orbit' && selectedTool && selectedTool.select && (e.shiftKey || e.metaKey)) {
+    // Rectangle drag (Shift+drag):
+    //   - With Select tool → normal area selection
+    //   - With any other tool → live preview rectangle; on release we fill the area with the current tool
+    if (dragMode === 'orbit' && (e.shiftKey || e.metaKey)) {
       const hit = pickTile(e.clientX, e.clientY);
       if (hit) {
         dragMode = 'select-area';
@@ -12276,6 +12951,20 @@
         applyToolToCell(currentHover);
       }
     }
+    // After Shift+drag rectangle with a placement tool: fill the whole area
+    if (dragMode === 'select-area' && didDrag && selectedTool && !selectedTool.select) {
+      const sel = window.__tinyworldSelection;
+      if (sel && sel.cells.size > 0) {
+        // Trigger the bulk path inside applyTool by calling it on any selected cell
+        const firstKey = sel.cells.values().next().value;
+        if (firstKey) {
+          const [fx, fz] = firstKey.split(',').map(Number);
+          applyTool(fx, fz);   // will hit the selection bulk logic
+        }
+        clearSelection();
+      }
+    }
+
     // (Shift+click + shift+drag are handled by setRectangleSelection
     // in pointerdown/pointermove respectively.)
     if (activePointers.size === 0) {
@@ -14053,8 +14742,17 @@
     const lx = gx - bx * GRID;
     const lz = gz - bz * GRID;
     if (lx < 0 || lx >= GRID || lz < 0 || lz >= GRID) return null;
-    // Preview boards are valid landing surfaces. Use the rendered tile's own
-    // weather surface height when available so impacts sit above the bevel.
+
+    // Fast path using the tileLookup we built when creating the ghost board.
+    const lookup = board.userData && board.userData.tileLookup;
+    if (lookup) {
+      const tile = lookup.get(lx + ',' + lz);
+      if (tile) {
+        return tile.position.y + (tile.userData.weatherSurfaceY || (TOP_H + WEATHER_SURFACE_PAD));
+      }
+    }
+
+    // Fallback (should rarely be needed)
     for (const child of board.children) {
       if (child && child.userData && child.userData.fadeRole === 'tile' && child.userData.gx === lx && child.userData.gz === lz) {
         return child.position.y + (child.userData.weatherSurfaceY || (TOP_H + WEATHER_SURFACE_PAD));
@@ -14075,6 +14773,12 @@
       else q.identity();
       sharedQ = q;
     }
+
+    // Budget the precipitation simulation. Heavy rain/snow on large visible
+    // distance + many ghost boards can otherwise eat a lot of frame time.
+    const budgetMs = 3.0;
+    const start = performance.now();
+
     for (let i = 0; i < mesh.count; i++) {
       const ix = i * 3;
       pos[ix] += (vel[ix] + biasX) * dt;
@@ -14103,6 +14807,8 @@
         m.compose(p, sharedQ, sc);
       }
       mesh.setMatrixAt(i, m);
+
+      if (performance.now() - start > budgetMs) break;
     }
     mesh.instanceMatrix.needsUpdate = true;
   }
@@ -16644,6 +17350,23 @@
     let collapseTimer = null;
     let hideTimer = null;
     let pinnedOpen = false;
+    let hasAgentActivity = false;   // only show handle when there's been at least one message or selection
+
+    function markAgentActivity() {
+      if (!hasAgentActivity) {
+        hasAgentActivity = true;
+        panel.classList.add('has-activity');
+        updatePanelHandleVisibility();
+      }
+    }
+
+    function updatePanelHandleVisibility() {
+      const handle = document.getElementById('agent-panel-handle');
+      if (!handle) return;
+      const hasMessages = messages && messages.children.length > 0;
+      const shouldShow = hasAgentActivity && panel.classList.contains('hidden') && hasMessages;
+      handle.hidden = !shouldShow;
+    }
 
     function clearTimers() {
       if (collapseTimer) { clearTimeout(collapseTimer); collapseTimer = null; }
@@ -16651,26 +17374,30 @@
     }
 
     function scheduleAutoFlow() {
-      // Ratchet: after activity, expand → toast → hide.
+      // After activity (when not pinned), briefly show the panel then slide it
+      // fully off-screen to the right (no collapsed pill). Grip handle appears.
       clearTimers();
       if (pinnedOpen) return;
       collapseTimer = setTimeout(() => {
-        panel.classList.add('collapsed');
-        
-        hideTimer = setTimeout(() => {
+        // We no longer collapse to a tiny pill for the right-middle panel.
+        // Go straight to hidden + handle after the linger period.
+        if (hasAgentActivity) {
           panel.classList.add('hidden');
-        }, AUTO_HIDE_MS);
-      }, AUTO_COLLAPSE_MS);
+          updatePanelHandleVisibility();
+        }
+      }, AUTO_HIDE_MS);
     }
 
     function showPanel() {
       // Bring the panel in from off-screen if it's hidden.
       panel.classList.remove('hidden');
+      updatePanelHandleVisibility();
     }
 
     function setPanelCollapsed(collapsed, opts) {
       showPanel();
       panel.classList.toggle('collapsed', collapsed);
+      updatePanelHandleVisibility();
       if (!collapsed) {
         messages.scrollTop = messages.scrollHeight;
         if (opts && opts.pin) {
@@ -16686,7 +17413,10 @@
           pinnedOpen = false;
           clearTimers();
           hideTimer = setTimeout(() => {
-            panel.classList.add('hidden');
+            if (hasAgentActivity) {
+              panel.classList.add('hidden');
+              updatePanelHandleVisibility();
+            }
           }, AUTO_HIDE_MS);
         } else {
           pinnedOpen = false;
@@ -16712,17 +17442,23 @@
       div.textContent = text;
       messages.appendChild(div);
       messages.scrollTop = messages.scrollHeight;
+      updatePanelHandleVisibility();
       return div;
     }
 
     function fireToast() {
-      // Slide in the collapsed pill and start the auto-hide countdown.
+      // After a result, briefly show the open panel then slide it fully off-screen
+      // to the right. No shrinking "collapsed" pill. The right-edge grip handle
+      // (identical to the input bar grip) appears so the user can pull it back.
       showPanel();
-      panel.classList.add('collapsed');
+      panel.classList.remove('collapsed');
       pinnedOpen = false;
       clearTimers();
       hideTimer = setTimeout(() => {
-        panel.classList.add('hidden');
+        if (hasAgentActivity) {
+          panel.classList.add('hidden');
+          updatePanelHandleVisibility();
+        }
       }, AUTO_HIDE_MS);
     }
 
@@ -16776,24 +17512,48 @@
       } catch (_) {}
     }
 
-    // Toggle button: manual collapse/expand. Expanding manually pins it open
-    // until the user collapses it again.
+    // X button in the panel header: fully slide the panel off-screen to the right.
+    // No collapsing pill. The separate right-edge grip handle appears *only* if
+    // there is real conversation history.
     toggle.addEventListener('click', e => {
       e.stopPropagation();
-      const willCollapse = !panel.classList.contains('collapsed');
-      if (willCollapse) setPanelCollapsed(true);
-      else setPanelCollapsed(false, { pin: true });
+      panel.classList.add('hidden');
+      panel.classList.remove('collapsed');
+      pinnedOpen = false;
+      clearTimers();
+      updatePanelHandleVisibility();
     });
 
-    // Clicking the collapsed ticker expands the panel (and pins it),
-    // but not if that "click" was the tail of a drag gesture.
+    // Clicking the panel (when collapsed or when the hidden grip is conceptually active)
+    // expands it. The real re-open affordance is now the separate right-edge handle.
     let suppressNextClick = false;
     panel.addEventListener('click', e => {
       if (suppressNextClick) { suppressNextClick = false; e.stopPropagation(); return; }
-      if (!panel.classList.contains('collapsed')) return;
       if (e.target.closest('.agent-panel-toggle')) return;
-      setPanelCollapsed(false, { pin: true });
+
+      if (panel.classList.contains('hidden')) {
+        if (!hasAgentActivity) return;
+        panel.classList.remove('hidden');
+        setPanelCollapsed(false, { pin: true });
+        updatePanelHandleVisibility();
+        return;
+      }
+      if (panel.classList.contains('collapsed')) {
+        setPanelCollapsed(false, { pin: true });
+      }
     });
+
+    // The right-edge grip handle — same design and ⋮⋮ cue as the agent input bar.
+    // Only rendered when there is history and the panel is slid off-screen.
+    const panelHandle = document.getElementById('agent-panel-handle');
+    if (panelHandle) {
+      panelHandle.addEventListener('click', () => {
+        if (!hasAgentActivity) return;
+        panel.classList.remove('hidden');
+        setPanelCollapsed(false, { pin: true });
+        updatePanelHandleVisibility();
+      });
+    }
 
     // -- drag-to-position the whole panel --
     // Bottom-right anchored, so we store offsets from those edges. That
@@ -16805,12 +17565,23 @@
     function applyStoredPanelPosition() {
       try {
         const raw = localStorage.getItem(PANEL_POS_KEY);
-        if (!raw) return;
-        const p = JSON.parse(raw);
-        if (!Number.isFinite(p.right) || !Number.isFinite(p.bottom)) return;
-        panel.style.right = p.right + 'px';
-        panel.style.bottom = p.bottom + 'px';
+        if (raw) {
+          const p = JSON.parse(raw);
+          if (Number.isFinite(p.right) && Number.isFinite(p.bottom)) {
+            panel.style.right = p.right + 'px';
+            panel.style.bottom = p.bottom + 'px';
+            panel.style.top = 'auto';
+            panel.style.transform = 'none';
+            return;
+          }
+        }
       } catch (_) {}
+
+      // Default to right-middle as requested
+      panel.style.right = '20px';
+      panel.style.top = '50%';
+      panel.style.transform = 'translateY(-50%)';
+      panel.style.bottom = 'auto';
     }
 
     panel.addEventListener('pointerdown', e => {
@@ -16864,8 +17635,7 @@
     panel.addEventListener('pointerup', endPanelDrag);
     panel.addEventListener('pointercancel', endPanelDrag);
 
-    // Start hidden (off-screen). The panel slides in as a toast only when
-    // the agent has something to say.
+    // Start fully hidden with no handle until the agent actually does something.
     panel.classList.add('collapsed');
     panel.classList.add('hidden');
     
@@ -16898,6 +17668,7 @@
         if (panelTitle) panelTitle.textContent = 'Agent conversation';
         return;
       }
+      markAgentActivity();
       panel.classList.add('has-selection');
       previewBox.hidden = false;
       previewCount.textContent = summary.cellCount + (summary.cellCount === 1 ? ' tile selected' : ' tiles selected');
@@ -17017,18 +17788,29 @@
       // scopes its work to those cells.
       const sel = window.__tinyworldSelection;
       const summary = sel && sel.summary();
+      let selectionBounds = null;
       let prompt = intent.prompt || userText;
+
       if (summary) {
-        const cellList = Array.from(sel.cells).slice(0, 64).join(', ');
-        const kindParts = Object.entries(summary.kinds)
-          .map(([k, n]) => n + ' ' + k + (n > 1 ? 's' : ''))
-          .join(', ');
+        const cellsArray = Array.from(sel.cells).map(k => {
+          const [x, z] = k.split(',').map(Number);
+          return { x, z };
+        });
+        const minX = Math.min(...cellsArray.map(c => c.x));
+        const maxX = Math.max(...cellsArray.map(c => c.x));
+        const minZ = Math.min(...cellsArray.map(c => c.z));
+        const maxZ = Math.max(...cellsArray.map(c => c.z));
+
+        selectionBounds = { minX, maxX, minZ, maxZ };
+
         prompt =
-          '[Selected ' + summary.cellCount + ' tile(s): ' + kindParts +
-          ' at cells (x,z) ' + cellList + ']\n' + userText;
+          `You are ONLY allowed to modify the rectangular region from x=${minX} to x=${maxX}, z=${minZ} to z=${maxZ}. ` +
+          `Do not output any changes outside this exact area. The user wants you to customize this specific region.\n\n` +
+          userText;
       }
       setPanelCollapsed(false, { pin: true });
       sugBox.hidden = true;
+      markAgentActivity();
       // User message lives only in the conversation history; no toast.
       addAgentMessage('user', userText);
       input.value = '';
@@ -17036,6 +17818,7 @@
       const thinking = addAgentMessage('assistant', 'Working on it…');
       setInputProgress('Working on it…');
       send.disabled = true;
+      form.classList.add('busy');
       try {
         if (intent.clearFirst && !intent.prompt) {
           doClear();
@@ -17047,7 +17830,21 @@
         if (!cfg.key) throw new Error('Add an API key in Settings → AI first.');
         if (intent.clearFirst) doClear();
         const requestPrompt = intent.mode === 'add' ? buildFloatingAdditionPrompt(prompt) : prompt;
-        const data = await generateWorld(cfg.provider, cfg.model, cfg.key, requestPrompt, GRID);
+        let data = await generateWorld(cfg.provider, cfg.model, cfg.key, requestPrompt, GRID);
+
+        // If user had a selection active, mask the result to only affect that region (powerful "customize this area" feature)
+        if (selectionBounds && data && Array.isArray(data.cells)) {
+          data = {
+            ...data,
+            cells: data.cells.filter(cell => {
+              const cx = Array.isArray(cell) ? cell[0] : cell.x;
+              const cz = Array.isArray(cell) ? cell[1] : cell.z;
+              return cx >= selectionBounds.minX && cx <= selectionBounds.maxX &&
+                     cz >= selectionBounds.minZ && cz <= selectionBounds.maxZ;
+            })
+          };
+        }
+
         const ok = intent.mode === 'add' ? applyStatePatch(data) : applyState(data);
         if (!ok) {
           throw new Error(intent.mode === 'add'
@@ -17065,6 +17862,7 @@
         window.__tinyworldAgent && window.__tinyworldAgent.done && window.__tinyworldAgent.done(msg, 'error');
       } finally {
         send.disabled = false;
+        form.classList.remove('busy');
         // Once the prompt has been consumed (whether success or error)
         // drop the active selection — its scope was a one-shot for this
         // submission, not a persistent filter.
@@ -17842,39 +18640,52 @@
   // announcement worth re-showing to previously-dismissed users.
   const WELCOME_NOTICE_ID = '2026-05-11-jigsaw';
   const WELCOME_LS_KEY = 'tinyworld:welcome:dismissedId';
+  function startFarmWorld() {
+    loadInitialScene();
+  }
+
+  function startVehicleDemo() {
+    // Launch a nice seeded vehicle showcase (roads + multiple cars/trucks)
+    const seed = 424242;
+    runSeededVehicleDemo(seed, { showBadge: true, large: false });
+    if (typeof dismissWelcomeForDemo === 'function') dismissWelcomeForDemo();
+  }
+
   function initWelcomeDialog() {
     const modal = document.getElementById('welcome-modal');
     const closeBtn = document.getElementById('welcome-close');
-    const startBtn = document.getElementById('welcome-start');
-    const dontShow = document.getElementById('welcome-dontshow');
+    const farmBtn = document.getElementById('welcome-farm');
+    const vehicleBtn = document.getElementById('welcome-vehicle');
     if (!modal) return;
 
-    let dismissedId = null;
-    try { dismissedId = localStorage.getItem(WELCOME_LS_KEY); } catch (_) {}
-    // Only show when the current notice hasn't been dismissed yet.
-    if (dismissedId !== WELCOME_NOTICE_ID) {
-      openTinyModal(modal, startBtn || closeBtn);
+    const isDirectVehicleDemo = !!getVehicleDemoUrlRequest();
+
+    // Show welcome unless the user came with ?demo=vehicles (direct jump to cars)
+    if (!isDirectVehicleDemo) {
+      openTinyModal(modal, farmBtn || closeBtn);
+    } else {
+      // Direct demo URL → auto-dismiss welcome and run the demo
+      if (typeof dismissWelcomeForDemo === 'function') {
+        setTimeout(dismissWelcomeForDemo, 50);
+      }
     }
 
-    function close() {
+    function closeAndStart(startFn) {
       closeTinyModal(modal);
-      try {
-        if (dontShow && dontShow.checked) {
-          localStorage.setItem(WELCOME_LS_KEY, WELCOME_NOTICE_ID);
-        } else {
-          // Unticked → user might want to see it next reload too.
-          localStorage.removeItem(WELCOME_LS_KEY);
-        }
-      } catch (_) {}
+      if (typeof startFn === 'function') startFn();
     }
-    modal.__closeModalHandler = close;
-    closeBtn.addEventListener('click', close);
-    startBtn.addEventListener('click', close);
+
+    modal.__closeModalHandler = () => closeTinyModal(modal);
+    closeBtn.addEventListener('click', () => closeAndStart(startFarmWorld));
+
+    if (farmBtn) farmBtn.addEventListener('click', () => closeAndStart(startFarmWorld));
+    if (vehicleBtn) vehicleBtn.addEventListener('click', () => closeAndStart(startVehicleDemo));
+
     modal.addEventListener('click', e => {
-      if (e.target === modal) close();
+      if (e.target === modal) closeAndStart(startFarmWorld);
     });
     window.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && !modal.hidden) close();
+      if (e.key === 'Escape' && !modal.hidden) closeAndStart(startFarmWorld);
     });
   }
 
@@ -19392,12 +20203,34 @@
 
     function open() {
       paintLabel(); paintList();
+
       const r = trigger.getBoundingClientRect();
-      const width = menu.offsetWidth || 320;
-      const left = Math.max(12, Math.min(window.innerWidth - width - 12, r.left));
+      const menuWidth = menu.offsetWidth || 340;
+      const menuHeight = menu.offsetHeight || 420; // approximate before measuring
+
+      // Horizontal: keep fully on screen
+      let left = r.left;
+      if (left + menuWidth > window.innerWidth - 12) {
+        left = window.innerWidth - menuWidth - 12;
+      }
+      left = Math.max(12, left);
       menu.style.left = left + 'px';
+
+      // Vertical: prefer below trigger, but flip above if not enough space
+      const spaceBelow = window.innerHeight - r.bottom - 12;
+      const spaceAbove = r.top - 12;
+
       menu.style.top = 'auto';
-      menu.style.bottom = (window.innerHeight - r.top + 10) + 'px';
+      menu.style.bottom = 'auto';
+
+      if (spaceBelow >= menuHeight || spaceBelow > spaceAbove) {
+        // Open downward
+        menu.style.top = (r.bottom + 8) + 'px';
+      } else {
+        // Open upward
+        menu.style.bottom = (window.innerHeight - r.top + 8) + 'px';
+      }
+
       menu.hidden = false;
       trigger.setAttribute('aria-expanded', 'true');
     }

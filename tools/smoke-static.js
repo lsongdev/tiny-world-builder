@@ -59,14 +59,13 @@ for (const asset of [
   if (!fs.existsSync(path.join(root, asset))) fail('missing local asset ' + asset);
 }
 
-if (!devServer.includes("const vehicleDemoPath = '/tiny-world-builder?demo=vehicles&seed=tide-ridge-428'")) {
-  fail('dev server root does not define the vehicle demo redirect path');
+// Dev server should now default to normal welcome menu (Farm) on bare access.
+// Vehicle demo is available via the button in the welcome menu or by adding ?demo=vehicles manually.
+if (!devServer.includes("if (pathname === '/') return { redirect: '/tiny-world-builder' };")) {
+  fail('dev server bare root should redirect to /tiny-world-builder (welcome menu)');
 }
-if (!devServer.includes("if (pathname === '/') return { redirect: vehicleDemoPath };")) {
-  fail('dev server bare root does not redirect to the vehicle demo');
-}
-if (!devServer.includes("if (pathname === '/tiny-world-builder' && !parsed.search) return { redirect: vehicleDemoPath };")) {
-  fail('dev server /tiny-world-builder without query does not redirect to the vehicle demo');
+if (!devServer.includes("if (pathname === '/tiny-world-builder') return { file:")) {
+  fail('dev server should serve tiny-world-builder.html for normal access');
 }
 
 console.log('smoke ok');
