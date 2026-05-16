@@ -3948,6 +3948,21 @@
               <output id="render-backdrop-value"></output>
             </div>
             <div class="range-row">
+              <span>Pixel size</span>
+              <input id="render-pixel-size" type="range" min="1" max="12" step="1" />
+              <output id="render-pixel-size-value"></output>
+            </div>
+            <div class="range-row">
+              <span>Pixel depth edge</span>
+              <input id="render-pixel-depth-edge" type="range" min="0" max="100" step="1" />
+              <output id="render-pixel-depth-edge-value"></output>
+            </div>
+            <div class="range-row">
+              <span>Pixel normal edge</span>
+              <input id="render-pixel-normal-edge" type="range" min="0" max="100" step="1" />
+              <output id="render-pixel-normal-edge-value"></output>
+            </div>
+            <div class="range-row">
               <span>Tilt blur</span>
               <input id="render-tilt-blur" type="range" min="0" max="8" step="0.5" />
               <output id="render-tilt-blur-value"></output>
@@ -4202,9 +4217,12 @@
     ghostOpacity: 'tinyworld:render:ghostOpacity',
     floorOpacity: 'tinyworld:render:floorOpacity',
     objectOpacity: 'tinyworld:render:objectOpacity',
+    pixelSize: 'tinyworld:render:pixelSize',
+    pixelDepthEdge: 'tinyworld:render:pixelDepthEdge',
+    pixelNormalEdge: 'tinyworld:render:pixelNormalEdge',
     version: 'tinyworld:render:version',
   };
-  const RENDER_SETTINGS_VERSION = '17';
+  const RENDER_SETTINGS_VERSION = '19';
   const RENDER_DEFAULTS = {
     // Defaults tuned to keep image quality crisp while still trimming
     // a few cheap things off the per-frame budget.
@@ -4239,6 +4257,12 @@
     ghostOpacity: '1',
     floorOpacity: '1',
     objectOpacity: '1',
+    pixelSize: '1',
+    // Keep the old-school mode as chunky colour pixels by default. The
+    // depth/normal edge layers are optional because they outline real tile
+    // bevels, risers and decals, which can read as terrain artifacts.
+    pixelDepthEdge: '0',
+    pixelNormalEdge: '0',
   };
   const renderSettingsReset = localStorage.getItem(RENDER_LS.version) !== RENDER_SETTINGS_VERSION;
   if (renderSettingsReset) {
@@ -4359,6 +4383,10 @@
   let renderCloudShadow = storedNumber(RENDER_LS.cloudShadow, 0.5, 0, 1);
   let renderDistanceMist = storedNumber(RENDER_LS.distanceMist, 0.28, 0, 1);
   let renderBackdrop = storedNumber(RENDER_LS.backdrop, 0.78, 0, 1);
+  // Pixelation post-process. pixelSize 1 = bypass (no post pass). 2-12 chunkier.
+  let renderPixelSize = Math.round(storedNumber(RENDER_LS.pixelSize, 1, 1, 12));
+  let renderPixelDepthEdge = storedNumber(RENDER_LS.pixelDepthEdge, 0, 0, 1);
+  let renderPixelNormalEdge = storedNumber(RENDER_LS.pixelNormalEdge, 0, 0, 1);
   let renderTiltBlur = storedNumber(RENDER_LS.tiltBlur, 1.0, 0, 8);
   let renderTiltFocus = storedNumber(RENDER_LS.tiltFocus, 65, 15, 80);
   let renderGhostOpacity = storedNumber(RENDER_LS.ghostOpacity, 1, 0.05, 1);
@@ -4418,7 +4446,10 @@
   }
 
   function ghostBoardsEnabledForGrid() {
-    return renderBudgetForGrid(GRID).ghostRadius > 0;
+    // Surrounding preview/ghost boards are disabled. They were rendering large
+    // off-board terrain sheets at the top-left/top-right of the view, which
+    // reads as artifacts while editing the single home board.
+    return false;
   }
 
   function syncGhostRenderBudget() {
@@ -4497,9 +4528,168 @@
   // per frame after the stats overlay samples them.
   renderer.info.autoReset = false;
 
+  // -------- pixelation post-process --------
+  // Mimics RenderPixelatedPass from r142+ without importing ES modules.
+  // Scene renders to a low-res target with NearestFilter; a fullscreen quad
+  // then samples colour + depth (+ optional normals) and inserts geometry
+  // outlines. When pixelSize === 1 (or XR is presenting) we skip the post
+  // pass entirely and render directly to the screen.
+  const pixelState = {
+    target: null,
+    normalTarget: null,
+    normalMaterial: null,
+    quadScene: null,
+    quadCam: null,
+    quadMaterial: null,
+    drawW: 0,
+    drawH: 0,
+    pixelSize: 0,
+    wantNormals: false,
+  };
+
+  function ensurePixelResources(drawW, drawH, pixelSize, wantNormals) {
+    const targetW = Math.max(1, Math.floor(drawW / pixelSize));
+    const targetH = Math.max(1, Math.floor(drawH / pixelSize));
+    if (!pixelState.target) {
+      const depth = new THREE.DepthTexture(targetW, targetH);
+      depth.format = THREE.DepthFormat;
+      depth.type = THREE.UnsignedShortType;
+      pixelState.target = new THREE.WebGLRenderTarget(targetW, targetH, {
+        minFilter: THREE.NearestFilter,
+        magFilter: THREE.NearestFilter,
+        format: THREE.RGBAFormat,
+        depthBuffer: true,
+        depthTexture: depth,
+      });
+    } else if (pixelState.target.width !== targetW || pixelState.target.height !== targetH) {
+      pixelState.target.setSize(targetW, targetH);
+    }
+    if (wantNormals) {
+      if (!pixelState.normalTarget) {
+        pixelState.normalTarget = new THREE.WebGLRenderTarget(targetW, targetH, {
+          minFilter: THREE.NearestFilter,
+          magFilter: THREE.NearestFilter,
+          format: THREE.RGBAFormat,
+        });
+        pixelState.normalMaterial = new THREE.MeshNormalMaterial();
+      } else if (pixelState.normalTarget.width !== targetW || pixelState.normalTarget.height !== targetH) {
+        pixelState.normalTarget.setSize(targetW, targetH);
+      }
+    }
+    if (!pixelState.quadScene) {
+      pixelState.quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+      pixelState.quadMaterial = new THREE.ShaderMaterial({
+        uniforms: {
+          tColor: { value: null },
+          tDepth: { value: null },
+          tNormal: { value: null },
+          resolution: { value: new THREE.Vector2(targetW, targetH) },
+          depthEdgeStrength: { value: 0.0 },
+          normalEdgeStrength: { value: 0.0 },
+          useNormals: { value: 0.0 },
+        },
+        vertexShader: [
+          'varying vec2 vUv;',
+          'void main() {',
+          '  vUv = uv;',
+          '  gl_Position = vec4(position.xy, 0.0, 1.0);',
+          '}',
+        ].join('\n'),
+        fragmentShader: [
+          'uniform sampler2D tColor;',
+          'uniform sampler2D tDepth;',
+          'uniform sampler2D tNormal;',
+          'uniform vec2 resolution;',
+          'uniform float depthEdgeStrength;',
+          'uniform float normalEdgeStrength;',
+          'uniform float useNormals;',
+          'varying vec2 vUv;',
+          'float readDepth(vec2 uv) { return texture2D(tDepth, uv).r; }',
+          'vec3 readNormal(vec2 uv) { return normalize(texture2D(tNormal, uv).xyz * 2.0 - 1.0); }',
+          'float depthEdge(vec2 uv, vec2 texel) {',
+          '  float d = readDepth(uv);',
+          '  float dL = readDepth(uv - vec2(texel.x, 0.0));',
+          '  float dR = readDepth(uv + vec2(texel.x, 0.0));',
+          '  float dU = readDepth(uv - vec2(0.0, texel.y));',
+          '  float dD = readDepth(uv + vec2(0.0, texel.y));',
+          '  float diff = max(max(abs(d - dL), abs(d - dR)), max(abs(d - dU), abs(d - dD)));',
+          '  return smoothstep(0.0008, 0.004, diff);',
+          '}',
+          'float normalEdge(vec2 uv, vec2 texel) {',
+          '  vec3 n = readNormal(uv);',
+          '  vec3 nL = readNormal(uv - vec2(texel.x, 0.0));',
+          '  vec3 nR = readNormal(uv + vec2(texel.x, 0.0));',
+          '  vec3 nU = readNormal(uv - vec2(0.0, texel.y));',
+          '  vec3 nD = readNormal(uv + vec2(0.0, texel.y));',
+          '  float dL = 1.0 - max(0.0, dot(n, nL));',
+          '  float dR = 1.0 - max(0.0, dot(n, nR));',
+          '  float dU = 1.0 - max(0.0, dot(n, nU));',
+          '  float dD = 1.0 - max(0.0, dot(n, nD));',
+          '  float diff = max(max(dL, dR), max(dU, dD));',
+          '  return smoothstep(0.10, 0.40, diff);',
+          '}',
+          'void main() {',
+          '  vec2 texel = 1.0 / resolution;',
+          '  vec3 col = texture2D(tColor, vUv).rgb;',
+          '  float de = depthEdge(vUv, texel) * depthEdgeStrength;',
+          '  float ne = useNormals > 0.5 ? normalEdge(vUv, texel) * normalEdgeStrength : 0.0;',
+          '  float edge = clamp(max(de, ne), 0.0, 1.0);',
+          '  col = mix(col, col * 0.35, edge);',
+          '  gl_FragColor = vec4(col, 1.0);',
+          '}',
+        ].join('\n'),
+        depthTest: false,
+        depthWrite: false,
+      });
+      const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), pixelState.quadMaterial);
+      pixelState.quadScene = new THREE.Scene();
+      pixelState.quadScene.add(quad);
+    }
+    pixelState.quadMaterial.uniforms.resolution.value.set(targetW, targetH);
+    pixelState.drawW = drawW;
+    pixelState.drawH = drawH;
+    pixelState.pixelSize = pixelSize;
+    pixelState.wantNormals = wantNormals;
+  }
+
   function renderScene() {
     renderer.info.reset();
+    const usePixelation = renderPixelSize > 1 && !(renderer.xr && renderer.xr.isPresenting);
+    if (!usePixelation) {
+      renderer.render(scene, camera);
+      if (statsOverlay) sampleStats();
+      return;
+    }
+    const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+    const wantNormals = renderPixelNormalEdge > 0.001;
+    ensurePixelResources(size.x, size.y, renderPixelSize, wantNormals);
+    const prevTarget = renderer.getRenderTarget();
+    renderer.setRenderTarget(pixelState.target);
+    renderer.clear();
     renderer.render(scene, camera);
+    if (wantNormals && pixelState.normalTarget) {
+      const prevOverride = scene.overrideMaterial;
+      const prevBackground = scene.background;
+      const prevFog = scene.fog;
+      scene.overrideMaterial = pixelState.normalMaterial;
+      scene.background = null;
+      scene.fog = null;
+      renderer.setRenderTarget(pixelState.normalTarget);
+      renderer.clear();
+      renderer.render(scene, camera);
+      scene.overrideMaterial = prevOverride;
+      scene.background = prevBackground;
+      scene.fog = prevFog;
+    }
+    const uniforms = pixelState.quadMaterial.uniforms;
+    uniforms.tColor.value = pixelState.target.texture;
+    uniforms.tDepth.value = pixelState.target.depthTexture;
+    uniforms.tNormal.value = wantNormals && pixelState.normalTarget ? pixelState.normalTarget.texture : null;
+    uniforms.depthEdgeStrength.value = renderPixelDepthEdge;
+    uniforms.normalEdgeStrength.value = renderPixelNormalEdge;
+    uniforms.useNormals.value = wantNormals ? 1.0 : 0.0;
+    renderer.setRenderTarget(prevTarget);
+    renderer.render(pixelState.quadScene, pixelState.quadCam);
     if (statsOverlay) sampleStats();
   }
 
@@ -4763,6 +4953,48 @@
     const hit = geomCache.get(key);
     if (hit) return hit;
     const g = new THREE.BoxGeometry(qw, qh, qd);
+    g.userData.cached = true;
+    geomCache.set(key, g);
+    return g;
+  }
+
+  // Variant of getBoxGeometry that omits selected faces from the index. Use
+  // for risers (top hidden under cap, bottom underground) and tile decals
+  // (bottom hidden against the cap) so we don't render geometry the camera
+  // can't see. Cached the same way; never mutate or dispose the returned geo.
+  // BoxGeometry materialIndex per face: 0=+x, 1=-x, 2=+y (top), 3=-y (bottom),
+  // 4=+z, 5=-z. We keep all side faces and only drop top/bottom on demand.
+  function getOpenBoxGeometry(w, h, d, skipTop = false, skipBottom = false, skipPX = false, skipNX = false, skipPZ = false, skipNZ = false) {
+    const qw = Math.round(w * 100) / 100;
+    const qh = Math.round(h * 100) / 100;
+    const qd = Math.round(d * 100) / 100;
+    const tag = (skipTop ? 'T' : '_')
+      + (skipBottom ? 'B' : '_')
+      + (skipPX ? 'E' : '_')
+      + (skipNX ? 'W' : '_')
+      + (skipPZ ? 'S' : '_')
+      + (skipNZ ? 'N' : '_');
+    const key = 'boxopen|' + qw + '|' + qh + '|' + qd + '|' + tag;
+    const hit = geomCache.get(key);
+    if (hit) return hit;
+    const g = new THREE.BoxGeometry(qw, qh, qd);
+    const anySkip = skipTop || skipBottom || skipPX || skipNX || skipPZ || skipNZ;
+    if (anySkip) {
+      const oldIndex = g.getIndex().array;
+      const keep = [];
+      for (const grp of g.groups) {
+        const mi = grp.materialIndex;
+        if (skipPX && mi === 0) continue; // +x face
+        if (skipNX && mi === 1) continue; // -x face
+        if (skipTop && mi === 2) continue; // +y face
+        if (skipBottom && mi === 3) continue; // -y face
+        if (skipPZ && mi === 4) continue; // +z face
+        if (skipNZ && mi === 5) continue; // -z face
+        for (let i = grp.start; i < grp.start + grp.count; i++) keep.push(oldIndex[i]);
+      }
+      g.setIndex(keep);
+      g.clearGroups();
+    }
     g.userData.cached = true;
     geomCache.set(key, g);
     return g;
@@ -5163,6 +5395,18 @@
     g.userData = { kind: 'tile', terrain };
     const pathN = (neighbors && neighbors.path) || { n: false, s: false, e: false, w: false };
     const terrainN = (neighbors && neighbors.terrain) || { n: null, s: null, e: null, w: null };
+    // Riser side-culling. A side faces a same-or-higher-level neighbour →
+    // hidden by that neighbour's own riser, drop it. `levels.<dir>` is
+    // `null` when there is no rendered neighbour in that direction; we then
+    // keep the side so home-grid edges and ghost-board boundaries still
+    // show their proper dirt cliffs. Convention: n = -z, s = +z, e = +x,
+    // w = -x (matches getPathNeighbors / getTerrainNeighbors).
+    const levelN = (neighbors && neighbors.levels) || { n: null, s: null, e: null, w: null };
+    function hideSide(lv) { return typeof lv === 'number' && lv >= level; }
+    const skipE = hideSide(levelN.e);
+    const skipW = hideSide(levelN.w);
+    const skipS = hideSide(levelN.s);
+    const skipN = hideSide(levelN.n);
     const rise = terrainRiseForLevel(level);
     const topY = rise + TOP_H;
     // Weather impact decals sit above the rounded/beveled slab, not at the
@@ -5191,25 +5435,23 @@
       let riserBevel = 0.04;
       let topBevel   = 0.06;
 
-      if (terrain === 'grass') {
+      if (terrain === 'grass' || terrain === 'path' || terrain === 'water') {
+        // Top overhangs the riser. For grass this hides the brown dirt wall
+        // from above; for path it hides the pathTrim riser ring that
+        // otherwise reads as a darker outline around every path tile; for
+        // water it hides the dark waterDk riser ring around each tile (both
+        // are very obvious under the pixelation depth-edge pass).
         riserSize  = TILE * 0.98;
         topSize    = TILE * 1.04;
         riserBevel = 0.02;
         topBevel   = 0.04;
       }
 
-      if (terrain === 'grass') {
-        // Brown dirt wall for grass — provides the visible dirt edges on any
-        // drop or perimeter. The larger top hides it from the top.
-        const dirtGeo = new THREE.BoxGeometry(riserSize, DIRT_H + rise, riserSize);
-        dirtGeo.translate(0, (DIRT_H + rise) * 0.5, 0);
-        const riser = new THREE.Mesh(dirtGeo, M.dirt);
-        riser.position.y = -DIRT_H;
-        g.add(riser);
-      } else {
-        // Choose a riser material that matches the terrain so we don't get ugly brown dirt
-        // "legs" showing under paths or under water.
-        let riserMat = M.dirt;
+      if (rise > 0) {
+        // Only raised terrain needs a side wall. Flat tiles are just their top
+        // slab; drawing an extra hidden riser below them creates visible
+        // scalloped/triangular "bunting" along edges in pixel mode.
+        let riserMat = terrain === 'grass' ? M.dirt : M.dirt;
         if (terrain === 'path')  riserMat = M.pathTrim;
         if (terrain === 'water') riserMat = M.waterDk;
         if (terrain === 'dirt')  riserMat = M.dirtRich;
@@ -5218,8 +5460,9 @@
         if (terrain === 'sand')  riserMat = M.sand;
         if (terrain === 'snow')  riserMat = M.snow;
 
-        const riser = new THREE.Mesh(roundedSlab(riserSize, DIRT_H + rise, riserBevel), riserMat);
-        riser.position.y = -DIRT_H;
+        const riserGeo = getOpenBoxGeometry(riserSize, rise, riserSize, true, true, skipE, skipW, skipS, skipN);
+        const riser = new THREE.Mesh(riserGeo, riserMat);
+        riser.position.y = rise * 0.5;
         g.add(riser);
       }
 
@@ -5233,84 +5476,45 @@
       if (terrain === 'sand')  topMat = M.sand;
       if (terrain === 'snow')  topMat = M.snow;
 
-      const top = new THREE.Mesh(roundedSlab(topSize, TOP_H, topBevel), topMat);
-      top.position.y = rise;
+      // Top surface only; exposed side walls are added separately below. This
+      // keeps same-height internal edges clean while preserving real depth at
+      // board edges and drops.
+      const top = new THREE.Mesh(getOpenBoxGeometry(topSize, TOP_H, topSize, false, true, true, true, true, true), topMat);
+      top.position.y = rise + TOP_H * 0.5;
       g.add(top);
-    }
 
-    // Tiny deterministic grass flecks. They stay put when a neighbour rerender
-    // refreshes shore/path bands, so tiles no longer visually "shuffle".
-    if (terrain === 'grass' && cellRand(x, z, 1) < 0.24) {
-      const fleck = new THREE.Mesh(getBoxGeometry(0.05, 0.04, 0.05), M.leavesDk);
-      fleck.position.set((cellRand(x, z, 2) - 0.5) * 0.6, topY + 0.01, (cellRand(x, z, 3) - 0.5) * 0.6);
-      g.add(fleck);
-    }
-
-    // Shore marks: land tiles touching water get a warm bank lip, while water
-    // tiles touching land get a fine foam line. The terrain renderer therefore
-    // communicates rivers/lakes without introducing new terrain types.
-    for (const dir of ['n', 's', 'e', 'w']) {
-      const t = terrainN[dir];
-      if (terrain !== 'water' && t === 'water') {
-        g.add(edgeBand(dir, 0.78, 0.014, topY + 0.009, M.shore));
-      } else if (terrain === 'water' && t !== 'water') {
-        g.add(edgeBand(dir, 0.80, 0.012, topY + 0.014, M.waterFoam));
-      }
-    }
-
-    if (terrain === 'water') {
-      const inset = new THREE.Mesh(getBoxGeometry(0.72, 0.010, 0.72), M.waterDk);
-      inset.position.y = topY + 0.004;
-      g.add(inset);
-      for (let i = 0; i < 3; i++) {
-        const len = 0.20 + cellRand(x, z, 10 + i) * 0.26;
-        const ripple = new THREE.Mesh(getBoxGeometry(len, 0.010, 0.018), M.waterFoam);
-        ripple.position.set(
-          (cellRand(x, z, 20 + i) - 0.5) * 0.50,
-          topY + 0.020 + i * 0.002,
-          (cellRand(x, z, 30 + i) - 0.5) * 0.50
-        );
-        ripple.rotation.y = (cellRand(x, z, 40 + i) - 0.5) * 0.5;
-        g.add(ripple);
-      }
-    }
-
-    // Path adjacency: a slightly darker "trim" band runs from the cell
-    // centre out to each path-neighbour edge. Bands from adjacent path cells
-    // meet flush at the cell seam, so straight runs, L corners, T-junctions
-    // and crossroads emerge automatically from geometry. A central paver
-    // bridges the bands at junctions and gives isolated paths a focal mark.
-    if (terrain === 'path') {
-      const yBand = topY + 0.005;
-      const W = 0.46, T = 0.012;
-      const half = 0.50; // out to cell edge
-      function band(dir) {
-        const len = half;
+      let sideMat = terrain === 'grass' ? M.dirt : topMat;
+      if (terrain === 'path')  sideMat = M.pathTrim;
+      if (terrain === 'water') sideMat = M.waterDk;
+      function exposedSide(dir, neighborLevel) {
+        const neighborTop = typeof neighborLevel === 'number'
+          ? terrainRiseForLevel(neighborLevel) + TOP_H
+          : 0;
+        const height = topY - neighborTop;
+        if (height <= 0.001) return;
+        const t = 0.035;
         const geo = (dir === 'n' || dir === 's')
-          ? getBoxGeometry(W, T, len + 0.02)
-          : getBoxGeometry(len + 0.02, T, W);
-        const m = new THREE.Mesh(geo, M.pathTrim);
-        const off = len / 2;
-        if (dir === 'n') m.position.set(0,    yBand, -off);
-        if (dir === 's') m.position.set(0,    yBand,  off);
-        if (dir === 'w') m.position.set(-off, yBand,  0);
-        if (dir === 'e') m.position.set( off, yBand,  0);
-        g.add(m);
+          ? getOpenBoxGeometry(topSize, height, t, true, true)
+          : getOpenBoxGeometry(t, height, topSize, true, true);
+        const side = new THREE.Mesh(geo, sideMat);
+        const off = topSize * 0.5;
+        const y = neighborTop + height * 0.5;
+        if (dir === 'n') side.position.set(0, y, -off);
+        if (dir === 's') side.position.set(0, y,  off);
+        if (dir === 'w') side.position.set(-off, y, 0);
+        if (dir === 'e') side.position.set( off, y, 0);
+        g.add(side);
       }
-      if (pathN.n) band('n');
-      if (pathN.s) band('s');
-      if (pathN.w) band('w');
-      if (pathN.e) band('e');
-      // Centre paver — always present. Doubles as the isolated-tile decal.
-      const cap = new THREE.Mesh(getBoxGeometry(W, T, W), M.pathTrim);
-      cap.position.y = yBand;
-      g.add(cap);
-
-      // Subtle deterministic scuff dimple on top, slightly off-centre.
-      const scuff = new THREE.Mesh(getBoxGeometry(0.10, 0.02, 0.07), M.pathScuff);
-      scuff.position.set((cellRand(x, z, 50) - 0.5) * 0.3, yBand + 0.008, (cellRand(x, z, 51) - 0.5) * 0.3);
-      g.add(scuff);
+      exposedSide('n', levelN.n);
+      exposedSide('s', levelN.s);
+      exposedSide('e', levelN.e);
+      exposedSide('w', levelN.w);
     }
+
+    // Keep terrain surfaces as single clean slabs. Previous decorative
+    // micro-geometry here (grass flecks, shore strips, water ripple lines,
+    // water insets, path trim bands, pavers, and scuffs) became visible as
+    // chunky rectangular panels under pixel rendering.
 
     castReceive(g);
     return g;
@@ -9551,36 +9755,15 @@
   }
 
   // -------- home board border --------
-  // A subtle outline around the editable GRID x GRID home board so the
-  // user can tell at a glance where their board ends and the ghost
-  // boards begin. Rebuilt whenever GRID changes.
+  // No visible board marker. The old dark rectangle/outline under the start
+  // board read as an artifact in pixel mode.
   const homeBorderGroup = new THREE.Group();
   homeBorderGroup.name = 'homeBorder';
-  xrWorldRoot.add(homeBorderGroup);
-  const HOME_BORDER_COLOR = 0x2a1a0e;
-  const HOME_BORDER_Y = 0.04;
-  const homeBorderStripMat = new THREE.MeshBasicMaterial({ color: HOME_BORDER_COLOR });
-  const STRIP_WIDTH = 0.12;       // how thick the line reads on the ground
-  const STRIP_Y = 0.03;            // slightly above ground to beat z-fighting
-  function addStrip(x, z, len, axis) {
-    const w = axis === 'x' ? len + STRIP_WIDTH : STRIP_WIDTH;
-    const d = axis === 'z' ? len + STRIP_WIDTH : STRIP_WIDTH;
-    const geom = new THREE.PlaneGeometry(w, d);
-    const strip = new THREE.Mesh(geom, homeBorderStripMat);
-    strip.rotation.x = -Math.PI / 2;
-    strip.position.set(x, STRIP_Y, z);
-    homeBorderGroup.add(strip);
-  }
   function buildHomeBorder() {
     while (homeBorderGroup.children.length) {
       const c = homeBorderGroup.children.pop();
       if (c.geometry) c.geometry.dispose();
     }
-    const half = GRID / 2;
-    addStrip(0, -half, GRID, 'x'); // north
-    addStrip(0,  half, GRID, 'x'); // south
-    addStrip(-half, 0, GRID, 'z'); // west
-    addStrip( half, 0, GRID, 'z'); // east
   }
   buildHomeBorder();
 
@@ -10171,7 +10354,7 @@
     const size = TILE * 0.98;
     cheapGhostGeomDirt = new THREE.BoxGeometry(size, DIRT_H, size);
     cheapGhostGeomDirt.translate(0, DIRT_H / 2, 0);
-    cheapGhostGeomTop = roundedSlab(size, TOP_H, 0.04);
+    cheapGhostGeomTop = getOpenBoxGeometry(size, TOP_H, size, false, true, true, true, true, true);
   }
 
   function getCheapGhostTerrainBucket(terrain) {
@@ -10230,17 +10413,22 @@
 
   function _writeCheapGhostTerrainInstance(b, idx, worldX, worldZ, rise) {
     const DUMMY = new THREE.Object3D();
-    // Dirt column: scale Y to account for elevation so the column reaches y=rise
-    const dirtHeight = DIRT_H + rise;
-    const sy = dirtHeight / DIRT_H;
-    DUMMY.scale.set(1, sy, 1);
-    DUMMY.position.set(worldX, -DIRT_H, worldZ);
+    // Flat tiles should not render a hidden lower side wall. Only raised
+    // terrain gets a visible vertical column from y=0 to y=rise.
+    if (rise > 0.001) {
+      const sy = rise / DIRT_H;
+      DUMMY.scale.set(1, sy, 1);
+      DUMMY.position.set(worldX, 0, worldZ);
+    } else {
+      DUMMY.scale.set(1, 0.0001, 1);
+      DUMMY.position.set(worldX, -9999, worldZ);
+    }
     DUMMY.updateMatrix();
     b.dirtMesh.setMatrixAt(idx, DUMMY.matrix);
 
-    // Top cap sitting at y = rise
+    // Top surface sitting on y = rise, with no hidden side/bottom faces.
     DUMMY.scale.set(1, 1, 1);
-    DUMMY.position.set(worldX, rise, worldZ);
+    DUMMY.position.set(worldX, rise + TOP_H * 0.5, worldZ);
     DUMMY.updateMatrix();
     b.topMesh.setMatrixAt(idx, DUMMY.matrix);
   }
@@ -10340,15 +10528,8 @@
     homeTileGeomDirt = new THREE.BoxGeometry(dirtSize, DIRT_H, dirtSize);
     homeTileGeomDirt.translate(0, DIRT_H / 2, 0); // bottom-anchored
 
-    if (wantLowDetail) {
-      homeTileGeomTop = new THREE.BoxGeometry(TILE * 0.98, TOP_H, TILE * 0.98);
-      homeTileGeomTop.translate(0, TOP_H / 2, 0);
-      homeTileGeomWater = new THREE.BoxGeometry(TILE * 0.99, TOP_H, TILE * 0.99);
-      homeTileGeomWater.translate(0, TOP_H / 2, 0);
-    } else {
-      homeTileGeomTop = roundedSlab(TILE * 0.98, TOP_H, 0.06);
-      homeTileGeomWater = roundedSlab(TILE * 0.99, TOP_H, 0.04);
-    }
+    homeTileGeomTop = getOpenBoxGeometry(TILE * 0.98, TOP_H, TILE * 0.98, false, true, true, true, true, true);
+    homeTileGeomWater = getOpenBoxGeometry(TILE * 0.99, TOP_H, TILE * 0.99, false, true, true, true, true, true);
   }
 
   function getHomeTileBucket(terrain) {
@@ -10402,16 +10583,21 @@
 
   function _writeHomeTileInstance(b, idx, posX, posZ, rise) {
     const DUMMY = new THREE.Object3D();
-    const dirtHeight = DIRT_H + rise;
-    const sy = dirtHeight / DIRT_H;
 
-    DUMMY.scale.set(1, sy, 1);
-    DUMMY.position.set(posX, -DIRT_H, posZ);
+    // Flat tiles should not render a hidden lower side wall. Only raised
+    // terrain gets a visible vertical column from y=0 to y=rise.
+    if (rise > 0.001) {
+      DUMMY.scale.set(1, rise / DIRT_H, 1);
+      DUMMY.position.set(posX, 0, posZ);
+    } else {
+      DUMMY.scale.set(1, 0.0001, 1);
+      DUMMY.position.set(posX, -9999, posZ);
+    }
     DUMMY.updateMatrix();
     b.dirtMesh.setMatrixAt(idx, DUMMY.matrix);
 
     DUMMY.scale.set(1, 1, 1);
-    DUMMY.position.set(posX, rise, posZ);
+    DUMMY.position.set(posX, rise + TOP_H * 0.5, posZ);
     DUMMY.updateMatrix();
     b.topMesh.setMatrixAt(idx, DUMMY.matrix);
   }
@@ -10546,9 +10732,8 @@
     if (terrain === 'sand')  mat = M.sand;
     if (terrain === 'snow')  mat = M.snow;
 
-    const height = DIRT_H + rise + TOP_H;
-    const slab = new THREE.Mesh(roundedSlab(TILE * 0.98, height, 0.04), mat);
-    slab.position.y = -DIRT_H;
+    const slab = new THREE.Mesh(getOpenBoxGeometry(TILE * 0.98, TOP_H, TILE * 0.98, false, true, true, true, true, true), mat);
+    slab.position.y = rise + TOP_H * 0.5;
 
     slab.userData = {
       kind: 'ghostTile',
@@ -10596,6 +10781,7 @@
           const tile = makeTile(cells[x][z].terrain, {
             path: getGhostNeighbors(cells, x, z, 'terrain', 'path', boardX, boardZ),
             terrain: getGhostTerrainNeighbors(cells, x, z, boardX, boardZ),
+            levels: getGhostLevelNeighbors(cells, x, z),
           }, gx, gz, tileLevelForCell(cells[x][z]));
           tile.position.copy(ghostCellPos(boardX, boardZ, x, z));
           tile.userData.gx = x;
@@ -10914,9 +11100,20 @@
   function ensureGhostBoardsAroundTarget() {
     syncGhostRenderBudget();
     if (!ghostBoardsEnabledForGrid()) {
-      clearPendingGhostBoards();
-      clearCheapGhostTerrain();
-      for (const board of ghostBoards.values()) board.visible = false;
+      // Disabled means no surrounding preview boards at all: remove existing
+      // ghost meshes instead of merely hiding them, so stale off-board sheets
+      // and their seam/edge geometry cannot remain in the scene.
+      if (typeof clearGhostWorld === 'function') clearGhostWorld();
+      else {
+        clearPendingGhostBoards();
+        clearCheapGhostTerrain();
+        for (const board of ghostBoards.values()) {
+          worldGroup.remove(board);
+          disposeGroup(board);
+        }
+        ghostBoards.clear();
+        ghostBoardCells.clear();
+      }
       updateGhostRenderBubble();
       return;
     }
@@ -11135,6 +11332,41 @@
       s: getWorldCell(x, z + 1).terrain,
       e: getWorldCell(x + 1, z).terrain,
       w: getWorldCell(x - 1, z).terrain,
+    };
+  }
+
+  // Neighbor tile levels for riser side-culling. Always returns a level
+  // (default 1 for cells we don't have data for / off-board), which lets
+  // makeTile drop every same-or-higher-level riser side. Trade-off: at
+  // the outermost edge of all rendered area there is no covering tile,
+  // so the dirt cliff is dropped and a very-low-angle camera could see a
+  // void past the perimeter. Acceptable for top-down play; the
+  // alternative is dark dirt panels under every path/water/edge tile,
+  // which the user explicitly does not want.
+  function getLevelNeighbors(x, z) {
+    function probe(nx, nz) {
+      if (nx < 0 || nx >= GRID || nz < 0 || nz >= GRID) return null;
+      if (!shouldRenderCellMesh(nx, nz)) return null;
+      return tileLevelForCell(getWorldCell(nx, nz));
+    }
+    return {
+      n: probe(x, z - 1),
+      s: probe(x, z + 1),
+      e: probe(x + 1, z),
+      w: probe(x - 1, z),
+    };
+  }
+
+  function getGhostLevelNeighbors(cells, x, z) {
+    function probe(nx, nz) {
+      if (nx < 0 || nx >= GRID || nz < 0 || nz >= GRID) return null;
+      return tileLevelForCell(cells[nx][nz]);
+    }
+    return {
+      n: probe(x, z - 1),
+      s: probe(x, z + 1),
+      e: probe(x + 1, z),
+      w: probe(x - 1, z),
     };
   }
 
@@ -11565,6 +11797,7 @@
     const tile = makeTile(cell.terrain, {
       path: getPathNeighbors(x, z),
       terrain: getTerrainNeighbors(x, z),
+      levels: getLevelNeighbors(x, z),
     }, x, z, tileLevelForCell(cell));
 
     const p = tilePos(x, z);
@@ -11911,10 +12144,11 @@
       renderCellTile(x, z, { animate: false });
     }
 
-    // Terrain adjacency: path bands, shoreline lips, water foam, and bridge
-    // orientation all depend on 4-neighbour terrain. Grid is tiny; rerendering
-    // the immediate neighbours is clearer and avoids stale rivers/roads.
-    if (terrainChanged && !forceTile) {
+    // Terrain adjacency: path bands, shoreline lips, water foam, bridge
+    // orientation all depend on 4-neighbour terrain; riser side-culling
+    // depends on 4-neighbour tile levels. Either kind of change requires
+    // re-rendering the immediate neighbours so faces don't go stale.
+    if ((terrainChanged || tileHeightChanged) && !forceTile) {
       for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const nx = x + dx, nz = z + dz;
         renderCellTile(nx, nz, { animate: false });
@@ -14620,6 +14854,9 @@
     const cloudShadowEl = document.getElementById('render-cloud-shadow');
     const distanceMistEl = document.getElementById('render-distance-mist');
     const backdropEl = document.getElementById('render-backdrop');
+    const pixelSizeEl = document.getElementById('render-pixel-size');
+    const pixelDepthEdgeEl = document.getElementById('render-pixel-depth-edge');
+    const pixelNormalEdgeEl = document.getElementById('render-pixel-normal-edge');
     const tiltBlurEl = document.getElementById('render-tilt-blur');
     const tiltFocusEl = document.getElementById('render-tilt-focus');
     const ghostOpacityEl = document.getElementById('render-ghost-opacity');
@@ -14638,6 +14875,9 @@
     const cloudShadowValue = document.getElementById('render-cloud-shadow-value');
     const distanceMistValue = document.getElementById('render-distance-mist-value');
     const backdropValue = document.getElementById('render-backdrop-value');
+    const pixelSizeValue = document.getElementById('render-pixel-size-value');
+    const pixelDepthEdgeValue = document.getElementById('render-pixel-depth-edge-value');
+    const pixelNormalEdgeValue = document.getElementById('render-pixel-normal-edge-value');
     const tiltBlurValue = document.getElementById('render-tilt-blur-value');
     const tiltFocusValue = document.getElementById('render-tilt-focus-value');
     const ghostOpacityValue = document.getElementById('render-ghost-opacity-value');
@@ -14672,6 +14912,9 @@
       cloudShadowEl.value = String(Math.round(renderCloudShadow * 100));
       distanceMistEl.value = String(Math.round(renderDistanceMist * 100));
       backdropEl.value = String(Math.round(renderBackdrop * 100));
+      pixelSizeEl.value = String(renderPixelSize);
+      pixelDepthEdgeEl.value = String(Math.round(renderPixelDepthEdge * 100));
+      pixelNormalEdgeEl.value = String(Math.round(renderPixelNormalEdge * 100));
       tiltBlurEl.value = String(renderTiltBlur);
       tiltFocusEl.value = String(Math.round(renderTiltFocus));
       ghostOpacityEl.value = String(Math.round(renderGhostOpacity * 100));
@@ -14690,6 +14933,9 @@
       cloudShadowValue.textContent = cloudShadowEl.value + '%';
       distanceMistValue.textContent = distanceMistEl.value + '%';
       backdropValue.textContent = backdropEl.value + '%';
+      pixelSizeValue.textContent = pixelSizeEl.value + (pixelSizeEl.value === '1' ? ' (off)' : 'x');
+      pixelDepthEdgeValue.textContent = pixelDepthEdgeEl.value + '%';
+      pixelNormalEdgeValue.textContent = pixelNormalEdgeEl.value + '%';
       tiltBlurValue.textContent = tiltBlurEl.value + 'px';
       tiltFocusValue.textContent = tiltFocusEl.value + '%';
       ghostOpacityValue.textContent = ghostOpacityEl.value + '%';
@@ -14713,6 +14959,9 @@
       localStorage.setItem(RENDER_LS.cloudShadow, renderCloudShadow.toFixed(2));
       localStorage.setItem(RENDER_LS.distanceMist, renderDistanceMist.toFixed(2));
       localStorage.setItem(RENDER_LS.backdrop, renderBackdrop.toFixed(2));
+      localStorage.setItem(RENDER_LS.pixelSize, String(renderPixelSize));
+      localStorage.setItem(RENDER_LS.pixelDepthEdge, renderPixelDepthEdge.toFixed(2));
+      localStorage.setItem(RENDER_LS.pixelNormalEdge, renderPixelNormalEdge.toFixed(2));
       localStorage.setItem(RENDER_LS.tiltBlur, renderTiltBlur.toFixed(1));
       localStorage.setItem(RENDER_LS.tiltFocus, renderTiltFocus.toFixed(0));
       localStorage.setItem(RENDER_LS.ghostOpacity, renderGhostOpacity.toFixed(2));
@@ -14741,6 +14990,9 @@
       applyDistanceMistSettings();
       renderBackdrop = parseInt(backdropEl.value, 10) / 100;
       applyBackdropSettings();
+      renderPixelSize = Math.max(1, Math.min(12, parseInt(pixelSizeEl.value, 10) || 1));
+      renderPixelDepthEdge = parseInt(pixelDepthEdgeEl.value, 10) / 100;
+      renderPixelNormalEdge = parseInt(pixelNormalEdgeEl.value, 10) / 100;
       renderTiltBlur = parseFloat(tiltBlurEl.value);
       renderTiltFocus = parseInt(tiltFocusEl.value, 10);
       applyTiltShiftSettings();
@@ -14783,7 +15035,7 @@
     });
     closeBtn.addEventListener('click', () => { closeTinyModal(modal); });
     modal.addEventListener('click', e => { if (e.target === modal) closeTinyModal(modal); });
-    for (const el of [shadowEl, resolutionEl, distanceEl, visibleSizeEl, brightnessEl, lightingEl, saturationEl, contrastEl, cloudsEl, cloudSpeedEl, cloudHeightEl, cloudShadowEl, distanceMistEl, backdropEl, tiltBlurEl, tiltFocusEl, ghostOpacityEl, floorOpacityEl, objectOpacityEl]) {
+    for (const el of [shadowEl, resolutionEl, distanceEl, visibleSizeEl, brightnessEl, lightingEl, saturationEl, contrastEl, cloudsEl, cloudSpeedEl, cloudHeightEl, cloudShadowEl, distanceMistEl, backdropEl, pixelSizeEl, pixelDepthEdgeEl, pixelNormalEdgeEl, tiltBlurEl, tiltFocusEl, ghostOpacityEl, floorOpacityEl, objectOpacityEl]) {
       if (!el) continue;
       el.addEventListener('input', applyFromControls);
       el.addEventListener('change', applyFromControls);
@@ -14815,6 +15067,9 @@
       applyDistanceMistSettings();
       renderBackdrop = 0.78;
       applyBackdropSettings();
+      renderPixelSize = 1;
+      renderPixelDepthEdge = 0;
+      renderPixelNormalEdge = 0;
       renderTiltBlur = 3.5;
       renderTiltFocus = 18;
       applyTiltShiftSettings();
