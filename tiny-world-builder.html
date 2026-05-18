@@ -5718,7 +5718,7 @@
 
   function addVoxelTerrainTop(g, terrain, x, z, rise, topSize, topHeight, pathN, terrainN) {
     const mats = terrainVoxelMaterials(terrain);
-    const cells = (terrain === 'path' || terrain === 'water' || terrain === 'dirt') ? 4 : 3;
+    const cells = (terrain === 'path' || terrain === 'water' || terrain === 'dirt') ? 8 : 6;
     const cellSize = topSize / cells;
     const half = topSize * 0.5;
     const y = rise + topHeight * 0.5;
