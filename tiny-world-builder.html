@@ -4456,6 +4456,10 @@
               <span>Voxel terrain <em class="gen-hint">flat shaded panels and path edging</em></span>
             </label>
             <label class="gen-check">
+              <input type="checkbox" id="render-textured-grass" />
+              <span>Organic grass texture <em class="gen-hint">dense pixel-art grass blades instead of checkerboard</em></span>
+            </label>
+            <label class="gen-check">
               <input type="checkbox" id="render-show-crowns" />
               <span>Show crowns <em class="gen-hint">dense crowns on trees and rocks</em></span>
             </label>
@@ -4906,6 +4910,7 @@
     voxelGap: 'tinyworld:render:voxelGap',
     voxelBevel: 'tinyworld:render:voxelBevel',
     voxelTerrain: 'tinyworld:render:voxelTerrain',
+    texturedGrass: 'tinyworld:render:texturedGrass',
     landscapeMeshMode: 'tinyworld:render:landscapeMeshMode',
     terrainVoxelResolution: 'tinyworld:render:terrainVoxelResolution',
     showCrowns: 'tinyworld:render:showCrowns',
@@ -4929,7 +4934,7 @@
     crowdEnabled: 'tinyworld:crowd:enabled',
     version: 'tinyworld:render:version',
   };
-  const RENDER_SETTINGS_VERSION = '21';
+  const RENDER_SETTINGS_VERSION = '22';
   const RENDER_DEFAULTS = {
     // Defaults tuned to keep image quality crisp while still trimming
     // a few cheap things off the per-frame budget.
@@ -4966,7 +4971,8 @@
     objectOpacity: '1',
     voxelGap: '0',
     voxelBevel: '0.018',
-    voxelTerrain: '1',
+    voxelTerrain: '0',
+    texturedGrass: '0',
     landscapeMeshMode: '1',
     terrainVoxelResolution: 'mixed',
     autoExpand: '0',
@@ -5063,6 +5069,9 @@
   let landscapeEngineInstance = null;
   let landscapeMeshMode = localStorage.getItem(RENDER_LS.landscapeMeshMode) !== '0';
   let landscapeMeshEngine = null;
+  function isLandscapeMeshActive() {
+    return !!(useLandscapeEngine && landscapeMeshMode && landscapeMeshEngine);
+  }
   let landscapeMeshGroup = null;
   let landscapeCutCapsGroup = null;
   let landscapeMeshBiome = 'grassland';  // 'grassland', 'desert', or 'snow'
@@ -5072,7 +5081,7 @@
 
   function maxRenderVisibleSizeForGrid(grid) {
     const g = coerceGridSize(grid, GRID);
-    if (landscapeMeshMode) {
+    if (isLandscapeMeshActive()) {
       return Math.max(48, g * 4);
     }
     const budget = renderBudgetForGrid(g);
@@ -5108,7 +5117,7 @@
     return previewSettingsForGrid(GRID, true).visibleSize;
   }
   function expandVisibleSizeOnFirstMove() {
-    if (!renderAutoExpand && !landscapeMeshMode) return false;
+    if (!renderAutoExpand && !isLandscapeMeshActive()) return false;
     if (hasUserPanned) return false;
     hasUserPanned = true;
     renderVisibleSize = visibleSizeForExplorer();
@@ -5136,7 +5145,8 @@
   let renderObjectOpacity = storedNumber(RENDER_LS.objectOpacity, 1, 0, 1);
   let renderVoxelGap = storedNumber(RENDER_LS.voxelGap, 0, 0, 0.14);
   let renderVoxelBevel = storedNumber(RENDER_LS.voxelBevel, parseFloat(RENDER_DEFAULTS.voxelBevel), 0, 0.06);
-  let renderVoxelTerrain = localStorage.getItem(RENDER_LS.voxelTerrain) !== '0';
+  let renderVoxelTerrain = localStorage.getItem(RENDER_LS.voxelTerrain) === '1';
+  let renderTexturedGrass = localStorage.getItem(RENDER_LS.texturedGrass) === '1';
   let renderTerrainVoxelResolution = localStorage.getItem(RENDER_LS.terrainVoxelResolution) || 'mixed';
   let showCrowns = localStorage.getItem(RENDER_LS.showCrowns) !== '0';
   if (!['mixed', '4', '6', '8', '12'].includes(renderTerrainVoxelResolution)) renderTerrainVoxelResolution = 'mixed';
@@ -5641,7 +5651,7 @@
     applyDistanceMistSettings();
   }
   function clampTargetToHomeBoard() {
-    if (renderAutoExpand || landscapeMeshMode) return false;
+    if (renderAutoExpand || isLandscapeMeshActive()) return false;
     const min = -GRID / 2 + 0.5;
     const max = GRID / 2 - 0.5;
     const beforeX = target.x;
@@ -6132,6 +6142,31 @@
         ctx.fillStyle = Math.random() > 0.5 ? '#e0e0e0' : '#ffffff';
         ctx.fillRect(px, py, 1, 1);
       }
+    } else if (type === 'grass') {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, scale, scale);
+      for (let x = 0; x < scale; x++) {
+        for (let y = 0; y < scale; y++) {
+          const r = Math.random();
+          if (r > 0.88) {
+            ctx.fillStyle = '#f7f7f7';
+            ctx.fillRect(x, y, 1, 1);
+          } else if (r < 0.12) {
+            ctx.fillStyle = '#f0f0f0';
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      }
+      ctx.fillStyle = '#e2e2e2';
+      const numBlades = Math.floor(scale * scale * 0.08);
+      for (let i = 0; i < numBlades; i++) {
+        const bx = Math.floor(Math.random() * scale);
+        const by = Math.floor(Math.random() * (scale - 1));
+        ctx.fillRect(bx, by, 1, 2);
+        if (Math.random() > 0.6 && bx < scale - 1) {
+          ctx.fillRect(bx + 1, by + 1, 1, 1);
+        }
+      }
     } else {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, scale, scale);
@@ -6177,10 +6212,14 @@
   const texBrick = createPixelTexture('brick', 16);
   const texShingles = createPixelTexture('shingles', 16);
   const texRipples = createPixelTexture('ripples', 16);
+  const texLeaves = createPixelTexture('leaves', 16);
+  const texWood = createPixelTexture('wood', 16);
+  const texGrass = createPixelTexture('grass', 16);
 
-  applyWorldUVs(M.grass, texCheckered, 1.0);
-  applyWorldUVs(M.grassEdge, texCheckered, 1.0);
-  applyWorldUVs(M.grassHi, texCheckered, 1.0);
+  const initialGrassTex = renderTexturedGrass ? texGrass : texCheckered;
+  applyWorldUVs(M.grass, initialGrassTex, 1.0);
+  applyWorldUVs(M.grassEdge, initialGrassTex, 1.0);
+  applyWorldUVs(M.grassHi, initialGrassTex, 1.0);
 
   applyWorldUVs(M.path, texNoise, 1.0);
   applyWorldUVs(M.pathTrim, texNoise, 1.0);
@@ -6212,6 +6251,10 @@
   applyWorldUVs(M.towerStoneD, texBrick, 4.0);
   applyWorldUVs(M.towerRoof, texShingles, 2.0);
   applyWorldUVs(M.towerRoofD, texShingles, 2.0);
+
+  applyWorldUVs(M.leaves, texLeaves, 4.0);
+  applyWorldUVs(M.leavesDk, texLeaves, 4.0);
+  applyWorldUVs(M.trunk, texWood, 4.0);
 
   const customMaterialCache = new Map();
   function normalizeHexColor(value) {
@@ -10394,7 +10437,10 @@
   }
 
   function vehicleRoadHeightAtCell(x, z) {
-    return TOP_H + terrainRiseAt(x, z);
+    if (isLandscapeMeshActive()) {
+      return landscapeHeightAtCell(x, z);
+    }
+    return TOP_H + terrainRiseAt(Math.round(x), Math.round(z));
   }
 
   function vehicleVisualScaleForGrid(grid = GRID) {
@@ -10847,7 +10893,9 @@
     }
     const currentCell = vehicleCellFromWorld(state.x, state.z);
     if (currentCell.inside) {
-      state.mesh.position.y = vehicleYAtCellForState(state, currentCell.cellX, currentCell.cellZ);
+      state.mesh.position.y = isLandscapeMeshActive()
+        ? vehicleYAtCellForState(state, state.x + GRID / 2 - 0.5, state.z + GRID / 2 - 0.5)
+        : vehicleYAtCellForState(state, currentCell.cellX, currentCell.cellZ);
     }
 
     if (!state.path.length && state.pathGoal && state.mode !== 'manual') {
@@ -11667,7 +11715,7 @@
   function crowdTerrainHeightAt(x, z) {
     const cellX = Math.max(0, Math.min(GRID - 1, Math.round(x)));
     const cellZ = Math.max(0, Math.min(GRID - 1, Math.round(z)));
-    if (landscapeMeshMode) return landscapeHeightAtCell(cellX, cellZ) + 0.025;
+    if (isLandscapeMeshActive()) return landscapeHeightAtCell(cellX, cellZ) + 0.025;
     return TOP_H + terrainRiseAt(cellX, cellZ) + 0.025;
   }
 
@@ -11851,7 +11899,7 @@
     } catch (_) { return null; }
   }
   function terrainSurfaceHeightForCell(bx, bz, x, z, cell) {
-    if (landscapeMeshMode) return landscapeHeightAtCell(x + (bx || 0) * GRID, z + (bz || 0) * GRID);
+    if (isLandscapeMeshActive()) return landscapeHeightAtCell(x + (bx || 0) * GRID, z + (bz || 0) * GRID);
     if (cell) return TOP_H + terrainRiseForLevel(terrainLevelForCell(cell));
     return TOP_H + terrainRiseAt(x, z);
   }
@@ -12525,12 +12573,15 @@
 
     if (useLandscapeEngine && landscapeEngineInstance) {
       const cells = [];
+      const active = isLandscapeMeshActive();
       for (let x = 0; x < GRID; x++) {
         cells[x] = [];
         for (let z = 0; z < GRID; z++) {
           const cell = sampleLandscapeCell(boardX, boardZ, x, z, landscapeEngineInstance, GRID);
-          cell.terrainFloors = 1;
-          cell.kind = null;
+          if (active) {
+            cell.terrainFloors = 1;
+            cell.kind = null;
+          }
           cells[x][z] = cell;
         }
       }
@@ -13261,7 +13312,7 @@
         // No automatic quality reduction on ghosts — only progressive LOD when user zooms the camera out (to be implemented if needed).
         // In landscape mesh mode the engine renders the continuous terrain
         // so skip individual ghost tiles entirely.
-        if (landscapeMeshMode) {
+        if (isLandscapeMeshActive()) {
           // no ghost tile needed — engine covers it
         } else if (detail === 'full') {
           const tile = makeTile(cells[x][z].terrain, {
@@ -13302,7 +13353,7 @@
           : makeCheapGhostObject(cells[x][z], gx, gz);
         if (!obj) continue;
         obj.position.copy(ghostCellPos(boardX, boardZ, x, z));
-        obj.position.y = landscapeMeshMode
+        obj.position.y = isLandscapeMeshActive()
           ? landscapeHeightAtCell(gx, gz)
           : TOP_H + terrainRiseForLevel(tileLevelForCell(cells[x][z]));
         obj.userData.gx = x;
@@ -14392,7 +14443,7 @@
     }
     // LandscapeEngine mode uses a hidden logical grass board for x/z
     // reference only. Do not build discrete base-tile meshes at all.
-    if (landscapeMeshMode) return;
+    if (isLandscapeMeshActive()) return;
 
     const cell = getWorldCell(x, z);
     const tile = makeTile(cell.terrain, {
@@ -14452,7 +14503,7 @@
     // Landscape mode only renders central-board objects on the continuous
     // terrain. Never render out-of-home override/preview objects behind
     // the island fade.
-    if (landscapeMeshMode && isOutsideHomeGrid(x, z)) {
+    if (isLandscapeMeshActive() && isOutsideHomeGrid(x, z)) {
       renderCellExtras(x, z);
       return;
     }
@@ -14466,7 +14517,9 @@
     const level = cell.floors || 1;
     const appearanceForRender = normalizeAppearance(cell.appearance);
     const renderStyle = appearanceForRender && appearanceForRender.objectStyle;
-    const useVoxelRender = kind === 'voxel-build' || renderStyle !== 'normal';
+    const useVoxelRender = kind === 'voxel-build' ||
+                           (renderStyle === 'voxel') ||
+                           (renderVoxelTerrain && renderStyle !== 'normal');
 
     let mesh = null;
     let posX = null, posZ = null;
@@ -14588,7 +14641,7 @@
     if (userRot) mesh.rotation.y += userRot;
     if (userScale !== 1) mesh.scale.multiplyScalar(userScale);
     mesh.userData.objectScaleBase = userScale;
-    const objectY = landscapeMeshMode
+    const objectY = isLandscapeMeshActive()
       ? landscapeHeightAtCell(x, z)
       : TOP_H + terrainRiseAt(x, z);
     mesh.position.set(posX + userOffsetX, objectY, posZ + userOffsetZ);
@@ -14625,11 +14678,11 @@
       disposeGroup(m);
     }
     entry.extras.length = 0;
-    if (landscapeMeshMode && isOutsideHomeGrid(x, z)) return;
+    if (isLandscapeMeshActive() && isOutsideHomeGrid(x, z)) return;
     const cell = world[x] && world[x][z];
     if (!cell || !cell.extras || !cell.extras.length) return;
     const p = tilePos(x, z);
-    const objectY = landscapeMeshMode
+    const objectY = isLandscapeMeshActive()
       ? landscapeHeightAtCell(x, z)
       : TOP_H + terrainRiseAt(x, z);
     cell.extras.forEach((ex, i) => {
@@ -15176,11 +15229,7 @@
     if (!ghostPreview) return;
     if (!currentHover) { ghostPreview.visible = false; return; }
     ghostPreview.visible = true;
-    const gx = currentHover.x + (currentHover.boardX || 0) * GRID;
-    const gz = currentHover.z + (currentHover.boardZ || 0) * GRID;
-    const baseY = landscapeMeshMode
-      ? landscapeHeightAtCell(gx, gz)
-      : TOP_H + (terrainRiseAt(gx, gz) || 0);
+    const baseY = hoverHeightForCell(currentHover) - 0.02;
     ghostPreview.position.set(
       currentHover.worldX + ghostOffsetX,
       baseY + 0.01,
@@ -15247,7 +15296,7 @@
   }
 
   function pickLandscapeVirtualCell() {
-    if (!landscapeMeshMode) return null;
+    if (!isLandscapeMeshActive()) return null;
     const point = new THREE.Vector3();
     if (!raycaster.ray.intersectPlane(landscapePickPlane, point)) return null;
     return projectedLandscapeHitFromPoint(point);
@@ -15321,7 +15370,7 @@
   }
 
   function hoverHeightForCell(cell) {
-    if (landscapeMeshMode) {
+    if (isLandscapeMeshActive()) {
       return landscapeHeightAtCell(
         cell.x + (cell.boardX || 0) * GRID,
         cell.z + (cell.boardZ || 0) * GRID
@@ -17798,6 +17847,7 @@
     const landscapeMeshContainer = document.getElementById('render-landscape-mesh-container');
     const landscapeMeshModeEl = document.getElementById('render-landscape-mesh-mode');
     const voxelTerrainEl = document.getElementById('render-voxel-terrain');
+    const texturedGrassEl = document.getElementById('render-textured-grass');
     const showCrownsEl = document.getElementById('render-show-crowns');
     const terrainVoxelResolutionEl = document.getElementById('render-terrain-voxel-resolution');
     const resolutionValue = document.getElementById('render-resolution-value');
@@ -17871,6 +17921,7 @@
         landscapeMeshModeEl.checked = !!landscapeMeshMode;
       }
       if (voxelTerrainEl) voxelTerrainEl.checked = !!renderVoxelTerrain;
+      if (texturedGrassEl) texturedGrassEl.checked = !!renderTexturedGrass;
       if (showCrownsEl) showCrownsEl.checked = !!showCrowns;
       if (terrainVoxelResolutionEl) terrainVoxelResolutionEl.value = renderTerrainVoxelResolution;
       if (crowdCountEl) crowdCountEl.value = String(crowdCount);
@@ -17958,6 +18009,7 @@
       localStorage.setItem(RENDER_LS.voxelGap, renderVoxelGap.toFixed(2));
       localStorage.setItem(RENDER_LS.voxelBevel, renderVoxelBevel.toFixed(3));
       localStorage.setItem(RENDER_LS.voxelTerrain, renderVoxelTerrain ? '1' : '0');
+      localStorage.setItem(RENDER_LS.texturedGrass, renderTexturedGrass ? '1' : '0');
       localStorage.setItem(RENDER_LS.landscapeMeshMode, landscapeMeshMode ? '1' : '0');
       localStorage.setItem(RENDER_LS.showCrowns, showCrowns ? '1' : '0');
       localStorage.setItem(RENDER_LS.terrainVoxelResolution, renderTerrainVoxelResolution);
@@ -17970,6 +18022,7 @@
       const oldVoxelGap = renderVoxelGap;
       const oldVoxelBevel = renderVoxelBevel;
       const oldVoxelTerrain = renderVoxelTerrain;
+      const oldTexturedGrass = renderTexturedGrass;
       const oldTerrainVoxelResolution = renderTerrainVoxelResolution;
       const oldShowCrowns = showCrowns;
       const oldCrowdEnabled = crowdEnabled;
@@ -18018,6 +18071,18 @@
         }
       }
       if (voxelTerrainEl) renderVoxelTerrain = !!voxelTerrainEl.checked;
+      if (texturedGrassEl) {
+        renderTexturedGrass = !!texturedGrassEl.checked;
+        if (oldTexturedGrass !== renderTexturedGrass) {
+          const nextTex = renderTexturedGrass ? texGrass : texCheckered;
+          M.grass.map = nextTex;
+          M.grass.needsUpdate = true;
+          M.grassEdge.map = nextTex;
+          M.grassEdge.needsUpdate = true;
+          M.grassHi.map = nextTex;
+          M.grassHi.needsUpdate = true;
+        }
+      }
       if (showCrownsEl) showCrowns = !!showCrownsEl.checked;
       if (terrainVoxelResolutionEl) renderTerrainVoxelResolution = terrainVoxelResolutionEl.value;
       if (crowdCountEl) crowdCount = parseInt(crowdCountEl.value, 10) || 0;
@@ -18045,7 +18110,10 @@
         initCrowdLayer();
       }
       if (Math.abs(oldVoxelGap - renderVoxelGap) > 0.001 || Math.abs(oldVoxelBevel - renderVoxelBevel) > 0.001) scheduleVoxelStampRefresh();
-      if (oldVoxelTerrain !== renderVoxelTerrain || oldTerrainVoxelResolution !== renderTerrainVoxelResolution) rebuildTerrainRender();
+      if (oldVoxelTerrain !== renderVoxelTerrain || oldTerrainVoxelResolution !== renderTerrainVoxelResolution) {
+        rebuildTerrainRender();
+        if (oldVoxelTerrain !== renderVoxelTerrain) rebuildObjectsRender();
+      }
       if (oldShowCrowns !== showCrowns) rebuildObjectsRender();
       updateGhostRenderBubble();
       applyColorFilterFallback();
@@ -18127,7 +18195,13 @@
       renderObjectOpacity = 1;
       renderVoxelGap = 0;
       renderVoxelBevel = parseFloat(RENDER_DEFAULTS.voxelBevel);
-      renderVoxelTerrain = true;
+      renderVoxelTerrain = false;
+      renderTexturedGrass = false;
+      if (typeof texCheckered !== 'undefined') {
+        M.grass.map = texCheckered; M.grass.needsUpdate = true;
+        M.grassEdge.map = texCheckered; M.grassEdge.needsUpdate = true;
+        M.grassHi.map = texCheckered; M.grassHi.needsUpdate = true;
+      }
       renderTerrainVoxelResolution = 'mixed';
       crowdCount = 12;
       crowdScale = 0.75;
@@ -18149,9 +18223,10 @@
       renderAutoExpand = false;
       const autoExpandEl = document.getElementById('minimap-autoexpand');
       if (autoExpandEl) autoExpandEl.checked = false;
-      if (voxelTerrainEl) voxelTerrainEl.checked = true;
+      if (voxelTerrainEl) voxelTerrainEl.checked = false;
       if (terrainVoxelResolutionEl) terrainVoxelResolutionEl.value = renderTerrainVoxelResolution;
       rebuildTerrainRender();
+      rebuildObjectsRender();
       scheduleVoxelStampRefresh();
       updateGhostRenderBubble();
       applyColorFilterFallback();
@@ -20074,6 +20149,9 @@
   }
 
   function weatherSurfaceAt(x, z) {
+    if (isLandscapeMeshActive()) {
+      return landscapeHeightAtCell(x + GRID / 2 - 0.5, z + GRID / 2 - 0.5) + WEATHER_SURFACE_PAD;
+    }
     const gx = Math.floor(x + GRID / 2);
     const gz = Math.floor(z + GRID / 2);
     let homeEntry = null;
@@ -20094,14 +20172,10 @@
     const lz = gz - bz * GRID;
     if (lx < 0 || lx >= GRID || lz < 0 || lz >= GRID) return null;
 
-    if (landscapeMeshMode) {
-      return landscapeHeightAtCell(gx, gz) + WEATHER_SURFACE_PAD;
-    } else {
-      const cells = makeGhostWorld(bx, bz);
-      const cell = cells[lx][lz];
-      const level = tileLevelForCell(cell);
-      return TOP_H + terrainRiseForLevel(level) + WEATHER_SURFACE_PAD;
-    }
+    const cells = makeGhostWorld(bx, bz);
+    const cell = cells[lx][lz];
+    const level = tileLevelForCell(cell);
+    return TOP_H + terrainRiseForLevel(level) + WEATHER_SURFACE_PAD;
   }
 
   const WEATHER_TILT_AXIS = new THREE.Vector3(0, 0, 1);
@@ -20886,7 +20960,7 @@
     updateCropDuster(dt);
     // Stream LandscapeEngine chunks when in landscape mesh mode. Auto-expand
     // reveals by moving the clip window, not by building ghost/base boards.
-    if (landscapeMeshMode && landscapeMeshEngine) {
+    if (isLandscapeMeshActive()) {
       landscapeMeshEngine.update(landscapeMeshFocusPos(), dt);
       if (renderAutoExpand || hasUserPanned) updateLandscapeClipBounds();
     }
@@ -22378,6 +22452,7 @@
   }
 
   function disposeLandscapeMesh(opts) {
+    clearGhostBoardsOnly();
     disposeLandscapeCutCaps();
     if (landscapeMeshEngine) {
       landscapeMeshEngine.dispose();
@@ -22846,7 +22921,7 @@
     }
 
     if (landscapeStyleEl) {
-      const storedStyle = localStorage.getItem('tinyworld:gen:landscapeStyle') || 'voxel-mixed';
+      const storedStyle = localStorage.getItem('tinyworld:gen:landscapeStyle') || 'lowpoly';
       landscapeStyleEl.value = storedStyle;
       landscapeStyleEl.addEventListener('change', () => {
         try { localStorage.setItem('tinyworld:gen:landscapeStyle', landscapeStyleEl.value); } catch (_) {}
@@ -23947,18 +24022,22 @@
         container.appendChild(topWrap);
 
         // Voxel / Normal style toggle
-        const styleChip = document.createElement('button');
-        styleChip.className = 'selection-prop-chip';
-        styleChip.textContent = target.cell.appearance?.objectStyle === 'voxel' ? 'Normal' : 'Voxel';
-        styleChip.onclick = () => {
-          const next = target.cell.appearance?.objectStyle === 'voxel' ? 'normal' : 'voxel';
-          applySelectionProperty('objectStyle', next);
-          setTimeout(() => {
-            const t = selectedBoardObjectTarget();
-            if (t) updateSelectionPreview(t);
-          }, 10);
-        };
-        container.appendChild(styleChip);
+        if (kind !== 'voxel-build') {
+          const styleChip = document.createElement('button');
+          styleChip.className = 'selection-prop-chip';
+          const isCurrentlyVoxel = target.cell.appearance?.objectStyle === 'voxel' || 
+            (renderVoxelTerrain && target.cell.appearance?.objectStyle !== 'normal');
+          styleChip.textContent = isCurrentlyVoxel ? 'Normal' : 'Voxel';
+          styleChip.onclick = () => {
+            const next = isCurrentlyVoxel ? 'normal' : 'voxel';
+            applySelectionProperty('objectStyle', next);
+            setTimeout(() => {
+              const t = selectedBoardObjectTarget();
+              if (t) updateSelectionPreview(t);
+            }, 10);
+          };
+          container.appendChild(styleChip);
+        }
       }
     }
 
@@ -24566,6 +24645,9 @@
     // Defer landscape mesh init — we need cells painted first so
     // rebuildTerrainRender can hide them.
     const shouldRestoreLandscapeMesh = !!(data.landscapeMeshMode && landscapeEngineInstance);
+    if (!shouldRestoreLandscapeMesh) {
+      disposeLandscapeMesh();
+    }
 
     // Restore the saved home grid size before painting cells so the new
     // tiles are framed correctly and ghost boards land in the right
@@ -24677,6 +24759,11 @@
       if (data.toolId) {
         const tool = TOOLS.find(t => t.id === data.toolId);
         if (tool) selectTool(tool);
+      }
+      if (shouldRestoreLandscapeMesh) {
+        initLandscapeMesh();
+        rebuildTerrainRender();
+        rebuildObjectsRender();
       }
       saveState();
       if (typeof opts.onDone === 'function') {
@@ -24857,6 +24944,7 @@
       if (shouldRestoreLandscapeMesh) {
         initLandscapeMesh();
         rebuildTerrainRender();
+        rebuildObjectsRender();
       }
       saveState();
       if (typeof syncControls === 'function') syncControls();
