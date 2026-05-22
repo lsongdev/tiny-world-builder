@@ -59,10 +59,17 @@ The home board has a thin dark ground-line border (see
 always see where the editable region ends, regardless of how much of
 the Preview world has been revealed around it.
 
-Preview distance/window auto-scale from `GRID` on first load and whenever
-board size changes: small boards can preview farther; large boards keep
-neighbour preload distance/window tighter for performance. Users can still
-override those settings from Settings → World.
+- Preview distance/window auto-scale from `GRID` on first load and whenever
+  board size changes: small boards can preview farther; large boards keep
+  neighbour preload distance/window tighter for performance. Users can still
+  override those settings from Settings → World.
+- Landscape-mode ghost-board suppression must be scoped to an actually active
+  `isLandscapeMeshActive()` engine. If the user leaves terrain/landscape mode,
+  normal Autoexpand should immediately restore classic Preview ghost boards.
+- Preview objects must always stay full-fidelity. Do not render ghost-board
+  houses/trees/crops/rocks/animals as cheap proxy boxes, cones, or pyramids at
+  any zoom level. If a grid size is too expensive for full Preview boards,
+  reduce/disable preview rings through `renderBudgetForGrid()` instead.
 
 Validation:
 

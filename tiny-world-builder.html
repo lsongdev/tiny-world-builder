@@ -5207,7 +5207,8 @@
 
   var landscapeGhostBoardsSuppressed = false;
   function ghostBoardsEnabledForGrid() {
-    return !!renderAutoExpand && !landscapeGhostBoardsSuppressed && renderBudgetForGrid(GRID).ghostRadius > 0;
+    const suppressForLandscape = landscapeGhostBoardsSuppressed && isLandscapeMeshActive();
+    return !!renderAutoExpand && !suppressForLandscape && renderBudgetForGrid(GRID).ghostRadius > 0;
   }
 
   function clearGhostBoardsOnly() {
@@ -5240,8 +5241,9 @@
     renderVisibleSize = Math.max(GRID, Math.min(maxRenderVisibleSizeForGrid(GRID), Math.round(value)));
     invalidateHomeFade();
     if (typeof ensureGhostBoardsAroundTarget === 'function') ensureGhostBoardsAroundTarget();
-    // When the user zooms the preview window, some ghost boards may need to
-    // switch between full-quality and cheap representations.
+    // Zoom/window changes can force existing ghost boards to rebuild. Any
+    // rendered Preview board stays full-fidelity; large grids reduce rings
+    // through renderBudgetForGrid() rather than visible proxy geometry.
     if (renderAutoExpand) reevaluateGhostDetailLevels();
   }
 
@@ -6195,9 +6197,15 @@
         #endif
         worldPos = modelMatrix * worldPos;
 
-        if (abs(normal.y) > 0.5) {
+        vec4 localNormal = vec4(normal, 0.0);
+        #ifdef USE_INSTANCING
+          localNormal = instanceMatrix * localNormal;
+        #endif
+        vec3 worldNormal = normalize((modelMatrix * localNormal).xyz);
+
+        if (abs(worldNormal.y) > 0.5) {
           vUv = worldPos.xz * ${textureScale.toFixed(4)};
-        } else if (abs(normal.x) > 0.5) {
+        } else if (abs(worldNormal.x) > 0.5) {
           vUv = worldPos.zy * ${textureScale.toFixed(4)};
         } else {
           vUv = worldPos.xy * ${textureScale.toFixed(4)};
@@ -12469,11 +12477,10 @@
   let ghostOuterFadeTiles = ghostPreloadRadius > 0 ? 2 + ghostPreloadRadius * 2 : VIEW_EDGE_FADE_TILES;
   const opacityRoots = new Set();
 
-  // -------- cheap ghost instancing (inspired by open-world-builder fork) --------
-  // When the user is zoomed out (cheap ghost mode), we render all far ghost
-  // terrain using a small number of InstancedMesh (one pair per terrain type).
-  // This keeps draw calls bounded no matter how high the preview distance is.
-  // Close ghosts (when zoomed in) still use individual full-quality meshes.
+  // -------- dormant cheap ghost instancing helpers --------
+  // Kept only for safe cleanup of stale sessions that may have created cheap
+  // terrain buckets. New Preview boards use full-fidelity terrain/objects;
+  // if full boards are too expensive, renderBudgetForGrid() reduces rings.
   const cheapGhostTerrainBuckets = new Map(); // terrain -> { dirtMesh, topMesh, slots, keyAt, count }
   const revealedCheapCells = new Set();
   const CHEAP_GHOST_CAPACITY = 65536; // 48×48 radius-2 preview worst case
@@ -13064,40 +13071,6 @@
     return mesh;
   }
 
-  // Ultra-cheap proxy objects for ghost boards (1-3 meshes max instead of full detailed models).
-  // Used to keep "elements" count reasonable when preview distance is high.
-  function makeCheapGhostObject(cell, worldX, worldZ) {
-    const kind = cell.kind;
-    if (!kind) return null;
-    const level = cell.floors || 1;
-    let g = null;
-
-    if (kind === 'tree' || kind === 'bush') {
-      const leaves = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.2 * level, 4), M.leaves);
-      leaves.position.y = 0.6 * level;
-      g = leaves;
-    } else if (kind === 'house' || kind === 'manor' || kind === 'tower' || kind === 'turret' || kind === 'skyscraper') {
-      const h = 1.2 * level;
-      g = new THREE.Mesh(getBoxGeometry(1.2, h, 1.2), M.dirtRich);
-      const roof = new THREE.Mesh(new THREE.ConeGeometry(0.9, 0.6, 4), M.rock);
-      roof.position.y = h + 0.3;
-      const gg = new THREE.Group();
-      gg.add(g, roof);
-      g = gg;
-    } else if (kind === 'rock') {
-      g = new THREE.Mesh(new THREE.OctahedronGeometry(0.5 + (level - 1) * 0.15, 0), M.rock);
-    } else if (['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower', 'flower', 'tuft'].includes(kind)) {
-      g = new THREE.Mesh(getBoxGeometry(0.4, 0.5 + (level - 1) * 0.1, 0.4), M.leaves);
-    } else if (kind === 'cow' || kind === 'sheep') {
-      g = new THREE.Mesh(getBoxGeometry(0.6, 0.5, 0.9), M.dirtRich);
-    } else if (kind === 'fence') {
-      g = new THREE.Mesh(getBoxGeometry(0.9, 0.7, 0.15), M.dirtRich);
-    } else if (kind === 'bridge') {
-      g = new THREE.Mesh(getBoxGeometry(1.6, 0.3, 0.8), M.dirtRich);
-    }
-    return g;
-  }
-
   // -------- cheap ghost instancing helpers --------
   function ensureCheapGhostGeoms() {
     if (cheapGhostGeomDirt) return;
@@ -13314,7 +13287,7 @@
         // so skip individual ghost tiles entirely.
         if (isLandscapeMeshActive()) {
           // no ghost tile needed — engine covers it
-        } else if (detail === 'full') {
+        } else {
           const tile = makeTile(cells[x][z].terrain, {
             path: getGhostNeighbors(cells, x, z, 'terrain', 'path', boardX, boardZ),
             terrain: getGhostTerrainNeighbors(cells, x, z, boardX, boardZ),
@@ -13338,19 +13311,11 @@
           });
 
           board.add(tile);
-        } else {
-          // Cheap zoomed-out path: feed into global per-terrain InstancedMeshes (fork-style).
-          // This keeps draw calls low even at very high preview distance when zoomed out.
-          const rise = terrainRiseForLevel(tileLevelForCell(cells[x][z]));
-          addCellToCheapGhostTerrain(boardX, boardZ, x, z, cells[x][z].terrain, rise);
         }
 
-        // Objects on ghosts use full quality by default. When the user zooms out
-        // (large renderVisibleSize), far ghost boards switch to cheap proxies.
-        // This is the "progressive when zooming out" behaviour requested.
-        const obj = (detail === 'full')
-          ? makeGhostObject(cells, x, z)
-          : makeCheapGhostObject(cells[x][z], gx, gz);
+        // Preview objects must always use the real Tinyworld asset factories.
+        // The old box/cone proxy path made nearby preview boards look broken.
+        const obj = makeGhostObject(cells, x, z);
         if (!obj) continue;
         obj.position.copy(ghostCellPos(boardX, boardZ, x, z));
         obj.position.y = isLandscapeMeshActive()
@@ -13421,6 +13386,7 @@
     const children = [...board.children];
     for (const child of children) {
       if (!child) continue;
+      if (child.userData && child.userData.ghostMerged) continue;
 
       const role = child.userData.fadeRole;
       if (role !== 'tile' && role !== 'object') continue;
@@ -13444,7 +13410,17 @@
         if (!groups.has(key)) {
           groups.set(key, { mat, role, items: [] });
         }
-        groups.get(key).items.push({ mesh: m, relMatrix });
+
+        if (m.isInstancedMesh) {
+          const tempMatrix = new THREE.Matrix4();
+          for (let i = 0; i < m.count; i++) {
+            m.getMatrixAt(i, tempMatrix);
+            const combinedMatrix = relMatrix.clone().multiply(tempMatrix);
+            groups.get(key).items.push({ mesh: m, relMatrix: combinedMatrix });
+          }
+        } else {
+          groups.get(key).items.push({ mesh: m, relMatrix });
+        }
       });
       toRemove.push(child);
     }
@@ -13461,9 +13437,17 @@
       let norArr = [];
       let uvArr = [];
 
+      const geometryCache = new Map();
+
       for (const item of items) {
         const g = item.mesh.geometry;
-        const nonIndexed = g.toNonIndexed ? g.toNonIndexed() : g.clone();
+        let baseNonIndexed = geometryCache.get(g);
+        if (!baseNonIndexed) {
+          baseNonIndexed = g.index && g.toNonIndexed ? g.toNonIndexed() : g.clone();
+          geometryCache.set(g, baseNonIndexed);
+        }
+
+        const nonIndexed = baseNonIndexed.clone();
         nonIndexed.applyMatrix4(item.relMatrix);
 
         const pos = nonIndexed.attributes.position.array;
@@ -13485,6 +13469,10 @@
         }
 
         nonIndexed.dispose();
+      }
+
+      for (const baseNonIndexed of geometryCache.values()) {
+        baseNonIndexed.dispose();
       }
 
       if (posArr.length === 0) continue;
@@ -13694,28 +13682,16 @@
     pendingGhostBoardSet.clear();
   }
 
-  // Returns 'full' or 'cheap' for a ghost board based on grid scale and
-  // current preview span. Larger home boards must never promote every
-  // neighbouring GRID² board to full-quality meshes just because
-  // renderVisibleSize is clamped to at least GRID.
-  function getDesiredGhostDetail(boardX, boardZ) {
-    const cx = boardFromTargetCoord(target.x);
-    const cz = boardFromTargetCoord(target.z);
-    const dist = Math.max(Math.abs(boardX - cx), Math.abs(boardZ - cz));
-    const viewSpan = typeof renderVisibleSize === 'number' ? renderVisibleSize : GRID;
-
-    if (GRID >= 96) return 'cheap';
-    if (GRID >= 20 && viewSpan > 12) return 'cheap'; // Force cheap for medium/large grids when zoomed out
-    if (GRID >= 64) return 'full';
-    if (viewSpan <= 12) return 'full';
-
-    const fullRadius = GRID <= 20 ? 2 : 1;
-    return dist <= fullRadius ? 'full' : 'cheap';
+  // Rendered ghost boards are always full-fidelity. Large grids are protected
+  // by renderBudgetForGrid() disabling preview rings rather than by swapping
+  // visible objects to crude proxy boxes/cones.
+  function getDesiredGhostDetail(_boardX, _boardZ) {
+    return 'full';
   }
 
   // Called when the user changes zoom (renderVisibleSize) or after significant
-  // camera movement. Rebuilds any ghost boards whose desired detail level has
-  // changed so that quality is only reduced when the user is actually zoomed out.
+  // camera movement. Rebuilds stale boards if their detail marker differs from
+  // the full-fidelity Preview contract.
   function reevaluateGhostDetailLevels() {
     for (const board of ghostBoards.values()) {
       const bx = board.userData.boardX;
@@ -13728,8 +13704,8 @@
     }
   }
 
-  // Throttled re-evaluation on camera movement so that panning far away
-  // upgrades nearby ghosts to full quality and downgrades far ones.
+  // Throttled re-evaluation on camera movement so stale cheap Preview boards
+  // are rebuilt as full quality without doing that work every frame.
   let lastGhostDetailCheck = 0;
   function maybeReevaluateGhostDetails() {
     const now = performance.now();
@@ -18081,6 +18057,8 @@
           M.grassEdge.needsUpdate = true;
           M.grassHi.map = nextTex;
           M.grassHi.needsUpdate = true;
+          customMaterialCache.clear();
+          rebuildTerrainRender();
         }
       }
       if (showCrownsEl) showCrowns = !!showCrownsEl.checked;
@@ -18202,6 +18180,7 @@
         M.grassEdge.map = texCheckered; M.grassEdge.needsUpdate = true;
         M.grassHi.map = texCheckered; M.grassHi.needsUpdate = true;
       }
+      customMaterialCache.clear();
       renderTerrainVoxelResolution = 'mixed';
       crowdCount = 12;
       crowdScale = 0.75;
