@@ -128,11 +128,20 @@ if (!/sky-gradient-bubble/.test(html) || !/new THREE\.SphereGeometry\(120, 32, 1
 if (!/under-island-clouds/.test(html) || !/function buildUnderIslandClouds/.test(html) || !/updateUnderIslandClouds\(dt\)/.test(html)) {
   fail('floating island must include a lightweight under-island cloud layer');
 }
+if (!/function makeUnderIslandCloud/.test(html) || !/new THREE\.InstancedMesh\(getDodecahedronGeometry\(1\)/.test(html)) {
+  fail('under-island clouds must use lightweight instanced puffs');
+}
+if (!/mesh\.castShadow = renderCloudShadow > 0\.001/.test(html) || !/o\.castShadow = renderCloudShadow > 0\.001/.test(html)) {
+  fail('clouds must leave the shadow pass when cloud shadow is disabled');
+}
 if (!/function makeSelectionPreviewObject/.test(html) || /makeVoxelBuild\(target\.cell\)/.test(html) || /makeGenericObject\(kind\)/.test(html)) {
   fail('selection preview must render real object factories instead of falling back to the blue cube');
 }
 if (/const useShaderAA = renderShaderAntialias > 0\.001 && !xrPresenting && !usePixelation/.test(html) || !/antialiasColor\(vUv, texel, col, edgeHint\)/.test(html)) {
   fail('shader antialiasing must work in pixel mode and be limited by edge detection');
+}
+if (/const wantNormals = usePixelation && \(renderPixelNormalEdge > 0\.001 \|\| renderShaderAntialias > 0\.001\)/.test(html) || !/function disposePixelNormalResources/.test(html)) {
+  fail('shader antialiasing must not force the expensive normal pass when normal edges are disabled');
 }
 if (/#include <encodings_pars_fragment>/.test(html) || !/#include <encodings_fragment>/.test(html)) {
   fail('pixel post shader must apply renderer output encoding so pixel mode does not darken the scene');

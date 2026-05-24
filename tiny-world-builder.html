@@ -14370,7 +14370,7 @@
   }
 
   function _writeCheapGhostTerrainInstance(b, idx, worldX, worldZ, rise) {
-    const DUMMY = new THREE.Object3D();
+    const DUMMY = _writeCheapGhostTerrainInstance._dummy || (_writeCheapGhostTerrainInstance._dummy = new THREE.Object3D());
     // Dirt column: scale Y to account for elevation so the column reaches y=rise.
     const dirtHeight = DIRT_H + rise;
     const sy = dirtHeight / DIRT_H;
@@ -14722,6 +14722,7 @@
 
     // Scale/Hide unrevealed cheap terrain instances
     if (typeof cheapGhostTerrainBuckets !== 'undefined') {
+      const DUMMY = updateGhostRenderBubble._dummy || (updateGhostRenderBubble._dummy = new THREE.Object3D());
       for (const b of cheapGhostTerrainBuckets.values()) {
         let changed = false;
         for (let idx = 0; idx < b.count; idx++) {
@@ -14746,7 +14747,6 @@
           const cell = cells && cells[x] && cells[x][z];
           const rise = terrainVisualRiseForCell(cell);
 
-          const DUMMY = new THREE.Object3D();
           if (revealed) {
             const dirtHeight = DIRT_H + rise;
             const sy = dirtHeight / DIRT_H;
@@ -21141,6 +21141,7 @@
     depthMat.userData = depthMat.userData || {};
     depthMat.userData.cloudShadowDepth = true;
     mesh.customDepthMaterial = depthMat;
+    mesh.castShadow = renderCloudShadow > 0.001;
   }
 
   function disposeCloudRoot(root) {
@@ -21165,6 +21166,7 @@
           o.customDepthMaterial.alphaTest = at;
           o.customDepthMaterial.needsUpdate = true;
         }
+        if (o.isMesh) o.castShadow = renderCloudShadow > 0.001;
       });
     }
   }
@@ -21196,10 +21198,50 @@
     g.traverse(o => {
       if (o.isMesh) {
         configureCloudShadowMesh(o);
-        o.castShadow = true;
         o.receiveShadow = false;
       }
     });
+    return g;
+  }
+
+  function makeUnderIslandCloud(seedBase) {
+    const g = new THREE.Group();
+    const puffCount = 8 + Math.floor(cellRand(seedBase, GRID, 610) * 5);
+    const brightSpecs = [];
+    const shadeSpecs = [];
+    for (let i = 0; i < puffCount; i++) {
+      const bright = cellRand(seedBase + i, GRID, 620) < 0.62;
+      const spec = {
+        x: (cellRand(seedBase + i, GRID, 630) - 0.5) * 3.2,
+        y: cellRand(seedBase - i, GRID, 640) * 0.72,
+        z: (cellRand(seedBase + i * 3, GRID, 650) - 0.5) * 2.0,
+        r: 0.22 + cellRand(seedBase - i * 5, GRID, 660) * 0.34,
+      };
+      (bright ? brightSpecs : shadeSpecs).push(spec);
+    }
+
+    function addInstancedPuffs(specs, baseMat, opacity) {
+      if (!specs.length) return;
+      const mat = cloneCloudMat(baseMat, opacity);
+      const mesh = new THREE.InstancedMesh(getDodecahedronGeometry(1), mat, specs.length);
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      mesh.frustumCulled = true;
+      const dummy = makeUnderIslandCloud._dummy || (makeUnderIslandCloud._dummy = new THREE.Object3D());
+      for (let i = 0; i < specs.length; i++) {
+        const s = specs[i];
+        dummy.position.set(s.x, s.y, s.z);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.setScalar(s.r);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      g.add(mesh);
+    }
+
+    addInstancedPuffs(brightSpecs, M.cloud, 0.72);
+    addInstancedPuffs(shadeSpecs, M.cloudShade, 0.48);
     return g;
   }
 
@@ -21274,7 +21316,7 @@
     const cloudY = -DIRT_H - Math.max(2.3, Math.min(5.8, GRID * 0.13));
     const ring = span * 0.58 * spread;
     for (let i = 0; i < count; i++) {
-      const c = makeCloud();
+      const c = makeUnderIslandCloud(i + 37);
       const angle = (i / count) * Math.PI * 2 + cellRand(i, GRID, 910) * 0.62;
       const radius = ring * (0.52 + cellRand(i, GRID, 920) * 0.36);
       const scale = 0.55 + cellRand(i, GRID, 930) * 0.55;
@@ -21546,6 +21588,7 @@
   }
 
   function tickSplashes(pool, dt) {
+    if (!pool.visible) return;
     const u = pool.userData;
     const m = u._m, p = u._p, q = u._q, sc = u._s;
     const lifeMax = u.lifeMax;
@@ -21712,6 +21755,10 @@
   syncWeatherFromBodyClass();
 
   function tickWeather(dt) {
+    if (weatherMode === 'clear') {
+      tickSplashes(rainSplash, dt);
+      return;
+    }
     const heavy = weatherEffectFactor();
     const rainBiasX = (weatherMode === 'rain' || weatherMode === 'storm') ? 0.25 + heavy * 3.1 : 0;
     const rainTilt = rainBiasX ? Math.atan2(rainBiasX, 14) : 0;
@@ -22217,6 +22264,7 @@
       vy: 0.03 + Math.random() * 0.05,
       vz: (Math.random() - 0.5) * 0.34,
     };
+    setCachedParticleMaterial(p, cropDustMat, initialOpacity);
     xrWorldRoot.add(p);
     cropDustParticles.push(p);
   }
@@ -22235,7 +22283,7 @@
       p.position.x += p.userData.vx * dt;
       p.position.y += p.userData.vy * dt;
       p.position.z += p.userData.vz * dt;
-      p.material = getCachedParticleMaterial(cropDustMat, 0.52 * (1 - u));
+      setCachedParticleMaterial(p, cropDustMat, 0.52 * (1 - u));
       const s = 1 + u * 3.0;
       p.scale.set(s, s * 0.65, s);
       if (u >= 1) {
