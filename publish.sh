@@ -55,6 +55,18 @@ cp tiny-world-builder.html "$DIST/index.html"
 cp tiny-world-builder.html "$DIST/tiny-world-builder.html"
 cp LandscapeEngine.js "$DIST/LandscapeEngine.js"
 cp world.schema.json "$DIST/world.schema.json"
+
+# LandscapeEngine mixin modules referenced via engine/landscape/*.js script tags.
+if [[ -d engine ]]; then
+  mkdir -p "$DIST/engine"
+  (cd engine && find . -type f ! -name '.DS_Store' -exec sh -c '
+    for f do
+      mkdir -p "../dist/engine/$(dirname "$f")"
+      cp "$f" "../dist/engine/$f"
+    done
+  ' sh {} +)
+fi
+
 cp README.md "$DIST/README.md"
 cp LICENSE "$DIST/LICENSE"
 
