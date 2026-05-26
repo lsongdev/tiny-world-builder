@@ -4,6 +4,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
+const { scanModelStamps } = require('./model-stamps');
 
 const root = path.resolve(__dirname, '..');
 const port = Number(process.env.PORT || process.argv[2] || 3000);
@@ -44,6 +45,9 @@ const types = {
   '.mp3': 'audio/mpeg',
   '.glb': 'model/gltf-binary',
   '.gltf': 'model/gltf+json',
+  '.obj': 'model/obj',
+  '.mtl': 'text/plain; charset=utf-8',
+  '.fbx': 'application/octet-stream',
 };
 
 function send(res, status, body, headers = {}) {
@@ -152,6 +156,51 @@ function readAiLog(limit = 40) {
   return lines.slice(-limit).map(line => {
     try { return JSON.parse(line); } catch (_) { return { parseError: true, line }; }
   });
+}
+
+const modelStampDefaultsFile = path.resolve(root, 'models', 'stamp-defaults.local.json');
+
+function clampNumber(value, fallback, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+function sanitizeModelStampDefaults(input) {
+  const source = input && typeof input === 'object'
+    ? (input.stamps && typeof input.stamps === 'object' ? input.stamps : input)
+    : {};
+  const stamps = {};
+  for (const [rawId, raw] of Object.entries(source)) {
+    if (!/^[a-z0-9][a-z0-9_-]{0,95}$/i.test(rawId)) continue;
+    const cfg = raw && typeof raw === 'object' ? raw : {};
+    stamps[rawId] = {
+      objectScale: +clampNumber(cfg.objectScale ?? cfg.scale, 1, 0.2, 4).toFixed(3),
+      offsetY: +clampNumber(cfg.offsetY, 0, -1, 2).toFixed(3),
+      rotationY: +clampNumber(cfg.rotationY, 0, -Math.PI * 4, Math.PI * 4).toFixed(6),
+    };
+  }
+  return { version: 1, stamps };
+}
+
+function readModelStampDefaults() {
+  try {
+    if (!fs.existsSync(modelStampDefaultsFile)) return { version: 1, stamps: {} };
+    return sanitizeModelStampDefaults(JSON.parse(fs.readFileSync(modelStampDefaultsFile, 'utf8')));
+  } catch (err) {
+    return { version: 1, stamps: {}, error: err.message || String(err) };
+  }
+}
+
+function writeModelStampDefaults(input) {
+  const clean = sanitizeModelStampDefaults(input);
+  fs.mkdirSync(path.dirname(modelStampDefaultsFile), { recursive: true });
+  fs.writeFileSync(modelStampDefaultsFile, JSON.stringify(clean, null, 2) + '\n');
+  return clean;
+}
+
+function sendJson(res, status, body) {
+  send(res, status, JSON.stringify(body), { 'Content-Type': 'application/json; charset=utf-8' });
 }
 
 function voxelPartsSchema(allowedMaterials) {
@@ -535,6 +584,37 @@ const server = http.createServer((req, res) => {
   const parsedUrl = new URL(req.url, 'http://localhost');
   if (req.method === 'OPTIONS') {
     send(res, 204, '');
+    return;
+  }
+  if (parsedUrl.pathname === '/api/model-stamps') {
+    if (req.method !== 'GET') {
+      send(res, 405, 'Method Not Allowed', { Allow: 'GET' });
+      return;
+    }
+    sendJson(res, 200, {
+      ok: true,
+      source: 'dev-server',
+      root: path.relative(root, path.resolve(root, 'models')) || 'models',
+      models: scanModelStamps(root),
+    });
+    return;
+  }
+  if (parsedUrl.pathname === '/api/model-stamp-defaults') {
+    if (req.method === 'GET') {
+      const defaults = readModelStampDefaults();
+      sendJson(res, 200, { ok: true, path: path.relative(root, modelStampDefaultsFile), ...defaults });
+      return;
+    }
+    if (req.method === 'POST') {
+      readJsonBody(req, 512 * 1024).then(input => {
+        const defaults = writeModelStampDefaults(input);
+        sendJson(res, 200, { ok: true, path: path.relative(root, modelStampDefaultsFile), ...defaults });
+      }).catch(err => {
+        sendJson(res, 500, { ok: false, error: err.message || String(err) });
+      });
+      return;
+    }
+    send(res, 405, 'Method Not Allowed', { Allow: 'GET, POST' });
     return;
   }
   if (parsedUrl.pathname === '/api/reinterpret-stamp') {

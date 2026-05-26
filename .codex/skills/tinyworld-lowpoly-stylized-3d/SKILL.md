@@ -42,6 +42,7 @@ Use this together with:
 - For imported texture variants, create explicit material variants and swap them at the model mesh level.
 - For toolbar thumbnails, increase contrast/saturation carefully so icons read against the white toolbar, but keep the in-world material natural.
 - If a model comes with a texture atlas, set `texture.encoding = THREE.sRGBEncoding` and check `flipY` for GLTF compatibility.
+- Repo-backed model stamps must run a material hydration pass: preserve real embedded materials, apply known sidecar atlases (GLTF atlases use `flipY = false`), parse OBJ `.mtl` sidecars when present, warn when they are missing, and apply a deterministic TinyWorld palette fallback to blank `palette`/white materials so imports do not look like unpainted 3D prints.
 - Wear-and-tear should stay stylized: global grime/desaturation plus small batched chips/scuffs/moss beats realistic noise-heavy shader work.
 - Floating-board depth can reuse existing roof language by inverting a stepped roof form under the board: dark gray shingle-textured slabs, board-footprint width/depth, vertically compressed, and attached below the dirt body.
 - The Tower house variant has paired factories: `makeStoneTower` is the normal faceted/conical design and `makeVoxelStoneTower` is the voxel counterpart. Keep their silhouettes aligned when changing tower roof, balcony, window, door, or flag details. Castle/turret rendering should stay block-built: `makeTurret` delegates to the square voxel keep in `makeVoxelTurret`.

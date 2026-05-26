@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "generatedAt": "2026-05-26T17:59:21.066Z",
+  "source": "tools/model-stamps.js",
+  "models": [
+    {
+      "id": "building-1",
+      "label": "Building 1",
+      "path": "Building_1.glb",
+      "url": "models/Building_1.glb",
+      "format": "glb",
+      "supported": true,
+      "size": 449904,
+      "mtimeMs": 1779786496153
+    },
+    {
+      "id": "building-14",
+      "label": "Building 14",
+      "path": "Building_14.glb",
+      "url": "models/Building_14.glb",
+      "format": "glb",
+      "supported": true,
+      "size": 184160,
+      "mtimeMs": 1779786352429
+    },
+    {
+      "id": "buildings-pack-2",
+      "label": "Buildings Pack 2",
+      "path": "Buildings_Pack_2.obj",
+      "url": "models/Buildings_Pack_2.obj",
+      "format": "obj",
+      "supported": true,
+      "size": 1472092,
+      "mtimeMs": 1523300718000,
+      "sidecars": {
+        "mtl": [
+          {
+            "path": "City_2.mtl",
+            "url": "models/City_2.mtl",
+            "name": "City_2.mtl",
+            "exists": false
+          }
+        ]
+      },
+      "warnings": [
+        "Missing OBJ material library: City_2.mtl"
+      ]
+    },
+    {
+      "id": "stunt-plane",
+      "label": "Stunt Plane",
+      "path": "stunt_plane.glb",
+      "url": "models/stunt_plane.glb",
+      "format": "glb",
+      "supported": true,
+      "size": 264956,
+      "mtimeMs": 1778710685916,
+      "sidecars": {
+        "textures": [
+          {
+            "path": "Polygon_Plane_Texture_01.png",
+            "url": "models/Polygon_Plane_Texture_01.png",
+            "name": "Polygon_Plane_Texture_01.png",
+            "format": "png",
+            "size": 234637
+          },
+          {
+            "path": "Polygon_Plane_Texture_02.png",
+            "url": "models/Polygon_Plane_Texture_02.png",
+            "name": "Polygon_Plane_Texture_02.png",
+            "format": "png",
+            "size": 224380
+          },
+          {
+            "path": "Polygon_Plane_Texture_03.png",
+            "url": "models/Polygon_Plane_Texture_03.png",
+            "name": "Polygon_Plane_Texture_03.png",
+            "format": "png",
+            "size": 223156
+          }
+        ]
+      }
+    },
+    {
+      "id": "voxelboats",
+      "label": "Voxelboats",
+      "path": "voxelboats.fbx",
+      "url": "models/voxelboats.fbx",
+      "format": "fbx",
+      "supported": false,
+      "size": 4631452,
+      "mtimeMs": 1779785081349
+    }
+  ]
+}

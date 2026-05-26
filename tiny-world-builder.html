@@ -5,9 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Tiny World Builder</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
   :root {
     --bg: #f4ede0;
@@ -3077,22 +3074,40 @@
     left: 18px;
     top: 92px;
     z-index: 48;
-    width: min(350px, calc(100vw - 28px));
-    max-height: min(620px, calc(100vh - 120px));
+    width: min(440px, calc(100vw - 28px));
+    max-height: min(690px, calc(100vh - 118px));
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 12px;
-    border: 1px solid rgba(72, 52, 31, 0.18);
-    border-radius: 14px;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.58);
+    border-radius: 22px;
     background:
-      linear-gradient(180deg, rgba(255, 250, 238, 0.94), rgba(242, 231, 208, 0.88)),
-      rgba(255, 255, 255, 0.84);
+      radial-gradient(circle at 18% 0%, rgba(255, 245, 214, 0.92), rgba(255, 245, 214, 0) 34%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(232, 222, 200, 0.72)),
+      rgba(255, 255, 255, 0.62);
     box-shadow:
-      0 18px 45px rgba(54, 39, 24, 0.18),
-      0 1px 0 rgba(255, 255, 255, 0.78) inset;
-    backdrop-filter: blur(18px) saturate(1.15);
-    -webkit-backdrop-filter: blur(18px) saturate(1.15);
+      0 1px 0 rgba(255, 255, 255, 0.88) inset,
+      0 -1px 0 rgba(93, 70, 40, 0.08) inset,
+      0 26px 70px -28px rgba(45, 35, 24, 0.54),
+      0 10px 26px -18px rgba(45, 35, 24, 0.36);
+    backdrop-filter: blur(24px) saturate(1.35);
+    -webkit-backdrop-filter: blur(24px) saturate(1.35);
+    overflow: hidden;
+  }
+  .stamp-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(90deg, rgba(255, 255, 255, 0.44), rgba(255, 255, 255, 0) 40%),
+      radial-gradient(circle at 86% 12%, rgba(180, 130, 46, 0.18), rgba(180, 130, 46, 0) 26%);
+    opacity: 0.9;
+  }
+  .stamp-panel > * {
+    position: relative;
+    z-index: 1;
   }
   .stamp-panel[hidden] { display: none; }
   .stamp-panel.dragging {
@@ -3102,9 +3117,9 @@
   }
   .stamp-panel-head {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 10px;
+    gap: 12px;
     cursor: grab;
     touch-action: none;
   }
@@ -3114,100 +3129,259 @@
   .stamp-panel-title strong {
     display: block;
     font-family: 'Fraunces', Georgia, serif;
-    font-size: 20px;
-    line-height: 1.05;
+    font-size: 25px;
+    line-height: 0.96;
     color: var(--ink);
-    letter-spacing: 0;
+    letter-spacing: -0.035em;
   }
   .stamp-panel-title span {
     display: block;
-    margin-top: 3px;
-    color: #6b5a44;
-    font-size: 12px;
-    line-height: 1.25;
-  }
-  .stamp-panel-close {
-    flex: 0 0 auto;
-    width: 30px;
-    height: 30px;
-    border: 0;
-    border-radius: 999px;
-    background: rgba(68, 48, 24, 0.08);
-    color: #4d3d2a;
-    font-size: 18px;
-    line-height: 1;
-    cursor: pointer;
-  }
-  .stamp-panel-close:hover {
-    background: rgba(68, 48, 24, 0.14);
-    color: var(--ink);
-  }
-  .stamp-panel-note {
-    margin: 0;
-    color: #5d513e;
+    margin-top: 5px;
+    color: #655843;
     font-size: 12px;
     line-height: 1.35;
   }
+  .stamp-panel-close {
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(72, 52, 31, 0.10);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.50);
+    color: #4d3d2a;
+    font-size: 19px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.72) inset;
+  }
+  .stamp-panel-close:hover {
+    background: rgba(255, 255, 255, 0.72);
+    color: var(--ink);
+  }
+  .stamp-panel-note {
+    margin: -3px 0 0;
+    color: #5d513e;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .stamp-panel-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid rgba(72, 52, 31, 0.10);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.38);
+    color: #5f523f;
+    font-size: 11px;
+    line-height: 1.3;
+  }
+  .stamp-panel-summary strong {
+    color: var(--ink);
+    font-weight: 800;
+  }
+  .stamp-builder-controls,
   .stamp-builder-tools {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
     align-items: center;
   }
+  .stamp-builder-search {
+    flex: 1 1 180px;
+    min-width: 0;
+    height: 34px;
+    border: 1px solid rgba(72, 52, 31, 0.14);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.62);
+    color: var(--ink);
+    padding: 0 12px;
+    font: inherit;
+    font-size: 12px;
+    outline: none;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.72) inset;
+  }
+  .stamp-builder-search::placeholder { color: rgba(78, 64, 46, 0.62); }
+  .stamp-builder-search:focus {
+    border-color: rgba(153, 101, 24, 0.46);
+    box-shadow:
+      0 0 0 3px rgba(190, 128, 28, 0.13),
+      0 1px 0 rgba(255, 255, 255, 0.72) inset;
+  }
+  .stamp-builder-tools .btn,
+  .stamp-panel-foot .btn,
+  .stamp-model-actions .btn {
+    height: 32px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .stamp-builder-settings {
+    display: grid;
+    gap: 9px;
+    padding: 11px;
+    border: 1px solid rgba(72, 52, 31, 0.12);
+    border-radius: 16px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(242, 229, 205, 0.48));
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.70) inset;
+  }
+  .stamp-builder-settings[hidden] { display: none; }
+  .stamp-model-settings-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 800;
+  }
+  .stamp-model-settings-head span {
+    color: #6d604b;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: right;
+  }
+  .stamp-model-range {
+    display: grid;
+    grid-template-columns: 68px minmax(0, 1fr) 46px;
+    gap: 8px;
+    align-items: center;
+    color: #5d513e;
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .stamp-model-range input[type="range"] {
+    width: 100%;
+    accent-color: #a7772a;
+  }
+  .stamp-model-range output {
+    text-align: right;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .stamp-model-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
   .stamp-builder-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
-    gap: 8px;
-    max-height: min(430px, calc(100vh - 300px));
+    grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+    gap: 10px;
+    max-height: min(392px, calc(100vh - 390px));
     overflow: auto;
-    padding: 2px 4px 2px 0;
+    padding: 2px 5px 2px 0;
     overscroll-behavior: contain;
   }
+  .stamp-builder-empty {
+    grid-column: 1 / -1;
+    border: 1px dashed rgba(82, 64, 39, 0.22);
+    border-radius: 16px;
+    padding: 18px;
+    color: #6b5a44;
+    background: rgba(255, 255, 255, 0.35);
+    font-size: 12px;
+    line-height: 1.45;
+    text-align: center;
+  }
   .stamp-card {
-    border: 1px solid rgba(69, 51, 28, 0.18);
-    border-radius: 8px;
+    position: relative;
+    border: 1px solid rgba(69, 51, 28, 0.15);
+    border-radius: 16px;
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(225, 211, 184, 0.40));
-    padding: 7px 7px 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    min-height: 106px;
+      linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(229, 215, 187, 0.45));
+    padding: 8px;
+    display: grid;
+    gap: 7px;
+    min-height: 136px;
     cursor: pointer;
+    overflow: hidden;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.62) inset,
+      0 10px 22px -20px rgba(54, 39, 24, 0.38);
     transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
+  }
+  .stamp-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0) 50%);
   }
   .stamp-card:hover {
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(230, 216, 187, 0.48));
-    border-color: rgba(68, 48, 24, 0.28);
+      linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(236, 222, 192, 0.56));
+    border-color: rgba(68, 48, 24, 0.27);
     transform: translateY(-1px);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.74) inset,
+      0 16px 30px -22px rgba(54, 39, 24, 0.54);
   }
   .stamp-card.selected {
     background:
-      linear-gradient(180deg, rgba(255, 241, 188, 0.92), rgba(235, 198, 102, 0.36));
-    border-color: rgba(153, 101, 24, 0.72);
+      radial-gradient(circle at 50% 0%, rgba(255, 238, 175, 0.74), rgba(255, 238, 175, 0) 56%),
+      linear-gradient(180deg, rgba(255, 247, 213, 0.96), rgba(238, 201, 112, 0.42));
+    border-color: rgba(153, 101, 24, 0.74);
     box-shadow:
       0 0 0 2px rgba(190, 128, 28, 0.22),
-      0 10px 22px rgba(86, 62, 22, 0.13);
+      0 14px 28px -18px rgba(86, 62, 22, 0.46);
+  }
+  .stamp-card.unsupported {
+    opacity: 0.58;
+    cursor: not-allowed;
+    filter: grayscale(0.28);
   }
   .stamp-card canvas {
-    width: 72px;
-    height: 72px;
+    position: relative;
+    z-index: 1;
+    width: 88px;
+    height: 88px;
     align-self: center;
-    border-radius: 7px;
-    background: radial-gradient(circle at 50% 42%, rgba(255, 244, 211, 0.95), rgba(197, 177, 139, 0.50));
-    filter: brightness(0.70) contrast(1.36) saturate(0.94) drop-shadow(0 4px 4px rgba(54, 39, 24, 0.20));
+    justify-self: center;
+    border-radius: 13px;
+    background:
+      radial-gradient(circle at 50% 42%, rgba(255, 250, 230, 0.98), rgba(187, 171, 136, 0.46));
+    filter: brightness(0.74) contrast(1.38) saturate(0.98) drop-shadow(0 6px 7px rgba(54, 39, 24, 0.24));
   }
   .stamp-card strong {
+    position: relative;
+    z-index: 1;
     font-size: 11px;
     line-height: 1.15;
     color: var(--ink);
-    min-height: 25px;
+    min-height: 26px;
     display: flex;
     align-items: center;
     justify-content: center;
     text-align: center;
   }
+  .stamp-card-meta {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    flex-wrap: wrap;
+    min-height: 18px;
+  }
+  .stamp-card-chip {
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.52);
+    border: 1px solid rgba(72, 52, 31, 0.10);
+    color: #675942;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .stamp-card-chip.model { color: #385466; }
+  .stamp-card-chip.warn { color: #8b4f2e; }
   .visually-hidden-file {
     position: absolute;
     width: 1px;
@@ -3234,15 +3408,17 @@
   }
   @media (max-width: 700px) {
     .stamp-panel {
-      left: 14px;
-      top: 76px;
-      width: min(330px, calc(100vw - 28px));
-      max-height: calc(100vh - 112px);
+      left: 12px;
+      top: 72px;
+      width: min(360px, calc(100vw - 24px));
+      max-height: calc(100vh - 104px);
+      border-radius: 18px;
     }
     .stamp-builder-grid {
-      grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
-      max-height: calc(100vh - 310px);
+      grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+      max-height: calc(100vh - 430px);
     }
+    .stamp-model-range { grid-template-columns: 58px minmax(0, 1fr) 42px; }
     .settings-layout { grid-template-columns: 1fr; }
     .settings-tabs {
       flex-direction: row;
@@ -4872,14 +5048,47 @@
     <div class="stamp-panel-head">
       <div class="stamp-panel-title">
         <strong id="stamp-builder-title">Stamps</strong>
-        <span>Pick a stamp, then place it on the board.</span>
+        <span>Models, voxel builds, and board objects. Drop GLB or OBJ files into <code>models/</code>, then scan.</span>
       </div>
       <button class="stamp-panel-close" id="stamp-builder-close" title="Close" aria-label="Close stamps">×</button>
     </div>
-    <p class="stamp-panel-note">Voxel builds and board objects stay here while you work, so placement stays one click away.</p>
+    <p class="stamp-panel-note">Pick a stamp, tune model defaults, then place it on the board. The panel stays open for fast stamping.</p>
+    <div class="stamp-panel-summary" id="stamp-builder-summary">
+      <span><strong>Library</strong> scanning local models…</span>
+      <span>GLB · OBJ</span>
+    </div>
     <input id="voxel-build-import-file" type="file" accept=".json,application/json" hidden />
+    <div class="stamp-builder-controls">
+      <input class="stamp-builder-search" id="stamp-builder-search" type="search" placeholder="Search stamps and models" autocomplete="off" />
+      <button class="btn" id="model-stamp-refresh" type="button">Scan models</button>
+    </div>
     <div class="stamp-builder-tools">
-      <button class="btn" id="voxel-build-import" type="button">Import build JSON</button>
+      <button class="btn" id="voxel-build-import" type="button">Import voxel JSON</button>
+    </div>
+    <div class="stamp-builder-settings" id="model-stamp-settings" hidden>
+      <div class="stamp-model-settings-head">
+        <strong>Model defaults</strong>
+        <span id="model-stamp-settings-name">No model selected</span>
+      </div>
+      <label class="stamp-model-range">
+        <span>Size</span>
+        <input id="model-stamp-size" type="range" min="20" max="400" step="5" />
+        <output id="model-stamp-size-value"></output>
+      </label>
+      <label class="stamp-model-range">
+        <span>Lift</span>
+        <input id="model-stamp-offset-y" type="range" min="-100" max="200" step="5" />
+        <output id="model-stamp-offset-y-value"></output>
+      </label>
+      <label class="stamp-model-range">
+        <span>Rotate</span>
+        <input id="model-stamp-rotation" type="range" min="0" max="345" step="15" />
+        <output id="model-stamp-rotation-value"></output>
+      </label>
+      <div class="stamp-model-actions">
+        <button class="btn" id="model-stamp-save-default" type="button">Save default</button>
+        <button class="btn" id="model-stamp-reset-default" type="button">Reset model</button>
+      </div>
     </div>
     <div class="stamp-builder-grid" id="stamp-builder-grid"></div>
     <div class="stamp-panel-foot">
@@ -5626,6 +5835,49 @@
     // Keep the tilt-shift overlay active during movement. This hook remains
     // as a stable call site for pan/orbit/zoom/first-person code paths.
   }
+
+  const deferredVisualStartupTasks = [];
+  let deferredVisualStartupStarted = false;
+  function enqueueDeferredVisualStartup(label, fn) {
+    if (typeof fn !== 'function') return;
+    deferredVisualStartupTasks.push({ label, fn });
+  }
+  function startDeferredVisualStartupTasks() {
+    if (deferredVisualStartupStarted) return;
+    deferredVisualStartupStarted = true;
+    const runNext = () => {
+      const task = deferredVisualStartupTasks.shift();
+      if (!task) return;
+      const runTask = () => {
+        twPerfMark('deferred:' + task.label + ':start');
+        try {
+          task.fn();
+        } catch (err) {
+          console.warn('Deferred visual startup failed:', task.label, err);
+        }
+        twPerfMark('deferred:' + task.label + ':end');
+        if (deferredVisualStartupTasks.length) setTimeout(runNext, 32);
+      };
+      if (window.requestIdleCallback) {
+        window.requestIdleCallback(runTask, { timeout: 1200 });
+      } else {
+        setTimeout(runTask, 32);
+      }
+    };
+    requestAnimationFrame(() => setTimeout(runNext, 120));
+  }
+
+  const twPerfEnabled = (() => {
+    try { return new URLSearchParams(window.location.search).has('perf'); }
+    catch (_) { return false; }
+  })();
+  const twPerfMarks = [];
+  function twPerfMark(label) {
+    if (!twPerfEnabled || typeof performance === 'undefined' || !performance.now) return;
+    twPerfMarks.push({ label, t: Math.round(performance.now()) });
+  }
+  window.__tinyworldPerf = { marks: twPerfMarks };
+  twPerfMark('script:deferred-queue-ready');
 
   // Disable auto-reset so we can read renderer.info totals, then reset once
   // per frame after the stats overlay samples them.
@@ -7587,12 +7839,16 @@
     const voxelBuildId = (typeof rawVoxelBuildId === 'string' && /^[a-z0-9][a-z0-9_-]{0,63}$/i.test(rawVoxelBuildId))
       ? rawVoxelBuildId
       : null;
+    const rawModelStampId = value.modelStampId || value.modelStamp || value.modelAssetId || value.assetId;
+    const modelStampId = (typeof rawModelStampId === 'string' && /^[a-z0-9][a-z0-9_-]{0,95}$/i.test(rawModelStampId))
+      ? rawModelStampId
+      : null;
     const rawScale = Array.isArray(value.objectScale) || Array.isArray(value.scale)
       ? null
       : (value.objectScale !== undefined ? value.objectScale : value.scale);
     const objectScaleNumber = rawScale === null ? NaN : Number(rawScale);
     const objectScale = Number.isFinite(objectScaleNumber)
-      ? Math.max(0.25, Math.min(4, objectScaleNumber))
+      ? Math.max(0.2, Math.min(4, objectScaleNumber))
       : null;
     const axisScale = raw => {
       const n = Number(raw);
@@ -7615,6 +7871,7 @@
     if (bodyColor) out.bodyColor = bodyColor;
     if (topColor) out.topColor = topColor;
     if (voxelBuildId) out.voxelBuildId = voxelBuildId;
+    if (modelStampId) out.modelStampId = modelStampId;
     if (objectScale !== null && Math.abs(objectScale - 1) > 0.001) out.objectScale = +objectScale.toFixed(3);
     if (scaleX !== null && Math.abs(scaleX - 1) > 0.001) out.scaleX = +scaleX.toFixed(3);
     if (scaleY !== null && Math.abs(scaleY - 1) > 0.001) out.scaleY = +scaleY.toFixed(3);
@@ -11187,6 +11444,820 @@
     return VOXEL_BUILD_STAMPS.find(s => s.id === id) || null;
   }
 
+  // -------- repo model stamp loader --------
+  const MODEL_STAMP_MANIFEST_URL = 'models/stamp-manifest.json';
+  const MODEL_STAMP_DEFAULTS_LS = 'tinyworld:model-stamp-defaults.v1';
+  const MODEL_STAMP_SUPPORTED_FORMATS = new Set(['glb', 'gltf', 'obj']);
+  const MODEL_STAMP_DETECTED_FORMATS = new Set(['glb', 'gltf', 'obj', 'fbx']);
+  let MODEL_STAMP_ASSETS = [];
+  let selectedModelStampId = null;
+  let modelStampDefaults = loadModelStampDefaults();
+  let modelStampScanMessage = 'Scanning models…';
+  const modelStampAssetCache = new Map();
+  const modelStampTextureCache = new Map();
+  const MODEL_STAMP_FALLBACK_PALETTES = {
+    building: [0xd7c092, 0xa84f3f, 0x365171, 0x2c3037, 0x7f8c64, 0xf0dec0],
+    boat: [0x2f6f8c, 0xa75f3e, 0xf0d7a8, 0x324a5f, 0xe8efe8],
+    plane: [0xd84a36, 0xf4e7c3, 0x2d6f93, 0x26364d, 0xf1c15e],
+    generic: [0xd4b483, 0x8fb07a, 0x5d86a6, 0xbe6a4a, 0xf0d69c, 0x3b4458],
+  };
+
+  function modelStampIdSafe(id) {
+    const clean = String(id || '').trim();
+    return /^[a-z0-9][a-z0-9_-]{0,95}$/i.test(clean) ? clean : null;
+  }
+
+  function clampModelStampNumber(value, fallback, min, max) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
+  }
+
+  function normalizeModelStampSettings(value) {
+    const v = value && typeof value === 'object' ? value : {};
+    return {
+      objectScale: +clampModelStampNumber(v.objectScale !== undefined ? v.objectScale : v.scale, 1, 0.2, 4).toFixed(3),
+      offsetY: +clampModelStampNumber(v.offsetY, 0, -1, 2).toFixed(3),
+      rotationY: +clampModelStampNumber(v.rotationY, 0, -Math.PI * 4, Math.PI * 4).toFixed(6),
+    };
+  }
+
+  function loadModelStampDefaults() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(MODEL_STAMP_DEFAULTS_LS) || '{}');
+      const src = raw && typeof raw === 'object' && raw.stamps ? raw.stamps : raw;
+      const out = {};
+      for (const [id, cfg] of Object.entries(src || {})) {
+        const safe = modelStampIdSafe(id);
+        if (safe) out[safe] = normalizeModelStampSettings(cfg);
+      }
+      return out;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function persistModelStampDefaults() {
+    const payload = { version: 1, stamps: modelStampDefaults };
+    try { localStorage.setItem(MODEL_STAMP_DEFAULTS_LS, JSON.stringify(payload)); } catch (_) {}
+    if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+      fetch('/api/model-stamp-defaults', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).catch(() => {});
+    }
+  }
+
+  async function loadModelStampDefaultsConfig() {
+    if (window.location.protocol !== 'http:' && window.location.protocol !== 'https:') return;
+    try {
+      const res = await fetch('/api/model-stamp-defaults?ts=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const src = data && data.stamps && typeof data.stamps === 'object' ? data.stamps : null;
+      if (!src) return;
+      for (const [id, cfg] of Object.entries(src)) {
+        const safe = modelStampIdSafe(id);
+        if (safe) modelStampDefaults[safe] = normalizeModelStampSettings(cfg);
+      }
+      try { localStorage.setItem(MODEL_STAMP_DEFAULTS_LS, JSON.stringify({ version: 1, stamps: modelStampDefaults })); } catch (_) {}
+      syncModelStampSettingsPanel(selectedTool);
+      refreshOpenStampBuilderCards();
+    } catch (_) {}
+  }
+
+  function getModelStampSettings(id) {
+    const safe = modelStampIdSafe(id);
+    return normalizeModelStampSettings(safe && modelStampDefaults[safe]);
+  }
+
+  function setModelStampSettings(id, settings, persist = false) {
+    const safe = modelStampIdSafe(id);
+    if (!safe) return null;
+    const normalized = normalizeModelStampSettings(settings);
+    modelStampDefaults[safe] = normalized;
+    if (persist) persistModelStampDefaults();
+    return normalized;
+  }
+
+  function resetModelStampSettings(id) {
+    const safe = modelStampIdSafe(id);
+    if (!safe) return;
+    delete modelStampDefaults[safe];
+    persistModelStampDefaults();
+  }
+
+  function getModelStamp(id) {
+    const safe = modelStampIdSafe(id);
+    return safe ? MODEL_STAMP_ASSETS.find(asset => asset.id === safe) || null : null;
+  }
+
+  function normalizeModelStampSidecarFile(raw) {
+    const src = typeof raw === 'string' ? { path: raw, url: raw } : raw;
+    if (!src || typeof src !== 'object') return null;
+    const url = String(src.url || '').trim();
+    const sidecarPath = String(src.path || src.name || url).trim();
+    if (!url && !sidecarPath) return null;
+    const name = String(src.name || sidecarPath.split('/').pop() || 'sidecar').trim().slice(0, 96) || 'sidecar';
+    const format = String(src.format || name.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    return {
+      path: sidecarPath || url,
+      url: url || sidecarPath,
+      name,
+      format,
+      exists: src.exists !== false,
+      size: Number(src.size) || 0,
+    };
+  }
+
+  function normalizeModelStampSidecars(raw) {
+    const src = raw && typeof raw === 'object' ? raw : {};
+    const out = { textures: [], mtl: [] };
+    if (Array.isArray(src.textures)) out.textures = src.textures.map(normalizeModelStampSidecarFile).filter(Boolean);
+    if (Array.isArray(src.mtl)) out.mtl = src.mtl.map(normalizeModelStampSidecarFile).filter(Boolean);
+    return out;
+  }
+
+  function modelStampAssetWarning(asset) {
+    if (!asset) return '';
+    if (asset.materialWarning) return asset.materialWarning;
+    if (Array.isArray(asset.warnings) && asset.warnings.length) return String(asset.warnings[0] || '').slice(0, 96);
+    return '';
+  }
+
+  function normalizeModelStampAsset(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const format = String(raw.format || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!MODEL_STAMP_DETECTED_FORMATS.has(format)) return null;
+    const id = modelStampIdSafe(raw.id);
+    const url = String(raw.url || '').trim();
+    if (!id || !url) return null;
+    const label = String(raw.label || raw.name || id).trim().slice(0, 64) || id;
+    return {
+      id,
+      label,
+      path: String(raw.path || url).trim(),
+      url,
+      format,
+      supported: raw.supported !== false && MODEL_STAMP_SUPPORTED_FORMATS.has(format),
+      size: Number(raw.size) || 0,
+      mtimeMs: Number(raw.mtimeMs) || 0,
+      sidecars: normalizeModelStampSidecars(raw.sidecars),
+      warnings: Array.isArray(raw.warnings) ? raw.warnings.map(item => String(item || '').slice(0, 120)).filter(Boolean) : [],
+    };
+  }
+
+  function mergeModelStampAssets(list) {
+    const byId = new Map(MODEL_STAMP_ASSETS.map(asset => [asset.id, asset]));
+    for (const raw of Array.isArray(list) ? list : []) {
+      const asset = normalizeModelStampAsset(raw);
+      if (asset) byId.set(asset.id, asset);
+    }
+    MODEL_STAMP_ASSETS = Array.from(byId.values()).sort((a, b) => {
+      const formatRank = (a.supported === b.supported) ? 0 : (a.supported ? -1 : 1);
+      return formatRank || a.label.localeCompare(b.label) || a.path.localeCompare(b.path);
+    });
+    return MODEL_STAMP_ASSETS;
+  }
+
+  async function fetchModelStampList(url) {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    return Array.isArray(data) ? data : (data.models || data.stamps || []);
+  }
+
+  async function refreshModelStampManifest() {
+    const endpoints = [];
+    if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+      endpoints.push('/api/model-stamps?ts=' + Date.now());
+    }
+    endpoints.push(MODEL_STAMP_MANIFEST_URL + '?ts=' + Date.now());
+    let loaded = false;
+    let lastErr = null;
+    for (const endpoint of endpoints) {
+      try {
+        const list = await fetchModelStampList(endpoint);
+        mergeModelStampAssets(list);
+        loaded = true;
+        if (endpoint.indexOf('/api/') === 0) break;
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    const supportedCount = MODEL_STAMP_ASSETS.filter(a => a.supported).length;
+    const unsupportedCount = MODEL_STAMP_ASSETS.length - supportedCount;
+    if (MODEL_STAMP_ASSETS.length) {
+      modelStampScanMessage = 'Loaded ' + supportedCount + ' model stamp' + (supportedCount === 1 ? '' : 's') + (unsupportedCount ? ' · ' + unsupportedCount + ' detected but unsupported' : '');
+    } else if (loaded) {
+      modelStampScanMessage = 'No models found in models/ yet';
+    } else {
+      modelStampScanMessage = 'Could not scan models' + (lastErr ? ': ' + String(lastErr.message || lastErr).slice(0, 60) : '');
+    }
+    updateStampBuilderSummary();
+    refreshOpenStampBuilderCards();
+    return MODEL_STAMP_ASSETS;
+  }
+
+  function updateStampBuilderSummary() {
+    const summary = document.getElementById('stamp-builder-summary');
+    if (!summary) return;
+    const modelCount = MODEL_STAMP_ASSETS.filter(a => a.supported).length;
+    const voxelCount = VOXEL_BUILD_STAMPS.length;
+    summary.innerHTML = '<span><strong>' + (modelCount + voxelCount) + '</strong> stamp sources</span><span>' + modelStampScanMessage + '</span>';
+  }
+
+  function isStampBuilderPanelOpen() {
+    const panel = document.getElementById('stamp-builder-panel');
+    return !!(panel && !panel.hidden);
+  }
+
+  function refreshOpenStampBuilderCards() {
+    if (isStampBuilderPanelOpen() && typeof renderStampBuilderCards === 'function') renderStampBuilderCards();
+  }
+
+  function modelStampSignature(asset) {
+    return [asset && asset.id, asset && asset.label, asset && asset.path, asset && asset.url].filter(Boolean).join(' ').toLowerCase();
+  }
+
+  function modelStampHash(value) {
+    let h = 2166136261;
+    const text = String(value || 'model-stamp');
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+    }
+    return h >>> 0;
+  }
+
+  function modelStampPaletteKind(asset) {
+    const sig = modelStampSignature(asset);
+    if (/building|buildings|city|house|tower|cottage|villa|skyscraper/.test(sig)) return 'building';
+    if (/boat|ship|vessel/.test(sig)) return 'boat';
+    if (/plane|aircraft|airplane|stunt|crop-duster|jet/.test(sig)) return 'plane';
+    return 'generic';
+  }
+
+  function modelStampResolveUrl(asset, ref, baseUrl = null) {
+    const clean = String(ref || '').trim().replace(/\\/g, '/');
+    if (!clean) return '';
+    try {
+      if (/^(https?:|data:|blob:|\/)/i.test(clean) || clean.startsWith('models/')) {
+        return new URL(clean, window.location.href).href;
+      }
+      return new URL(clean, new URL(baseUrl || (asset && asset.url) || '', window.location.href)).href;
+    } catch (_) {
+      const root = String(baseUrl || (asset && asset.url) || '').split('/').slice(0, -1).join('/');
+      return (root ? root + '/' : '') + clean;
+    }
+  }
+
+  function loadModelStampTexture(asset, ref, opts = {}) {
+    const raw = typeof ref === 'string' ? ref : (ref && (ref.url || ref.path));
+    const url = modelStampResolveUrl(asset, raw, opts.baseUrl || null);
+    if (!url) return null;
+    const flipKey = opts.flipY === false ? 'noflip' : 'flip';
+    const key = url + ':' + flipKey;
+    if (!modelStampTextureCache.has(key)) {
+      const tex = new THREE.TextureLoader().load(url, () => {
+        tex.needsUpdate = true;
+        if (opts.modelStampId || (asset && asset.id)) scheduleModelStampRefresh(opts.modelStampId || asset.id);
+        if (typeof renderScene === 'function') renderScene();
+      }, undefined, err => {
+        if (opts.warn !== false) console.warn('[model-stamp] texture failed', url, err);
+      });
+      tex.flipY = opts.flipY !== false;
+      tex.encoding = THREE.sRGBEncoding;
+      tex.magFilter = THREE.LinearFilter;
+      tex.minFilter = THREE.LinearMipmapLinearFilter || THREE.LinearFilter;
+      tex.anisotropy = Math.min(8, renderer && renderer.capabilities && renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 1);
+      modelStampTextureCache.set(key, tex);
+    }
+    return modelStampTextureCache.get(key);
+  }
+
+  function modelStampTextureSidecars(asset) {
+    return asset && asset.sidecars && Array.isArray(asset.sidecars.textures) ? asset.sidecars.textures : [];
+  }
+
+  function pickModelStampSidecarTexture(asset) {
+    const textures = modelStampTextureSidecars(asset).filter(item => item && item.exists !== false);
+    if (!textures.length) return null;
+    const sig = modelStampSignature(asset);
+    if (/plane|aircraft|airplane|stunt|crop-duster|jet/.test(sig)) {
+      return textures.find(item => /polygon[_-]?plane[_-]?texture[_-]?01|diffuse|albedo|base.?color/i.test(item.name || item.path)) || textures[0];
+    }
+    return textures.find(item => /diffuse|albedo|base.?color|color|palette/i.test(item.name || item.path)) || textures[0];
+  }
+
+  function modelStampMaterialList(material) {
+    return Array.isArray(material) ? material.filter(Boolean) : (material ? [material] : []);
+  }
+
+  function prepareModelStampTextureMaterial(material) {
+    if (!material) return;
+    const mats = modelStampMaterialList(material);
+    mats.forEach(mat => {
+      if (!mat) return;
+      ['map', 'emissiveMap', 'aoMap', 'lightMap'].forEach(key => {
+        if (mat[key]) mat[key].encoding = THREE.sRGBEncoding;
+      });
+      mat.needsUpdate = true;
+    });
+  }
+
+  function modelStampMaterialIsBlank(material) {
+    if (!material) return true;
+    if (material.map || material.vertexColors || (material.userData && material.userData.modelStampHydrated)) return false;
+    const name = String(material.name || '').toLowerCase();
+    if (/palette|default|white|blank|material_?0/.test(name)) return true;
+    if (!material.color) return true;
+    const r = material.color.r;
+    const g = material.color.g;
+    const b = material.color.b;
+    const nearWhite = r > 0.84 && g > 0.84 && b > 0.84;
+    const neutral = Math.abs(r - g) < 0.045 && Math.abs(g - b) < 0.045 && r > 0.62 && r < 0.88;
+    return nearWhite || neutral;
+  }
+
+  function modelStampMeshNeedsPalette(mesh) {
+    if (!mesh || !mesh.isMesh) return false;
+    if (mesh.userData && mesh.userData.modelStampForcePalette) return true;
+    if (mesh.geometry && mesh.geometry.attributes && mesh.geometry.attributes.color) return false;
+    const mats = modelStampMaterialList(mesh.material);
+    return !mats.length || mats.every(modelStampMaterialIsBlank);
+  }
+
+  function createModelStampPaletteMaterial(asset) {
+    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true, flatShading: true });
+    mat.name = 'TinyWorld palette fallback';
+    mat.userData.modelStampHydrated = 'palette';
+    mat.userData.modelStampPaletteKind = modelStampPaletteKind(asset);
+    return mat;
+  }
+
+  function applyModelStampVertexPalette(mesh, asset, index = 0) {
+    const geo = mesh && mesh.geometry;
+    const pos = geo && geo.attributes && geo.attributes.position;
+    if (!geo || !pos) return false;
+    if (!geo.attributes.normal) geo.computeVertexNormals();
+    geo.computeBoundingBox();
+    const box = geo.boundingBox;
+    const minY = box ? box.min.y : 0;
+    const spanY = Math.max(0.001, box ? box.max.y - box.min.y : 1);
+    const normal = geo.attributes.normal;
+    const colors = new Float32Array(pos.count * 3);
+    const kind = modelStampPaletteKind(asset);
+    const palette = MODEL_STAMP_FALLBACK_PALETTES[kind] || MODEL_STAMP_FALLBACK_PALETTES.generic;
+    const hash = modelStampHash((asset && asset.id) + ':' + (mesh.name || '') + ':' + index);
+    const shade = new THREE.Color(0x252a30);
+    const color = new THREE.Color();
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+      const yNorm = (y - minY) / spanY;
+      const ny = normal ? normal.getY(i) : 0;
+      const band = Math.floor((Math.atan2(z, x) + Math.PI) * 2.5) + Math.floor(yNorm * 9) + hash;
+      let hex = palette[Math.abs(band) % palette.length];
+      if (kind === 'building') {
+        if (yNorm > 0.72 || (ny > 0.48 && yNorm > 0.56)) hex = palette[1];
+        else if (yNorm < 0.10) hex = palette[3];
+        else if (yNorm > 0.24 && yNorm < 0.72 && Math.abs(ny) < 0.35 && band % 5 === 0) hex = 0x92b6c8;
+        else hex = (band % 4 === 0) ? palette[5] : palette[0];
+      } else if (kind === 'boat') {
+        if (yNorm < 0.28) hex = palette[0];
+        else if (yNorm > 0.72) hex = palette[2];
+        else hex = (band % 3 === 0) ? palette[1] : palette[3];
+      } else if (kind === 'plane') {
+        if (yNorm > 0.58) hex = palette[1];
+        else hex = (band % 4 === 0) ? palette[4] : palette[0];
+      }
+      color.setHex(hex);
+      if (ny < -0.12) color.lerp(shade, 0.24);
+      else if (Math.abs(ny) < 0.18) color.lerp(shade, 0.10);
+      color.toArray(colors, i * 3);
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.attributes.color.needsUpdate = true;
+    mesh.material = createModelStampPaletteMaterial(asset);
+    mesh.userData.modelStampPaletteApplied = true;
+    return true;
+  }
+
+  function applyModelStampSidecarTexture(root, asset, textureRecord, opts = {}) {
+    const texture = loadModelStampTexture(asset, textureRecord, { flipY: opts.flipY, modelStampId: asset && asset.id });
+    if (!texture) return 0;
+    const force = /plane|aircraft|airplane|stunt|crop-duster|jet/.test(modelStampSignature(asset));
+    let applied = 0;
+    root.traverse(node => {
+      if (!node.isMesh || !node.geometry || !node.geometry.attributes || !node.geometry.attributes.uv) return;
+      const mats = modelStampMaterialList(node.material);
+      if (!force && mats.length && !mats.every(modelStampMaterialIsBlank)) return;
+      const hydrate = mat => {
+        const next = mat && mat.clone ? mat.clone() : new THREE.MeshLambertMaterial({ color: 0xffffff });
+        if (next.color) next.color.set(0xffffff);
+        next.map = texture;
+        next.vertexColors = false;
+        next.userData = Object.assign({}, next.userData, { modelStampHydrated: 'texture' });
+        next.needsUpdate = true;
+        return next;
+      };
+      node.material = Array.isArray(node.material) ? node.material.map(hydrate) : hydrate(node.material);
+      applied++;
+    });
+    return applied;
+  }
+
+  function hydrateModelStampScene(root, asset, opts = {}) {
+    if (!root) return root;
+    let textured = 0;
+    let palette = 0;
+    root.traverse(node => {
+      if (!node.isMesh) return;
+      node.castShadow = true;
+      node.receiveShadow = true;
+      prepareModelStampTextureMaterial(node.material);
+    });
+    const textureRecord = pickModelStampSidecarTexture(asset);
+    if (textureRecord) textured = applyModelStampSidecarTexture(root, asset, textureRecord, { flipY: opts.flipY });
+    root.traverse(node => {
+      if (modelStampMeshNeedsPalette(node) && applyModelStampVertexPalette(node, asset, palette)) palette++;
+    });
+    if (asset) {
+      if (textured) asset.materialStatus = 'sidecar texture';
+      else if (palette) asset.materialStatus = 'TinyWorld palette fallback';
+      else asset.materialStatus = 'original materials';
+      if (!asset.materialWarning && Array.isArray(asset.warnings) && asset.warnings.length) asset.materialWarning = asset.warnings[0];
+    }
+    return root;
+  }
+
+  function cloneModelStampScene(source) {
+    const clone = source.clone(true);
+    clone.traverse(node => {
+      if (!node.isMesh) return;
+      if (node.geometry && node.geometry.clone) node.geometry = node.geometry.clone();
+      node.castShadow = true;
+      node.receiveShadow = true;
+      prepareModelStampTextureMaterial(node.material);
+    });
+    return clone;
+  }
+
+  function normalizeModelStampObject(root, asset) {
+    const box = new THREE.Box3().setFromObject(root);
+    const size = new THREE.Vector3();
+    const center = new THREE.Vector3();
+    box.getSize(size);
+    box.getCenter(center);
+    const spanXZ = Math.max(size.x, size.z, 0.01);
+    const visualSpan = Math.max(spanXZ, size.y * 0.42, 0.01);
+    const target = asset && asset.format === 'obj' ? 0.86 : 0.92;
+    const scale = target / visualSpan;
+    root.position.set(-center.x, -box.min.y, -center.z);
+    const wrapper = new THREE.Group();
+    wrapper.add(root);
+    wrapper.scale.setScalar(scale);
+    wrapper.userData = { kind: 'model-stamp', modelStampId: asset && asset.id, name: asset && asset.label, chimneyTops: [] };
+    castReceive(wrapper);
+    return wrapper;
+  }
+
+  function makeModelStampPlaceholder(asset, message) {
+    const g = new THREE.Group();
+    const baseMat = new THREE.MeshLambertMaterial({ color: asset && asset.supported === false ? 0xb48c73 : 0xb5b8aa });
+    const topMat = new THREE.MeshLambertMaterial({ color: asset && asset.format === 'obj' ? 0x8aa4b8 : 0x9b8bb8 });
+    const base = new THREE.Mesh(getBoxGeometry(0.54, 0.12, 0.54), baseMat);
+    base.position.y = 0.06;
+    const body = new THREE.Mesh(new THREE.DodecahedronGeometry(0.30, 0), topMat);
+    body.position.y = 0.34;
+    body.scale.set(1.06, 0.72, 0.92);
+    const cap = new THREE.Mesh(getBoxGeometry(0.34, 0.04, 0.18), M.wallTrim);
+    cap.position.y = 0.61;
+    g.add(base, body, cap);
+    g.userData = { kind: 'model-stamp', modelStampId: asset && asset.id, placeholder: true, message: message || 'Loading model' };
+    castReceive(g);
+    return g;
+  }
+
+  function parseOBJMaterialLibraries(text) {
+    const refs = [];
+    for (const line of String(text || '').split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed[0] === '#' || !/^mtllib\s+/i.test(trimmed)) continue;
+      const rest = trimmed.replace(/^mtllib\s+/i, '').trim();
+      if (!rest) continue;
+      rest.split(/\s+/).forEach(ref => { if (ref) refs.push(ref); });
+    }
+    return Array.from(new Set(refs));
+  }
+
+  function parseModelStampMTL(text, asset, baseUrl) {
+    const defs = [];
+    let current = null;
+    function flush() {
+      if (current && current.name) defs.push(current);
+      current = null;
+    }
+    for (const line of String(text || '').split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed[0] === '#') continue;
+      const parts = trimmed.split(/\s+/);
+      const key = parts.shift().toLowerCase();
+      if (key === 'newmtl') {
+        flush();
+        current = { name: parts.join(' '), color: 0xffffff, opacity: 1, map: null };
+      } else if (current && key === 'kd' && parts.length >= 3) {
+        const r = Math.max(0, Math.min(1, Number(parts[0]) || 0));
+        const g = Math.max(0, Math.min(1, Number(parts[1]) || 0));
+        const b = Math.max(0, Math.min(1, Number(parts[2]) || 0));
+        current.color = new THREE.Color(r, g, b).getHex();
+      } else if (current && key === 'd' && parts.length) {
+        current.opacity = Math.max(0, Math.min(1, Number(parts[0]) || 0));
+      } else if (current && key === 'tr' && parts.length) {
+        current.opacity = 1 - Math.max(0, Math.min(1, Number(parts[0]) || 0));
+      } else if (current && key === 'map_kd' && parts.length) {
+        current.map = parts[parts.length - 1];
+      }
+    }
+    flush();
+    const out = {};
+    defs.forEach(def => {
+      const params = {
+        color: def.map ? 0xffffff : def.color,
+        transparent: def.opacity < 0.999,
+        opacity: def.opacity,
+      };
+      if (def.map) params.map = loadModelStampTexture(asset, def.map, { baseUrl, flipY: true, modelStampId: asset && asset.id });
+      const mat = new THREE.MeshLambertMaterial(params);
+      mat.name = def.name;
+      mat.userData.modelStampHydrated = def.map ? 'mtl texture' : 'mtl color';
+      prepareModelStampTextureMaterial(mat);
+      out[def.name] = mat;
+    });
+    return out;
+  }
+
+  function loadModelStampMTLMaterials(asset, objText) {
+    const refs = parseOBJMaterialLibraries(objText);
+    const manifestMtls = asset && asset.sidecars && Array.isArray(asset.sidecars.mtl) ? asset.sidecars.mtl : [];
+    const existing = manifestMtls.filter(item => item && item.exists !== false && (item.url || item.path));
+    if (!existing.length) {
+      if (refs.length && asset && !asset.materialWarning) asset.materialWarning = 'Missing OBJ material library: ' + refs.join(', ');
+      else if (asset && !asset.materialWarning) asset.materialWarning = 'OBJ has no material library; using TinyWorld palette fallback';
+      return Promise.resolve({});
+    }
+    return Promise.all(existing.map(item => {
+      const url = modelStampResolveUrl(asset, item.url || item.path);
+      return fetch(url, { cache: 'no-store' })
+        .then(res => {
+          if (!res.ok) throw new Error('HTTP ' + res.status + ' loading ' + (item.name || item.path));
+          return res.text();
+        })
+        .then(text => parseModelStampMTL(text, asset, url));
+    })).then(list => Object.assign({}, ...list));
+  }
+
+  function parseOBJModel(text, asset = null, materialLib = {}) {
+    const verts = [[0, 0, 0]];
+    const normals = [[0, 1, 0]];
+    const uvs = [[0, 0]];
+    const groups = [];
+    let current = null;
+    function ensureGroup(name = 'default') {
+      const key = String(name || 'default').trim() || 'default';
+      current = groups.find(group => group.name === key);
+      if (!current) {
+        current = { name: key, positions: [], normals: [], uvs: [] };
+        groups.push(current);
+      }
+      return current;
+    }
+    function parseIndex(value, listLength) {
+      const n = parseInt(value, 10);
+      if (!Number.isFinite(n)) return 0;
+      return n < 0 ? listLength + n : n;
+    }
+    ensureGroup('default');
+    const lines = String(text || '').split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed[0] === '#') continue;
+      const parts = trimmed.split(/\s+/);
+      const key = parts[0].toLowerCase();
+      if (key === 'v' && parts.length >= 4) {
+        verts.push([Number(parts[1]) || 0, Number(parts[2]) || 0, Number(parts[3]) || 0]);
+      } else if (key === 'vt' && parts.length >= 3) {
+        uvs.push([Number(parts[1]) || 0, Number(parts[2]) || 0]);
+      } else if (key === 'vn' && parts.length >= 4) {
+        normals.push([Number(parts[1]) || 0, Number(parts[2]) || 1, Number(parts[3]) || 0]);
+      } else if (key === 'usemtl') {
+        ensureGroup(parts.slice(1).join(' ') || 'default');
+      } else if (key === 'f' && parts.length >= 4) {
+        const face = parts.slice(1).map(token => {
+          const bits = token.split('/');
+          return {
+            v: parseIndex(bits[0], verts.length),
+            t: bits[1] ? parseIndex(bits[1], uvs.length) : 0,
+            n: bits[2] ? parseIndex(bits[2], normals.length) : 0,
+          };
+        }).filter(item => verts[item.v]);
+        for (let i = 1; i < face.length - 1; i++) {
+          for (const item of [face[0], face[i], face[i + 1]]) {
+            const v = verts[item.v] || verts[0];
+            const n = normals[item.n] || null;
+            const uv = uvs[item.t] || null;
+            current.positions.push(v[0], v[1], v[2]);
+            if (n) current.normals.push(n[0], n[1], n[2]);
+            if (uv) current.uvs.push(uv[0], uv[1]);
+          }
+        }
+      }
+    }
+    const g = new THREE.Group();
+    let meshCount = 0;
+    groups.forEach((group, index) => {
+      if (!group.positions.length) return;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(group.positions, 3));
+      if (group.normals.length === group.positions.length) geo.setAttribute('normal', new THREE.Float32BufferAttribute(group.normals, 3));
+      else geo.computeVertexNormals();
+      if (group.uvs.length === (group.positions.length / 3) * 2) geo.setAttribute('uv', new THREE.Float32BufferAttribute(group.uvs, 2));
+      const sourceMat = materialLib[group.name];
+      const mat = sourceMat || new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
+      if (!sourceMat) {
+        mat.name = 'Missing MTL: ' + group.name;
+        mat.userData.modelStampMissingMtl = true;
+      }
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.name = group.name || ('OBJ part ' + (index + 1));
+      if (!sourceMat) mesh.userData.modelStampForcePalette = true;
+      g.add(mesh);
+      meshCount++;
+    });
+    if (!meshCount) throw new Error('OBJ has no faces');
+    return g;
+  }
+
+  function loadModelStampAsset(asset, onReady, onError) {
+    if (!asset) return null;
+    let cache = modelStampAssetCache.get(asset.id);
+    if (cache && cache.state === 'ready') {
+      if (onReady) setTimeout(() => onReady(cache.scene), 0);
+      return cache;
+    }
+    if (cache && cache.state === 'loading') {
+      if (onReady) cache.ready.push(onReady);
+      if (onError) cache.error.push(onError);
+      return cache;
+    }
+    cache = { state: 'loading', scene: null, errorMessage: '', ready: onReady ? [onReady] : [], error: onError ? [onError] : [] };
+    modelStampAssetCache.set(asset.id, cache);
+    function finish(scene) {
+      cache.state = 'ready';
+      cache.scene = scene;
+      cache.ready.splice(0).forEach(fn => { try { fn(scene); } catch (_) {} });
+      scheduleModelStampRefresh(asset.id);
+    }
+    function fail(err) {
+      cache.state = 'error';
+      cache.errorMessage = String(err && err.message || err || 'load failed');
+      cache.error.splice(0).forEach(fn => { try { fn(cache.errorMessage); } catch (_) {} });
+      scheduleModelStampRefresh(asset.id);
+    }
+    if (!asset.supported) {
+      fail(new Error(asset.format.toUpperCase() + ' needs a browser loader; convert to GLB or OBJ for now'));
+      return cache;
+    }
+    if (asset.format === 'glb' || asset.format === 'gltf') {
+      if (!THREE.GLTFLoader) {
+        fail(new Error('GLTFLoader missing'));
+        return cache;
+      }
+      const loader = new THREE.GLTFLoader();
+      loader.load(asset.url, gltf => {
+        const scene = gltf.scene || (gltf.scenes && gltf.scenes[0]) || new THREE.Group();
+        hydrateModelStampScene(scene, asset, { flipY: false });
+        finish(scene);
+      }, undefined, fail);
+    } else if (asset.format === 'obj') {
+      let objText = '';
+      fetch(asset.url, { cache: 'no-store' })
+        .then(res => {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.text();
+        })
+        .then(text => {
+          objText = text;
+          return loadModelStampMTLMaterials(asset, text);
+        })
+        .then(materials => {
+          const scene = parseOBJModel(objText, asset, materials);
+          hydrateModelStampScene(scene, asset, { flipY: true });
+          finish(scene);
+        })
+        .catch(fail);
+    } else if (asset.format === 'fbx' && THREE.FBXLoader) {
+      const loader = new THREE.FBXLoader();
+      loader.load(asset.url, obj => {
+        hydrateModelStampScene(obj, asset, { flipY: true });
+        finish(obj);
+      }, undefined, fail);
+    } else {
+      fail(new Error(asset.format.toUpperCase() + ' is detected but not placeable in this build'));
+    }
+    return cache;
+  }
+
+  function makeModelStamp(idOrAsset, opts = {}) {
+    const asset = typeof idOrAsset === 'string' ? getModelStamp(idOrAsset) : idOrAsset;
+    if (!asset) return makeModelStampPlaceholder(null, 'Model missing');
+    const cache = loadModelStampAsset(asset);
+    if (cache && cache.state === 'ready' && cache.scene) {
+      return normalizeModelStampObject(cloneModelStampScene(cache.scene), asset);
+    }
+    const placeholder = makeModelStampPlaceholder(asset, cache && cache.errorMessage ? cache.errorMessage : 'Loading model');
+    return placeholder;
+  }
+
+  function scheduleModelStampRefresh(modelStampId) {
+    setTimeout(() => {
+      for (const key in cellMeshes) {
+        const parts = key.split(',');
+        const x = parseInt(parts[0], 10);
+        const z = parseInt(parts[1], 10);
+        if (!Number.isFinite(x) || !Number.isFinite(z)) continue;
+        const cell = getWorldCell(x, z);
+        const appearance = normalizeAppearance(cell.appearance);
+        if (cell.kind === 'model-stamp' && appearance && appearance.modelStampId === modelStampId) {
+          renderCellObject(x, z, { animate: false, impactDust: false });
+        }
+      }
+      if (selectedTool && selectedTool.kind === 'model-stamp' && selectedTool.modelStampId === modelStampId) {
+        ghostPreviewKey = null;
+        ensureGhostPreview();
+        updateGhostPlacement();
+      }
+      if (typeof rebuildExistingGhostBoards === 'function') rebuildExistingGhostBoards();
+      refreshOpenStampBuilderCards();
+    }, 0);
+  }
+
+  function syncModelStampSettingsPanel(tool) {
+    const panel = document.getElementById('model-stamp-settings');
+    if (!panel) return;
+    const isModel = !!(tool && tool.kind === 'model-stamp' && tool.modelStampId);
+    panel.hidden = !isModel;
+    if (!isModel) return;
+    selectedModelStampId = tool.modelStampId;
+    const asset = getModelStamp(tool.modelStampId);
+    const cfg = getModelStampSettings(tool.modelStampId);
+    const name = document.getElementById('model-stamp-settings-name');
+    const size = document.getElementById('model-stamp-size');
+    const sizeOut = document.getElementById('model-stamp-size-value');
+    const offsetY = document.getElementById('model-stamp-offset-y');
+    const offsetYOut = document.getElementById('model-stamp-offset-y-value');
+    const rotation = document.getElementById('model-stamp-rotation');
+    const rotationOut = document.getElementById('model-stamp-rotation-value');
+    if (name) name.textContent = asset ? asset.label : tool.label;
+    if (size) size.value = String(Math.round(cfg.objectScale * 100));
+    if (sizeOut) sizeOut.textContent = cfg.objectScale.toFixed(2) + '×';
+    if (offsetY) offsetY.value = String(Math.round(cfg.offsetY * 100));
+    if (offsetYOut) offsetYOut.textContent = (cfg.offsetY >= 0 ? '+' : '') + cfg.offsetY.toFixed(2);
+    const deg = ((Math.round(cfg.rotationY * 180 / Math.PI / 15) * 15) % 360 + 360) % 360;
+    if (rotation) rotation.value = String(deg);
+    if (rotationOut) rotationOut.textContent = deg + '°';
+  }
+
+  function readModelStampSettingsPanel() {
+    const size = document.getElementById('model-stamp-size');
+    const offsetY = document.getElementById('model-stamp-offset-y');
+    const rotation = document.getElementById('model-stamp-rotation');
+    return normalizeModelStampSettings({
+      objectScale: size ? Number(size.value) / 100 : 1,
+      offsetY: offsetY ? Number(offsetY.value) / 100 : 0,
+      rotationY: rotation ? Number(rotation.value) * Math.PI / 180 : 0,
+    });
+  }
+
+  function updateSelectedModelStampDefaults(persist = false) {
+    if (!selectedModelStampId) return;
+    const cfg = setModelStampSettings(selectedModelStampId, readModelStampSettingsPanel(), persist);
+    syncModelStampSettingsPanel(selectedTool);
+    if (selectedTool && selectedTool.kind === 'model-stamp') {
+      ghostPreviewKey = null;
+      ensureGhostPreview();
+      updateGhostPlacement();
+    }
+    const status = document.getElementById('stamp-builder-status');
+    if (status && persist) status.textContent = 'Saved defaults for ' + (getModelStamp(selectedModelStampId)?.label || selectedModelStampId);
+    return cfg;
+  }
+
+  loadModelStampDefaultsConfig();
+  refreshModelStampManifest();
+
   function voxelBuildMaterial(hex, textureKind = null) {
     const clean = normalizeHexColor(hex) || '#ffffff';
     const kind = inferProceduralTextureKind(clean, textureKind);
@@ -12219,6 +13290,7 @@
     let setGridUserData = true;
 
     if (kind === 'voxel-build') mesh = makeVoxelBuildStamp(cell.appearance && cell.appearance.voxelBuildId, { appearance: cell.appearance });
+    else if (kind === 'model-stamp') mesh = makeModelStamp(cell.appearance && cell.appearance.modelStampId, { appearance: cell.appearance });
     else if (kind === 'tree') mesh = makeVoxelTree(level);
     else if (kind === 'rock') mesh = makeVoxelRock(getRockNeighbors(x, z), level, x, z, cell.terrain === 'water');
     else if (kind === 'bridge') mesh = makeVoxelBridge(getBridgeOrientation(x, z), level);
@@ -14868,7 +15940,7 @@
     buildDistantWorlds();
     if (typeof buildUnderIslandClouds === 'function') buildUnderIslandClouds();
   }
-  buildHomeBorder();
+  enqueueDeferredVisualStartup('home-border-dressing', buildHomeBorder);
 
   // -------- ghost worlds --------
   // Non-editable neighbouring boards. They preview the multiplayer shape of
@@ -16844,7 +17916,7 @@
     }
     if (typeof rebuildExistingGhostBoards === 'function') rebuildExistingGhostBoards();
     for (const id of Array.from(thumbScenes.keys())) refreshToolThumb(id);
-    if (typeof renderStampBuilderCards === 'function') renderStampBuilderCards();
+    refreshOpenStampBuilderCards();
   }
 
   function rebuildObjectsRender() {
@@ -16886,6 +17958,7 @@
     const appearanceForRender = normalizeAppearance(cell.appearance);
     const renderStyle = appearanceForRender && appearanceForRender.objectStyle;
     const useVoxelRender = kind === 'voxel-build' ||
+                           kind === 'model-stamp' ||
                            (renderStyle === 'voxel') ||
                            (renderVoxelTerrain && renderStyle !== 'normal');
 
@@ -17139,7 +18212,7 @@
     if (nextKind === 'bridge') nextTerrain = 'water';
     else if (CROP_KINDS.has(nextKind)) nextTerrain = 'dirt';
     else if (nextKind === 'house' && (nextTerrain === 'water' || nextTerrain === 'path' || nextTerrain === 'lava')) nextTerrain = 'grass';
-    else if (nextTerrain === 'water' && nextKind !== 'house' && nextKind !== 'rock' && nextKind !== 'ripple' && nextKind !== 'bridge' && nextKind !== 'bridge-rail' && nextKind !== 'voxel-build') nextKind = null;
+    else if (nextTerrain === 'water' && nextKind !== 'house' && nextKind !== 'rock' && nextKind !== 'ripple' && nextKind !== 'bridge' && nextKind !== 'bridge-rail' && nextKind !== 'voxel-build' && nextKind !== 'model-stamp') nextKind = null;
     else if (nextTerrain === 'lava' && nextKind !== 'rock') nextKind = null;
 
     const terrainChanged = prev.terrain !== nextTerrain;
@@ -17361,6 +18434,7 @@
 
   // -------- initial scene (matches the reference image) --------
   function loadInitialScene() {
+    twPerfMark('initial:start');
     // Wipe any existing meshes + animation state so a Reset re-plays the drop.
     for (const key in cellMeshes) {
       const e = cellMeshes[key];
@@ -17450,6 +18524,7 @@
     }
 
     // Rebuild live index sets after the direct world write (bypasses setCell).
+    twPerfMark('initial:intent-ready');
     rebuildCropPositions();
     rebuildMaxPumpkinCache();
     invalidateHomeFade();
@@ -17458,9 +18533,12 @@
       requestHomeRenderWindowSync({ force: true });
       seedCrowdPeople();
       saveState();
+      twPerfMark('initial:windowed-queued');
+      twPerfMark('initial:end');
       return;
     }
 
+    twPerfMark('initial:tiles-start');
     for (let x = 0; x < GRID; x++) {
       for (let z = 0; z < GRID; z++) {
         renderCellTile(x, z, {
@@ -17468,6 +18546,7 @@
         });
       }
     }
+    twPerfMark('initial:tiles-rendered');
     for (let x = 0; x < GRID; x++) {
       for (let z = 0; z < GRID; z++) {
         const baseDelay = (x + z) * OBJECT_STAGGER;
@@ -17478,8 +18557,10 @@
         });
       }
     }
+    twPerfMark('initial:objects-rendered');
     seedCrowdPeople();
     saveState();
+    twPerfMark('initial:end');
   }
 
   // -------- hover indicator --------
@@ -17526,6 +18607,7 @@
     const kind = tool.kind;
     let mesh = null;
     if      (kind === 'voxel-build') mesh = makeVoxelBuildStamp(tool.voxelBuildId);
+    else if (kind === 'model-stamp') mesh = makeModelStamp(tool.modelStampId);
     else if (kind === 'tree')      mesh = makeTree();
     else if (kind === 'rock')      mesh = makeRock({ n: false, s: false, e: false, w: false }, 1, 0, 0);
     else if (kind === 'tuft')      mesh = makeTuft();
@@ -17563,6 +18645,11 @@
       mesh.add(swatch);
     }
     if (!mesh) return null;
+    if (kind === 'model-stamp' && tool.modelStampId) {
+      const cfg = getModelStampSettings(tool.modelStampId);
+      if (cfg.objectScale !== 1) mesh.scale.multiplyScalar(cfg.objectScale);
+      if (cfg.offsetY) mesh.position.y += cfg.offsetY;
+    }
     // Translucent ghost look — clone materials so we don't tint the
     // shared M.* instances. Disable shadows to keep the preview cheap.
     mesh.traverse(o => {
@@ -17620,7 +18707,10 @@
     );
     // Always render the preview at the snapped angle so it matches the
     // rotation that consumeGhostTransform will commit on click.
-    ghostPreview.rotation.y = snapRot(ghostRotation);
+    const defaultModelRot = selectedTool && selectedTool.kind === 'model-stamp' && selectedTool.modelStampId
+      ? getModelStampSettings(selectedTool.modelStampId).rotationY
+      : 0;
+    ghostPreview.rotation.y = defaultModelRot + snapRot(ghostRotation);
   }
 
   function resetGhostTransform() {
@@ -18223,6 +19313,55 @@
   const hoverThumbs = new Set();
   let thumbTickRAF = 0;
   let thumbTickLast = 0;
+  const toolThumbBuildQueue = [];
+  const toolThumbQueuedCanvases = new WeakSet();
+  let toolThumbBuildQueueStarted = false;
+  let toolThumbBuildQueueTimer = 0;
+
+  function scheduleToolThumbBuild(tool, canvas, opts = {}) {
+    if (!tool || !canvas) return;
+    drawFallbackThumb(canvas, tool.label, tool.color || '#9b9a8f');
+    if (toolThumbQueuedCanvases.has(canvas)) return;
+    toolThumbQueuedCanvases.add(canvas);
+    toolThumbBuildQueue.push({ tool, canvas });
+    if (toolThumbBuildQueueStarted || opts.priority) {
+      scheduleToolThumbBuildQueue(opts.priority ? 16 : 120);
+    }
+  }
+
+  function scheduleToolThumbBuildQueue(delay = 64) {
+    if (!toolThumbBuildQueueStarted && delay > 16) return;
+    if (toolThumbBuildQueueTimer) return;
+    toolThumbBuildQueueTimer = setTimeout(() => {
+      toolThumbBuildQueueTimer = 0;
+      requestAnimationFrame(drainToolThumbBuildQueue);
+    }, delay);
+  }
+
+  function drainToolThumbBuildQueue() {
+    if (!toolThumbBuildQueue.length) return;
+    let built = 0;
+    while (toolThumbBuildQueue.length && built < 1) {
+      const item = toolThumbBuildQueue.shift();
+      if (!item || !item.canvas || !item.canvas.isConnected) continue;
+      toolThumbQueuedCanvases.delete(item.canvas);
+      try {
+        buildToolThumb(item.tool, item.canvas);
+        twPerfMark('thumb:' + item.tool.id);
+      } catch (err) {
+        drawFallbackThumb(item.canvas, item.tool.label, item.tool.color || '#9b9a8f');
+      }
+      built++;
+    }
+    if (toolThumbBuildQueue.length) scheduleToolThumbBuildQueue(48);
+  }
+
+  function startToolThumbBuildQueue() {
+    if (toolThumbBuildQueueStarted) return;
+    toolThumbBuildQueueStarted = true;
+    twPerfMark('thumb-queue:start');
+    scheduleToolThumbBuildQueue(160);
+  }
 
   function ensureThumbRenderer() {
     if (thumbRenderer) return thumbRenderer;
@@ -18242,6 +19381,7 @@
     const k = tool.kind;
     if (!k) return null;
     if (k === 'voxel-build') return makeVoxelBuildStamp(tool.voxelBuildId);
+    if (k === 'model-stamp') return makeModelStamp(tool.modelStampId);
     if (k === 'tree')      return makeVoxelTree();
     if (k === 'rock')      return makeVoxelRock({ n: false, s: false, e: false, w: false }, 1, 0, 0);
     if (k === 'bridge')    return makeVoxelBridge('x');
@@ -18454,7 +19594,7 @@
     }
     if (typeof rebuildExistingGhostBoards === 'function') rebuildExistingGhostBoards();
     for (const id of Array.from(thumbScenes.keys())) refreshToolThumb(id);
-    if (typeof renderStampBuilderCards === 'function') renderStampBuilderCards();
+    refreshOpenStampBuilderCards();
   }
 
   function scheduleVoxelStampRefresh() {
@@ -18465,24 +19605,24 @@
     }, 80);
   }
 
+  function stampBuilderSearchQuery() {
+    const input = document.getElementById('stamp-builder-search');
+    return input ? String(input.value || '').trim().toLowerCase() : '';
+  }
+
   function stampBuilderTools() {
-    const ids = ['house', 'tree', 'rock', 'bridge', 'fence', 'crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower', 'flower', 'bush', 'cow', 'sheep'];
     const tools = [];
-    for (const id of ids) {
-      const tool = TOOLS.find(t => t.id === id);
-      if (!tool) continue;
-      if (tool.variants && tool.variants.length) {
-        for (const variant of tool.variants) {
-          tools.push(Object.assign({}, tool, {
-            id: tool.id + ':' + variant.id,
-            label: variant.label,
-            activeVariant: variant,
-            baseTool: tool,
-          }));
-        }
-      } else {
-        tools.push(tool);
-      }
+    for (const asset of MODEL_STAMP_ASSETS) {
+      tools.push({
+        id: 'model-stamp:' + asset.id,
+        label: asset.label,
+        kind: 'model-stamp',
+        modelStampId: asset.id,
+        modelAsset: asset,
+        isModelStamp: true,
+        supported: asset.supported,
+        color: '#8aa4b8',
+      });
     }
     for (const stamp of VOXEL_BUILD_STAMPS) {
       tools.push({
@@ -18493,15 +19633,38 @@
         isVoxelBuild: true,
       });
     }
-    return tools;
+    const ids = ['house', 'tree', 'rock', 'bridge', 'fence', 'crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower', 'flower', 'bush', 'cow', 'sheep'];
+    for (const id of ids) {
+      const tool = TOOLS.find(t => t.id === id);
+      if (!tool) continue;
+      if (tool.variants && tool.variants.length) {
+        for (const variant of tool.variants) {
+          tools.push(Object.assign({}, tool, {
+            id: tool.id + ':' + variant.id,
+            label: variant.label,
+            activeVariant: variant,
+            baseTool: tool,
+            isBuiltInStamp: true,
+          }));
+        }
+      } else {
+        tools.push(Object.assign({}, tool, { isBuiltInStamp: true }));
+      }
+    }
+    const q = stampBuilderSearchQuery();
+    if (!q) return tools;
+    return tools.filter(tool => {
+      const bits = [tool.label, tool.id, tool.kind, tool.modelAsset && tool.modelAsset.format, tool.modelAsset && tool.modelAsset.path].filter(Boolean).join(' ').toLowerCase();
+      return bits.includes(q);
+    });
   }
 
   function renderStampBuilderThumb(tool, canvas) {
     ensureThumbRenderer();
     const scene = new THREE.Scene();
-    scene.add(new THREE.AmbientLight(0xffffff, 0.22));
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xb39879, 0.34));
-    const sun = new THREE.DirectionalLight(0xffffff, 0.88);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.24));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xb39879, 0.38));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.94);
     sun.position.set(3, 6, 2);
     scene.add(sun);
     const tile = makeTile(thumbTerrainFor(tool), { path: {}, terrain: {} }, 0, 0, 1);
@@ -18513,10 +19676,11 @@
     }
     scene.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
     const stamp = tool.voxelBuildId && getVoxelBuildStamp(tool.voxelBuildId);
-    const top = stamp ? 3.2 : 1.85;
+    const isModel = tool.kind === 'model-stamp';
+    const top = stamp ? 3.2 : (isModel ? 2.05 : 1.85);
     const bottom = stamp ? -1.05 : -0.95;
-    const side = stamp ? 2.25 : 1.45;
-    const lookY = stamp ? 1.15 : 0.55;
+    const side = stamp ? 2.25 : (isModel ? 1.62 : 1.45);
+    const lookY = stamp ? 1.15 : (isModel ? 0.70 : 0.55);
     const cam = new THREE.OrthographicCamera(-side, side, top, bottom, 0.1, 30);
     cam.position.set(Math.cos(THUMB_BASE_ANGLE) * 4.4, 3.3 + lookY, Math.sin(THUMB_BASE_ANGLE) * 4.4);
     cam.lookAt(0, lookY, 0);
@@ -18533,6 +19697,7 @@
 
   function stampBuilderSelectionKey(tool) {
     if (!tool) return '';
+    if (tool.modelStampId) return 'model-stamp:' + tool.modelStampId;
     if (tool.voxelBuildId) return 'voxel-build:' + tool.voxelBuildId;
     const variant = tool.activeVariant && tool.activeVariant.id ? tool.activeVariant.id : '';
     return (tool.baseTool ? tool.baseTool.id : tool.id) + ':' + variant;
@@ -18540,46 +19705,98 @@
 
   function currentStampBuilderSelectionKey() {
     if (!selectedTool) return '';
+    if (selectedTool.kind === 'model-stamp' && selectedTool.modelStampId) return 'model-stamp:' + selectedTool.modelStampId;
     if (selectedTool.kind === 'voxel-build' && selectedTool.voxelBuildId) return 'voxel-build:' + selectedTool.voxelBuildId;
     const variant = selectedTool.activeVariant && selectedTool.activeVariant.id ? selectedTool.activeVariant.id : '';
     return selectedTool.id + ':' + variant;
+  }
+
+  function stampCardChip(text, className) {
+    const chip = document.createElement('span');
+    chip.className = 'stamp-card-chip' + (className ? ' ' + className : '');
+    chip.textContent = text;
+    return chip;
+  }
+
+  function selectStampToolFromCard(tool) {
+    if (tool.isModelStamp) {
+      const asset = tool.modelAsset || getModelStamp(tool.modelStampId);
+      const status = document.getElementById('stamp-builder-status');
+      if (!asset || !asset.supported) {
+        if (status) status.textContent = (asset ? asset.format.toUpperCase() : 'Model') + ' detected, but only GLB/GLTF/OBJ are placeable right now';
+        return;
+      }
+      selectedModelStampId = asset.id;
+      selectTool({
+        id: 'model-stamp:' + asset.id,
+        label: asset.label,
+        kind: 'model-stamp',
+        modelStampId: asset.id,
+        isModelStamp: true,
+        color: '#8aa4b8',
+      });
+      const hint = modelStampAssetWarning(asset) || asset.materialStatus || '';
+      if (status) status.textContent = 'Selected model stamp: ' + asset.label + (hint ? ' · ' + hint : '');
+      return;
+    }
+    const realTool = tool.baseTool || tool;
+    if (tool.baseTool && tool.activeVariant) realTool.activeVariant = tool.activeVariant;
+    selectTool(realTool);
+    if (tool.voxelBuildId) selectedVoxelBuildId = tool.voxelBuildId;
+    const status = document.getElementById('stamp-builder-status');
+    if (status) status.textContent = 'Selected ' + tool.label;
   }
 
   function renderStampBuilderCards() {
     const grid = document.getElementById('stamp-builder-grid');
     if (!grid) return;
     grid.innerHTML = '';
+    updateStampBuilderSummary();
+    const tools = stampBuilderTools();
     const selectedKey = currentStampBuilderSelectionKey();
-    for (const tool of stampBuilderTools()) {
+    if (!tools.length) {
+      const empty = document.createElement('div');
+      empty.className = 'stamp-builder-empty';
+      empty.textContent = stampBuilderSearchQuery()
+        ? 'No stamps match that search.'
+        : 'No stamps yet. Drop GLB/OBJ files into models/ or import a voxel build JSON.';
+      grid.appendChild(empty);
+      return;
+    }
+    for (const tool of tools) {
       const card = document.createElement('div');
       const key = stampBuilderSelectionKey(tool);
-      card.className = 'stamp-card' + (key === selectedKey ? ' selected' : '');
+      const unsupported = tool.isModelStamp && tool.supported === false;
+      card.className = 'stamp-card' + (key === selectedKey ? ' selected' : '') + (unsupported ? ' unsupported' : '');
       card.setAttribute('role', 'button');
       card.tabIndex = 0;
       card.setAttribute('aria-pressed', key === selectedKey ? 'true' : 'false');
       const canvas = document.createElement('canvas');
       const title = document.createElement('strong');
       title.textContent = tool.label;
-      function selectStampTool() {
-        const realTool = tool.baseTool || tool;
-        if (tool.baseTool && tool.activeVariant) realTool.activeVariant = tool.activeVariant;
-        selectTool(realTool);
-        if (tool.voxelBuildId) selectedVoxelBuildId = tool.voxelBuildId;
-        const status = document.getElementById('stamp-builder-status');
-        if (status) status.textContent = 'Selected ' + tool.label;
-        for (const item of grid.querySelectorAll('.stamp-card')) {
-          const isSelected = item === card;
-          item.classList.toggle('selected', isSelected);
-          item.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
-        }
+      const meta = document.createElement('div');
+      meta.className = 'stamp-card-meta';
+      if (tool.isModelStamp) {
+        const fmt = (tool.modelAsset && tool.modelAsset.format ? tool.modelAsset.format : 'model').toUpperCase();
+        const warning = modelStampAssetWarning(tool.modelAsset);
+        const hasTexture = !!(tool.modelAsset && tool.modelAsset.sidecars && tool.modelAsset.sidecars.textures && tool.modelAsset.sidecars.textures.length);
+        meta.appendChild(stampCardChip(fmt, unsupported ? 'warn' : 'model'));
+        meta.appendChild(stampCardChip(unsupported ? 'detected' : 'model', unsupported ? 'warn' : 'model'));
+        if (!unsupported && warning) meta.appendChild(stampCardChip('fallback', 'warn'));
+        else if (!unsupported && hasTexture) meta.appendChild(stampCardChip('texture', 'model'));
+      } else if (tool.isVoxelBuild) {
+        meta.appendChild(stampCardChip('voxel'));
+      } else {
+        meta.appendChild(stampCardChip('built-in'));
       }
+      function selectStampTool() { selectStampToolFromCard(tool); }
       card.addEventListener('click', selectStampTool);
       card.addEventListener('keydown', e => {
         if (e.key !== 'Enter' && e.key !== ' ') return;
         e.preventDefault();
         selectStampTool();
       });
-      card.append(canvas, title);
+      card.append(canvas, title, meta);
       grid.appendChild(card);
       try {
         renderStampBuilderThumb(tool, canvas);
@@ -18629,13 +19846,7 @@
       canvas.style.width = ((opts && opts.flyout) ? 42 : 30) + 'px';
       canvas.style.height = ((opts && opts.flyout) ? 42 : 30) + 'px';
       btn.appendChild(canvas);
-      setTimeout(() => {
-        try {
-          buildToolThumb(t, canvas);
-        } catch (err) {
-          drawFallbackThumb(canvas, t.label, t.color);
-        }
-      }, 0);
+      scheduleToolThumbBuild(t, canvas, { priority: !!(opts && opts.flyout) });
     }
 
     const lbl = document.createElement('span');
@@ -18689,10 +19900,16 @@
   }
 
   function buildToolbar() {
+    twPerfMark('toolbar:start');
     const bar = document.getElementById('toolbar');
     bar.innerHTML = '';
     thumbScenes.forEach(t => { try { t.scene.traverse(o => safeDisposeGeometry(o.geometry)); } catch(_) {} });
     thumbScenes.clear();
+    toolThumbBuildQueue.length = 0;
+    if (toolThumbBuildQueueTimer) {
+      clearTimeout(toolThumbBuildQueueTimer);
+      toolThumbBuildQueueTimer = 0;
+    }
     const worldBtn = document.getElementById('world-menu-btn');
     if (worldBtn) {
       const slot = document.createElement('div');
@@ -18723,8 +19940,8 @@
         canvas.style.width = '30px';
         canvas.style.height = '30px';
         btn.appendChild(canvas);
-        const thumbTool = Object.assign({}, rep, { id: 'group-' + group.id });
-        setTimeout(() => buildToolThumb(thumbTool, canvas), 0);
+        const thumbTool = Object.assign({}, rep, { id: 'group-' + group.id, label: group.label });
+        scheduleToolThumbBuild(thumbTool, canvas);
       }
       const lbl = document.createElement('span');
       lbl.textContent = group.label;
@@ -18750,6 +19967,7 @@
     const audioPanel = document.getElementById('audio-panel');
     if (audioPanel) bar.appendChild(audioPanel);
     updateToolActiveStates();
+    twPerfMark('toolbar:end');
   }
 
   function updateToolActiveStates() {
@@ -18795,6 +20013,7 @@
   }
 
   function selectTool(t) {
+    twPerfMark('selectTool:start:' + (t && t.id ? t.id : 'unknown'));
     selectedTool = t;
     updateToolActiveStates();
     hoverMesh.material = t.erase ? M.hoverErase : M.hover;
@@ -18814,6 +20033,9 @@
     // user-applied rotation/offset so they don't bleed across tools.
     ensureGhostPreview();
     resetGhostTransform();
+    syncModelStampSettingsPanel(t);
+    refreshOpenStampBuilderCards();
+    twPerfMark('selectTool:end:' + (t && t.id ? t.id : 'unknown'));
   }
 
   function renderToolGroupFlyout(el, group) {
@@ -18980,7 +20202,19 @@
           selectedCoords.forEach(({ x: sx, z: sz }) => {
             const current = getWorldCell(sx, sz);
             const terrainForKind = selectedTool.terrainOverride || current.terrain || 'grass';
-            setCell(sx, sz, { kind: selectedTool.kind, terrain: terrainForKind });
+            if (selectedTool.kind === 'model-stamp' && selectedTool.modelStampId) {
+              const cfg = getModelStampSettings(selectedTool.modelStampId);
+              setCell(sx, sz, {
+                kind: 'model-stamp',
+                terrain: terrainForKind === 'water' || terrainForKind === 'lava' ? 'grass' : terrainForKind,
+                floors: 1,
+                rotationY: cfg.rotationY,
+                offsetY: cfg.offsetY,
+                appearance: { modelStampId: selectedTool.modelStampId, objectScale: cfg.objectScale },
+              });
+            } else {
+              setCell(sx, sz, { kind: selectedTool.kind, terrain: terrainForKind });
+            }
           });
         } else if (selectedTool.erase) {
           selectedCoords.forEach(({ x: sx, z: sz }) => {
@@ -19026,6 +20260,26 @@
       const terrainForHouse = cell.terrain || 'grass';
       const gt = consumeGhostTransform();
       setCell(x, z, { terrain: terrainForHouse, terrainFloors: terrainLevelForCell(cell), kind: 'house', buildingType: bType, rotationY: gt.rotationY, offsetX: gt.offsetX, offsetZ: gt.offsetZ });
+      return;
+    }
+    if (selectedTool.kind === 'model-stamp') {
+      const asset = getModelStamp(selectedTool.modelStampId);
+      if (!asset || !asset.supported) return;
+      const cfg = getModelStampSettings(asset.id);
+      const gt = consumeGhostTransform();
+      let newTerrain = cell.terrain || 'grass';
+      if (newTerrain === 'water' || newTerrain === 'lava') newTerrain = 'grass';
+      setCell(x, z, {
+        terrain: newTerrain,
+        terrainFloors: terrainLevelForCell(cell),
+        kind: 'model-stamp',
+        floors: 1,
+        rotationY: cfg.rotationY + gt.rotationY,
+        offsetX: gt.offsetX,
+        offsetY: cfg.offsetY,
+        offsetZ: gt.offsetZ,
+        appearance: { modelStampId: asset.id, objectScale: cfg.objectScale },
+      });
       return;
     }
     if (selectedTool.kind === 'voxel-build') {
@@ -19095,7 +20349,7 @@
       let newTerrain = selectedTool.terrainOverride || cell.terrain;
       // Rocks keep the underlying terrain even on water; everything
       // else falls back to grass over water (existing behaviour).
-      if (incomingPrimary !== 'rock' && newTerrain === 'water' && incomingPrimary !== 'bridge') newTerrain = 'grass';
+      if (incomingPrimary !== 'rock' && incomingPrimary !== 'model-stamp' && newTerrain === 'water' && incomingPrimary !== 'bridge') newTerrain = 'grass';
       if (demote) {
         const carriedExtras = (cell.extras || []).slice();
         carriedExtras.push(cell.kind === 'fence'
@@ -21719,9 +22973,16 @@
     const openBtn = document.getElementById('stamp-builder');
     const closeBtn = document.getElementById('stamp-builder-close');
     const rebuildBtn = document.getElementById('stamp-builder-rebuild');
+    const modelRefreshBtn = document.getElementById('model-stamp-refresh');
+    const searchInput = document.getElementById('stamp-builder-search');
     const importBtn = document.getElementById('voxel-build-import');
     const importFile = document.getElementById('voxel-build-import-file');
     const status = document.getElementById('stamp-builder-status');
+    const modelRangeInputs = ['model-stamp-size', 'model-stamp-offset-y', 'model-stamp-rotation']
+      .map(id => document.getElementById(id))
+      .filter(Boolean);
+    const modelSaveBtn = document.getElementById('model-stamp-save-default');
+    const modelResetBtn = document.getElementById('model-stamp-reset-default');
     const head = panel && panel.querySelector('.stamp-panel-head');
     const PANEL_POS_KEY = 'tinyworld:stamp-panel-pos';
     let panelDrag = null;
@@ -21747,12 +23008,13 @@
 
     function open() {
       renderStampBuilderCards();
+      updateStampBuilderSummary();
       panel.hidden = false;
       const grid = document.getElementById('stamp-builder-grid');
       if (grid) grid.scrollTop = 0;
       applySavedStampPanelPosition();
-      if (status) status.textContent = 'Choose a stamp to place (' + stampBuilderTools().length + ' available)';
-      closeBtn.focus({ preventScroll: true });
+      if (status) status.textContent = 'Choose a stamp to place (' + stampBuilderTools().length + ' shown)';
+      (searchInput || closeBtn).focus({ preventScroll: true });
     }
 
     function close() { panel.hidden = true; }
@@ -21766,9 +23028,44 @@
       if (e.key === 'Escape' && !panel.hidden) close();
     });
     if (rebuildBtn) {
-      rebuildBtn.addEventListener('click', () => {
+      rebuildBtn.addEventListener('click', async () => {
+        if (status) status.textContent = 'Refreshing stamps…';
         rebuildVoxelStampRender();
+        await refreshModelStampManifest().catch(() => null);
+        renderStampBuilderCards();
         if (status) status.textContent = 'Stamps refreshed';
+      });
+    }
+    if (modelRefreshBtn) {
+      modelRefreshBtn.addEventListener('click', async () => {
+        if (status) status.textContent = 'Scanning models/…';
+        modelStampAssetCache.clear();
+        await refreshModelStampManifest().catch(() => null);
+        renderStampBuilderCards();
+        if (status) status.textContent = modelStampScanMessage;
+      });
+    }
+    if (searchInput) {
+      searchInput.addEventListener('input', () => renderStampBuilderCards());
+    }
+    modelRangeInputs.forEach(input => {
+      input.addEventListener('input', () => updateSelectedModelStampDefaults(false));
+      input.addEventListener('change', () => updateSelectedModelStampDefaults(false));
+    });
+    if (modelSaveBtn) {
+      modelSaveBtn.addEventListener('click', () => updateSelectedModelStampDefaults(true));
+    }
+    if (modelResetBtn) {
+      modelResetBtn.addEventListener('click', () => {
+        if (!selectedModelStampId) return;
+        const asset = getModelStamp(selectedModelStampId);
+        resetModelStampSettings(selectedModelStampId);
+        syncModelStampSettingsPanel(selectedTool);
+        ghostPreviewKey = null;
+        ensureGhostPreview();
+        updateGhostPlacement();
+        renderStampBuilderCards();
+        if (status) status.textContent = 'Reset defaults for ' + (asset ? asset.label : selectedModelStampId);
       });
     }
     if (importBtn && importFile) {
@@ -21909,7 +23206,7 @@
   function playSfxForTool(tool) {
     if (!tool || tool.auto) return;
     if (tool.erase) { playSfx('whoosh'); return; }
-    if (tool.kind === 'house' || tool.kind === 'fence') { playSfx('knock'); return; }
+    if (tool.kind === 'house' || tool.kind === 'fence' || tool.kind === 'model-stamp') { playSfx('knock'); return; }
     if (tool.kind || tool.terrain) { playSfx('rustle'); return; }
   }
 
@@ -22490,7 +23787,7 @@
     }
   }
 
-  buildUnderIslandClouds();
+  // Initial under-island clouds are built by the deferred home-border task.
 
   // ---------- weather particles (rain + snow) ----------
   // Rain and snow mirror Open World Builder's chunky weather system:
@@ -22562,21 +23859,20 @@
   }
 
   function setPrecipActive(mesh, n) {
+    if (!mesh) return;
     mesh.count = Math.max(0, Math.min(n, mesh.userData.maxCount));
     mesh.visible = mesh.count > 0;
   }
 
-  const rainGeo = getBoxGeometry(0.018, 0.34, 0.018);
-  const rainMat = new THREE.MeshBasicMaterial({
-    color: 0xbcd0e4, transparent: true, opacity: 0.55, depthWrite: false,
-  });
-  const rainMesh = makePrecip({ count: 700, geometry: rainGeo, material: rainMat, dropSpeed: 14, drift: 0.5, randomRot: false });
-  xrWorldRoot.add(rainMesh);
-
-  const snowGeo = new THREE.BoxGeometry(0.10, 0.10, 0.10);
-  const snowMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.75, depthWrite: false });
-  const snowMesh = makePrecip({ count: 520, geometry: snowGeo, material: snowMat, dropSpeed: 1.4, drift: 0.9, randomRot: true });
-  xrWorldRoot.add(snowMesh);
+  let rainGeo = null;
+  let rainMat = null;
+  let rainMesh = null;
+  let snowGeo = null;
+  let snowMat = null;
+  let snowMesh = null;
+  let rainSplash = null;
+  let rainSurface = null;
+  let snowSurface = null;
 
   function makeSplashPool(count, { color, size, life, opacity }) {
     const geo = new THREE.RingGeometry(size * 0.28, size * 0.62, 18);
@@ -22608,10 +23904,6 @@
     };
     return mesh;
   }
-
-  const rainSplash = makeSplashPool(260, { color: 0xe6f3ff, size: 0.38, life: 0.46, opacity: 0.82 });
-  rainSplash.renderOrder = 30;
-  xrWorldRoot.add(rainSplash);
 
   function applyWeatherSplashOpacity() {
     const heavy = weatherEffectFactor();
@@ -22651,13 +23943,41 @@
     return mesh;
   }
 
-  const rainSurface = makeWeatherBuildPool(900, { color: 0x9ed1f0, size: 0.42, opacity: 0.20, shape: 'circle' });
-  rainSurface.renderOrder = 28;
-  xrWorldRoot.add(rainSurface);
-  const snowSurface = makeWeatherBuildPool(1400, { color: 0xffffff, size: 0.48, opacity: 0.34 });
-  snowSurface.renderOrder = 29;
-  xrWorldRoot.add(snowSurface);
-  applyWeatherSplashOpacity();
+  function ensureWeatherResources() {
+    if (rainMesh && snowMesh && rainSplash && rainSurface && snowSurface) return;
+    if (!rainGeo) rainGeo = getBoxGeometry(0.018, 0.34, 0.018);
+    if (!rainMat) {
+      rainMat = new THREE.MeshBasicMaterial({
+        color: 0xbcd0e4, transparent: true, opacity: 0.55, depthWrite: false,
+      });
+    }
+    if (!rainMesh) {
+      rainMesh = makePrecip({ count: 700, geometry: rainGeo, material: rainMat, dropSpeed: 14, drift: 0.5, randomRot: false });
+      xrWorldRoot.add(rainMesh);
+    }
+    if (!snowGeo) snowGeo = new THREE.BoxGeometry(0.10, 0.10, 0.10);
+    if (!snowMat) snowMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.75, depthWrite: false });
+    if (!snowMesh) {
+      snowMesh = makePrecip({ count: 520, geometry: snowGeo, material: snowMat, dropSpeed: 1.4, drift: 0.9, randomRot: true });
+      xrWorldRoot.add(snowMesh);
+    }
+    if (!rainSplash) {
+      rainSplash = makeSplashPool(260, { color: 0xe6f3ff, size: 0.38, life: 0.46, opacity: 0.82 });
+      rainSplash.renderOrder = 30;
+      xrWorldRoot.add(rainSplash);
+    }
+    if (!rainSurface) {
+      rainSurface = makeWeatherBuildPool(900, { color: 0x9ed1f0, size: 0.42, opacity: 0.20, shape: 'circle' });
+      rainSurface.renderOrder = 28;
+      xrWorldRoot.add(rainSurface);
+    }
+    if (!snowSurface) {
+      snowSurface = makeWeatherBuildPool(1400, { color: 0xffffff, size: 0.48, opacity: 0.34 });
+      snowSurface.renderOrder = 29;
+      xrWorldRoot.add(snowSurface);
+    }
+    applyWeatherSplashOpacity();
+  }
 
   function clampWeatherDecalToCell(x, z, radius) {
     const gx = Math.floor(x + GRID / 2);
@@ -22672,7 +23992,7 @@
   }
 
   function emitSplash(pool, x, y, z) {
-    if (weatherSplashIntensity <= 0 || Math.random() > Math.min(1, weatherSplashIntensity)) return;
+    if (!pool || weatherSplashIntensity <= 0 || Math.random() > Math.min(1, weatherSplashIntensity)) return;
     const u = pool.userData;
     const p = clampWeatherDecalToCell(x, z, u.decalRadius || 0.24);
     const i = u.head;
@@ -22685,7 +24005,7 @@
   }
 
   function emitWeatherBuildSurface(pool, x, y, z, chance, minSize, maxSize) {
-    if (chance <= 0 || Math.random() > chance) return;
+    if (!pool || chance <= 0 || Math.random() > chance) return;
     const u = pool.userData;
     const i = u.head;
     u.head = (i + 1) % u.maxCount;
@@ -22721,7 +24041,7 @@
   }
 
   function tickSplashes(pool, dt) {
-    if (!pool.visible) return;
+    if (!pool || !pool.visible) return;
     const u = pool.userData;
     const m = u._m, p = u._p, q = u._q, sc = u._s;
     const lifeMax = u.lifeMax;
@@ -22779,7 +24099,7 @@
 
   const WEATHER_TILT_AXIS = new THREE.Vector3(0, 0, 1);
   function tickPrecip(mesh, dt, biasX, tiltAngle, onLand) {
-    if (!mesh.visible || mesh.count === 0) return;
+    if (!mesh || !mesh.visible || mesh.count === 0) return;
     const u = mesh.userData;
     const pos = u.positions, vel = u.velocities, rot = u.rotations;
     const m = u._m, q = u._q, e = u._e, p = u._p, sc = u._s;
@@ -22831,6 +24151,7 @@
 
   function seedWeatherSurfaceMarks(mode, burst = 1) {
     if (weatherSplashIntensity <= 0 || (mode !== 'rain' && mode !== 'storm' && mode !== 'snow')) return;
+    ensureWeatherResources();
     const heavy = weatherEffectFactor();
     const count = Math.round((mode === 'storm' ? 220 : mode === 'snow' ? 150 : 95) * Math.max(0.7, Math.min(2.2, weatherSplashIntensity)) * burst);
     let placed = 0;
@@ -22853,6 +24174,8 @@
     const previous = weatherMode;
     weatherMode = mode;
     tileWeatherMode = mode === 'storm' ? 'rain' : mode;
+    const weatherActive = mode === 'rain' || mode === 'storm' || mode === 'snow';
+    if (weatherActive) ensureWeatherResources();
     applyWeatherMaterialTint();
     updateWeatherTileEffects();
     const heavy = weatherEffectFactor();
@@ -22860,7 +24183,7 @@
     if (snowMat) snowMat.opacity = Math.min(1, 0.78 + 0.12 * heavy);
     setPrecipActive(rainMesh, (mode === 'rain' || mode === 'storm') ? weatherScaledCount(180, 700) : 0);
     setPrecipActive(snowMesh, mode === 'snow' ? weatherScaledCount(120, 520) : 0);
-    if (mode !== previous && (mode === 'rain' || mode === 'storm' || mode === 'snow')) seedWeatherSurfaceMarks(mode, 1);
+    if (mode !== previous && weatherActive) seedWeatherSurfaceMarks(mode, 1);
   }
   function setWeatherIntensity(value) {
     weatherIntensity = Math.max(0.25, Math.min(3, Number.isFinite(value) ? value : 0.25));
@@ -22892,6 +24215,7 @@
       tickSplashes(rainSplash, dt);
       return;
     }
+    ensureWeatherResources();
     const heavy = weatherEffectFactor();
     const rainBiasX = (weatherMode === 'rain' || weatherMode === 'storm') ? 0.25 + heavy * 3.1 : 0;
     const rainTilt = rainBiasX ? Math.atan2(rainBiasX, 14) : 0;
@@ -22936,7 +24260,7 @@
     }
   }
 
-  syncCloudPopulation();
+  enqueueDeferredVisualStartup('sky-clouds', syncCloudPopulation);
 
   // -------- crop duster --------
   const CROP_DUSTER_ASSET = 'models/stunt_plane.glb';
@@ -23840,7 +25164,8 @@
           "bush",
           "cow",
           "sheep",
-          "voxel-build"
+          "voxel-build",
+          "model-stamp"
         ]
       },
       "buildingType": {
@@ -23948,9 +25273,13 @@
             "type": "string",
             "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
           },
+          "modelStampId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$"
+          },
           "objectScale": {
             "type": "number",
-            "minimum": 0.25,
+            "minimum": 0.2,
             "maximum": 4
           },
           "scaleX": {
@@ -24475,7 +25804,7 @@
     if (data.cameraMode !== undefined && !okCameraMode.has(data.cameraMode)) return 'cameraMode invalid: ' + data.cameraMode;
     if (data.gridSize !== undefined && !isValidGridSize(data.gridSize)) return 'gridSize invalid: ' + data.gridSize;
     const okTerrain = new Set(['grass','path','dirt','water','stone','lava','sand','snow']);
-    const okKind = new Set([null,'house','tree','fence','rock','bridge','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep','chimney','ripple','shrub','stone','pebble','bridge-rail','voxel-build']);
+    const okKind = new Set([null,'house','tree','fence','rock','bridge','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep','chimney','ripple','shrub','stone','pebble','bridge-rail','voxel-build','model-stamp']);
     const okBT = new Set([null,'cottage','manor','tower','turret','skyscraper']);
     const okFenceSide = new Set([null,'n','s','e','w','center-x','center-z']);
     const seen = new Set();
@@ -28331,7 +29660,7 @@
       const FLAT_REQUIRED = new Set([
         'house','fence','bridge','tree','tuft','flower','bush','cow','sheep',
         'crop','corn','wheat','pumpkin','carrot','sunflower',
-        'chimney','shrub','stone','pebble','bridge-rail','voxel-build',
+        'chimney','shrub','stone','pebble','bridge-rail','voxel-build','model-stamp',
       ]);
       if (normalizedKind === 'house' && (terrain === 'water' || terrain === 'path' || terrain === 'lava')) {
         terrain = 'grass';
@@ -29515,18 +30844,33 @@
   let appBooted = false;
   function bootApp() {
     if (appBooted) return;
+    twPerfMark('boot:start');
     appBooted = true;
     initWelcomeDialog();
+    twPerfMark('boot:welcome-ready');
     buildToolbar();
+    twPerfMark('boot:toolbar-built');
     selectTool(DEFAULT_TOOL);
+    twPerfMark('boot:default-tool-selected');
     if (!loadState()) {
+      twPerfMark('boot:load-state-empty');
       loadInitialScene();
       resetCameraDefaults();
+    } else {
+      twPerfMark('boot:load-state-restored');
     }
+    twPerfMark('boot:scene-ready');
     ensureGhostBoardsAroundTarget();
+    twPerfMark('boot:ghost-boards-queued');
     initCrowdLayer();
+    twPerfMark('boot:crowd-ready');
     onResize();
+    twPerfMark('boot:resized');
     renderer.setAnimationLoop(animate);
+    twPerfMark('boot:animation-loop');
+    startToolThumbBuildQueue();
+    startDeferredVisualStartupTasks();
+    twPerfMark('boot:end');
     const vehicleDemoRequest = getVehicleDemoUrlRequest();
     if (vehicleDemoRequest) {
       setTimeout(() => runSeededVehicleDemo(vehicleDemoRequest.seed, {

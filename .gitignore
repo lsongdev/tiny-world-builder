@@ -3,6 +3,7 @@
 .tinyworld-ai-logs/
 .grok/
 context.md
+models/stamp-defaults.local.json
 node_modules/
 *.log
 /.playwright-mcp

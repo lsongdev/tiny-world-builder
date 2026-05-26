@@ -24,6 +24,7 @@ Outputs:
   dist/vendor/*                   Self-hosted runtime libraries
   dist/textures/*                 User-selectable material textures
   dist/sounds/*.mp3               Music + foley used by the app
+  dist/models/stamp-manifest.json Auto-generated placeable model stamp index
   dist/.nojekyll                  GitHub Pages compatibility
   dist/VERSION.txt                Build metadata
 
@@ -126,13 +127,14 @@ fi
 # 3D model assets referenced directly by the single-file app.
 if [[ -d models ]]; then
   mkdir -p "$DIST/models"
-  (cd models && find . -type f ! -name '.DS_Store' -exec sh -c '
+  (cd models && find . -type f ! -name '.DS_Store' ! -name 'stamp-defaults.local.json' ! -name 'stamp-manifest.json' -exec sh -c '
     for f do
       mkdir -p "../dist/models/$(dirname "$f")"
       cp "$f" "../dist/models/$f"
     done
   ' sh {} +)
 fi
+node tools/model-stamps.js "$DIST/models/stamp-manifest.json"
 
 : > "$DIST/.nojekyll"
 
