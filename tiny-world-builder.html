@@ -4816,6 +4816,10 @@
               <input type="checkbox" id="render-landscape-mesh-mode" />
               <span>Continuous landscape mesh <em class="gen-hint">Flight game style terrain</em></span>
             </label>
+            <label class="gen-check" id="render-planet-underlay-container" style="display: none;">
+              <input type="checkbox" id="render-planet-underlay-active" />
+              <span>Planet underlay <em class="gen-hint">turn off to stop streaming the planet below the islands</em></span>
+            </label>
             <label class="gen-check">
               <input type="checkbox" id="render-voxel-terrain" />
               <span>Voxel terrain <em class="gen-hint">flat shaded panels and path edging</em></span>
@@ -5528,6 +5532,10 @@
   let planetLandscapeEngine = null;
   let planetLandscapeConfig = null;
   let planetAtmosphereGroup = null;
+  // Last successful planet-underlay config — kept so the render-settings
+  // checkbox can re-init the planet after the user toggled it off without
+  // needing to re-open the Generate panel.
+  let lastPlanetLandscapeConfig = null;
   function isPlanetLandscapeActive() {
     return !!(planetLandscapeGroup && planetLandscapeEngine);
   }
@@ -17915,7 +17923,8 @@
       renderCellTile(x, z, { animate: false });
     }
     if (typeof rebuildExistingGhostBoards === 'function') rebuildExistingGhostBoards();
-    for (const id of Array.from(thumbScenes.keys())) refreshToolThumb(id);
+    invalidateThumbCache();
+    for (const id of Array.from(toolThumbCanvases.keys())) refreshToolThumb(id);
     refreshOpenStampBuilderCards();
   }
 
@@ -19318,8 +19327,64 @@
   let toolThumbBuildQueueStarted = false;
   let toolThumbBuildQueueTimer = 0;
 
+  // Cached thumbnail bitmaps. Once a tool's 3D render is produced we copy the
+  // pixels into an offscreen canvas keyed by tool identity so the toolbar /
+  // stamp builder cards can blit instead of running another scene build. The
+  // cache is in-memory only — bust it when palette/season change via
+  // invalidateThumbCache().
+  const thumbBitmapCache = new Map(); // key -> HTMLCanvasElement
+  // Registry of mounted toolbar canvases so we can repaint them on cache bust.
+  const toolThumbCanvases = new Map(); // tool.id -> { tool, canvas }
+
+  function thumbCacheKeyForTool(tool) {
+    if (!tool) return '';
+    if (tool.kind === 'model-stamp' && tool.modelStampId) return 'model-stamp:' + tool.modelStampId;
+    if (tool.kind === 'voxel-build' && tool.voxelBuildId) return 'voxel-build:' + tool.voxelBuildId;
+    const variantId = tool.activeVariant && tool.activeVariant.id ? tool.activeVariant.id : '';
+    const baseId = tool.baseTool ? tool.baseTool.id : (tool.id || '');
+    // buildVariantToolButton appends "-<variantId>" to tool.id; strip it so
+    // toolbar variant buttons and stamp builder cards share cache entries.
+    const suffix = '-' + variantId;
+    const cleanBase = variantId && baseId.endsWith(suffix) ? baseId.slice(0, -suffix.length) : baseId;
+    return cleanBase + (variantId ? ':' + variantId : '');
+  }
+
+  function storeThumbBitmap(key, sourceCanvas) {
+    if (!key || !sourceCanvas || !sourceCanvas.width || !sourceCanvas.height) return;
+    const off = document.createElement('canvas');
+    off.width = sourceCanvas.width;
+    off.height = sourceCanvas.height;
+    try {
+      off.getContext('2d').drawImage(sourceCanvas, 0, 0);
+      thumbBitmapCache.set(key, off);
+    } catch (_) {}
+  }
+
+  function drawCachedThumb(canvas, key) {
+    if (!canvas || !key) return false;
+    const cached = thumbBitmapCache.get(key);
+    if (!cached) return false;
+    if (canvas.width !== cached.width || canvas.height !== cached.height) {
+      canvas.width = cached.width;
+      canvas.height = cached.height;
+    }
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(cached, 0, 0);
+    return true;
+  }
+
+  function invalidateThumbCache() {
+    thumbBitmapCache.clear();
+  }
+
   function scheduleToolThumbBuild(tool, canvas, opts = {}) {
     if (!tool || !canvas) return;
+    // Register the canvas so cache-busts can repaint it later.
+    if (tool.id) toolThumbCanvases.set(tool.id, { tool, canvas });
+    // Cache hit: blit the bitmap and skip the 3D scene entirely.
+    if (drawCachedThumb(canvas, thumbCacheKeyForTool(tool))) return;
     drawFallbackThumb(canvas, tool.label, tool.color || '#9b9a8f');
     if (toolThumbQueuedCanvases.has(canvas)) return;
     toolThumbQueuedCanvases.add(canvas);
@@ -19418,12 +19483,10 @@
 
   function buildToolThumb(tool, canvas) {
     if (!window.THREE) return null;
+    // Cache hit: blit and skip the scene build entirely.
+    const cacheKey = thumbCacheKeyForTool(tool);
+    if (drawCachedThumb(canvas, cacheKey)) return null;
     ensureThumbRenderer();
-    const old = thumbScenes.get(tool.id);
-    if (old) {
-      try { old.scene.traverse(o => safeDisposeGeometry(o.geometry)); } catch (_) {}
-      thumbScenes.delete(tool.id);
-    }
     const scene = new THREE.Scene();
     scene.add(new THREE.AmbientLight(0xffffff, 0.30));
     const hemi = new THREE.HemisphereLight(0xffffff, 0xb39879, 0.42);
@@ -19462,35 +19525,34 @@
     const cam = new THREE.OrthographicCamera(
       thumbFrame.left, thumbFrame.right, thumbFrame.top, thumbFrame.bottom, 0.1, 30,
     );
-    const ctx = canvas.getContext('2d');
-    const entry = {
-      scene, camera: cam, canvas, ctx,
-      angle: THUMB_BASE_ANGLE, baseAngle: THUMB_BASE_ANGLE, returning: false,
-      lookAtY: thumbFrame.lookAtY,
-    };
-    thumbScenes.set(tool.id, entry);
-    renderToolThumb(tool.id);
-    return entry;
-  }
-
-  function renderToolThumb(id) {
-    const t = thumbScenes.get(id);
-    if (!t || !thumbRenderer) return;
     const r = 3.4;
-    const lookY = t.lookAtY ?? 0.4;
-    t.camera.position.set(Math.cos(t.angle) * r, 2.4 + lookY, Math.sin(t.angle) * r);
-    t.camera.lookAt(0, lookY, 0);
+    const lookY = thumbFrame.lookAtY ?? 0.4;
+    cam.position.set(Math.cos(THUMB_BASE_ANGLE) * r, 2.4 + lookY, Math.sin(THUMB_BASE_ANGLE) * r);
+    cam.lookAt(0, lookY, 0);
     thumbRenderer.setSize(THUMB_SIZE, THUMB_SIZE, false);
-    thumbRenderer.render(t.scene, t.camera);
+    thumbRenderer.render(scene, cam);
     const dpr = thumbRenderer.getPixelRatio();
     const w = THUMB_SIZE * dpr;
     const h = THUMB_SIZE * dpr;
-    if (t.canvas.width !== w || t.canvas.height !== h) {
-      t.canvas.width = w;
-      t.canvas.height = h;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
     }
-    t.ctx.clearRect(0, 0, t.canvas.width, t.canvas.height);
-    t.ctx.drawImage(thumbRenderer.domElement, 0, 0, t.canvas.width, t.canvas.height);
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(thumbRenderer.domElement, 0, 0, canvas.width, canvas.height);
+    // Snapshot into the bitmap cache so future toolbar/palette mounts skip
+    // the scene build, then drop the scene so it doesn't sit in memory.
+    storeThumbBitmap(cacheKey, canvas);
+    try { scene.traverse(o => safeDisposeGeometry(o.geometry)); } catch (_) {}
+    return null;
+  }
+
+  // Legacy helper kept for the hover tick loop — it now does nothing because
+  // scenes are disposed after the first render.
+  function renderToolThumb(id) {
+    const t = thumbScenes.get(id);
+    if (!t || !thumbRenderer) return;
   }
 
   function drawFallbackThumb(canvas, label, color) {
@@ -19571,14 +19633,14 @@
   function refreshToolThumb(toolId) {
     // Rebuild a thumb in place — used when a tool's active variant changes
     // so the house thumb shows the chosen building type, etc.
-    const old = thumbScenes.get(toolId);
-    if (!old) return;
-    const tool = TOOLS.find(t => t.id === toolId);
+    const entry = toolThumbCanvases.get(toolId);
+    if (!entry || !entry.canvas || !entry.canvas.isConnected) return;
+    const tool = TOOLS.find(t => t.id === toolId) || entry.tool;
     if (!tool) return;
-    // Dispose the old scene geometry (materials are shared, leave them).
-    old.scene.traverse(o => safeDisposeGeometry(o.geometry));
-    thumbScenes.delete(toolId);
-    buildToolThumb(tool, old.canvas);
+    // Invalidate just this cache key so the next build re-renders.
+    thumbBitmapCache.delete(thumbCacheKeyForTool(tool));
+    try { buildToolThumb(tool, entry.canvas); }
+    catch (_) { drawFallbackThumb(entry.canvas, tool.label, tool.color || '#9b9a8f'); }
   }
 
   let voxelStampRefreshTimer = 0;
@@ -19593,7 +19655,8 @@
       renderCellExtras(x, z);
     }
     if (typeof rebuildExistingGhostBoards === 'function') rebuildExistingGhostBoards();
-    for (const id of Array.from(thumbScenes.keys())) refreshToolThumb(id);
+    invalidateThumbCache();
+    for (const id of Array.from(toolThumbCanvases.keys())) refreshToolThumb(id);
     refreshOpenStampBuilderCards();
   }
 
@@ -19660,6 +19723,14 @@
   }
 
   function renderStampBuilderThumb(tool, canvas) {
+    // Cache hit: blit and skip the 3D scene build. Cards on this panel re-mount
+    // on every state change, so caching is the dominant win.
+    const cacheKey = thumbCacheKeyForTool(tool);
+    // Use a stamp-builder-specific prefix because the panel renders with a
+    // wider frustum / different lookY than the toolbar — sharing pixels would
+    // crop them. They share invalidation via the same cache map.
+    const panelKey = cacheKey ? 'panel:' + cacheKey : '';
+    if (drawCachedThumb(canvas, panelKey)) return;
     ensureThumbRenderer();
     const scene = new THREE.Scene();
     scene.add(new THREE.AmbientLight(0xffffff, 0.24));
@@ -19692,6 +19763,7 @@
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(thumbRenderer.domElement, 0, 0, canvas.width, canvas.height);
+    storeThumbBitmap(panelKey, canvas);
     scene.traverse(o => safeDisposeGeometry(o.geometry));
   }
 
@@ -19905,6 +19977,7 @@
     bar.innerHTML = '';
     thumbScenes.forEach(t => { try { t.scene.traverse(o => safeDisposeGeometry(o.geometry)); } catch(_) {} });
     thumbScenes.clear();
+    toolThumbCanvases.clear();
     toolThumbBuildQueue.length = 0;
     if (toolThumbBuildQueueTimer) {
       clearTimeout(toolThumbBuildQueueTimer);
@@ -21691,6 +21764,7 @@
       if (landscapeMeshModeEl) {
         landscapeMeshModeEl.checked = !!landscapeMeshMode;
       }
+      syncPlanetUnderlayToggle();
       if (voxelTerrainEl) voxelTerrainEl.checked = !!renderVoxelTerrain;
       if (texturedGrassEl) texturedGrassEl.checked = !!renderTexturedGrass;
       if (surfaceLinkedMaterialsEl) surfaceLinkedMaterialsEl.checked = !!renderSurfaceLinkedMaterials;
@@ -22176,6 +22250,21 @@
       applyCrowdSettings({ reseed: true });
       syncControls();
     });
+    // Planet underlay live on/off — acts immediately so the user can kill the
+    // per-frame chunk streaming without re-opening the Generate panel.
+    const planetUnderlayEl = document.getElementById('render-planet-underlay-active');
+    if (planetUnderlayEl) {
+      planetUnderlayEl.addEventListener('change', () => {
+        if (planetUnderlayEl.checked) {
+          if (lastPlanetLandscapeConfig) initPlanetLandscape(lastPlanetLandscapeConfig);
+          if (status) status.textContent = isPlanetLandscapeActive() ? 'Planet underlay re-enabled' : 'No saved planet to restore — use the Generate panel';
+        } else {
+          disposePlanetLandscape();
+          if (status) status.textContent = 'Planet underlay disabled — chunks unloaded';
+        }
+        syncControls();
+      });
+    }
     syncControls();
     applyColorFilterFallback();
   })();
@@ -26747,6 +26836,7 @@
     }
     planetLandscapeConfig = null;
     resetPlanetLandscapeStreamState();
+    syncPlanetUnderlayToggle();
   }
 
   function updatePlanetLandscapeDrop(drop) {
@@ -26754,6 +26844,7 @@
     const next = normalizePlanetLandscapeConfig({ ...planetLandscapeConfig, drop });
     if (!next) return false;
     planetLandscapeConfig = next;
+    lastPlanetLandscapeConfig = next;
     planetLandscapeGroup.position.y = -next.drop;
     configurePlanetLandscapeEngine(planetLandscapeEngine, next);
     syncPlanetAtmosphereLayout(next);
@@ -26804,7 +26895,23 @@
     }
     schedulePlanetLandscapeWarmup();
     if (document.body.classList.contains('planet-proof-active')) enablePlanetLandscapeProofChrome(next);
+    lastPlanetLandscapeConfig = next;
+    syncPlanetUnderlayToggle();
     return true;
+  }
+
+  // Reflect planet-underlay live state into the render-settings checkbox.
+  // Defined here so dispose/init can call it; the change handler is wired
+  // inside setupRenderSettings further down.
+  function syncPlanetUnderlayToggle() {
+    const container = document.getElementById('render-planet-underlay-container');
+    const checkbox = document.getElementById('render-planet-underlay-active');
+    if (!container || !checkbox) return;
+    const active = isPlanetLandscapeActive();
+    const hasMemo = !!lastPlanetLandscapeConfig;
+    container.style.display = (active || hasMemo) ? 'flex' : 'none';
+    checkbox.checked = active;
+    checkbox.disabled = !active && !hasMemo;
   }
 
   function planetLandscapeStateFromSelection(seed, biome, styleMode, drop = PLANET_LANDSCAPE_DROP) {
