@@ -5199,11 +5199,23 @@
       <button type="button" class="agent-panel-toggle" id="agent-panel-toggle" aria-label="Close conversation">×</button>
     </div>
     <div class="agent-selection-preview" id="agent-selection-preview" hidden>
-      <div class="selection-details-pane">
-        <div class="agent-selection-count" id="agent-selection-count">0 tiles selected</div>
-        <ul class="agent-selection-list" id="agent-selection-list"></ul>
-        <div class="agent-selection-properties" id="agent-selection-properties" hidden></div>
-        <div class="agent-selection-hint">Type above and the prompt will target this selection.</div>
+      <div class="selection-tabbar" role="tablist" aria-label="Selection view">
+        <button type="button" class="selection-tab active" data-tab="preview" role="tab" aria-selected="true">Preview</button>
+        <button type="button" class="selection-tab" data-tab="details" role="tab" aria-selected="false">Details</button>
+      </div>
+      <div class="selection-tab-content active" data-content="preview">
+        <div class="selection-preview-pane">
+          <canvas id="selection-preview-canvas" width="256" height="256" aria-label="Selected object preview"></canvas>
+          <div class="selection-preview-actions" id="selection-preview-actions"></div>
+        </div>
+      </div>
+      <div class="selection-tab-content" data-content="details">
+        <div class="selection-details-pane">
+          <div class="agent-selection-count" id="agent-selection-count">0 tiles selected</div>
+          <ul class="agent-selection-list" id="agent-selection-list"></ul>
+          <div class="agent-selection-properties" id="agent-selection-properties" hidden></div>
+          <div class="agent-selection-hint">Type above and the prompt will target this selection.</div>
+        </div>
       </div>
     </div>
     <div class="agent-messages" id="agent-messages"></div>
@@ -29832,6 +29844,7 @@
         const mat = new THREE.MeshLambertMaterial({ color: 0x88aaff });
         obj = new THREE.Mesh(geo, mat);
       }
+      if (target.cell.kind !== 'model-stamp') applyAppearanceToObject(obj, target.cell.kind, target.cell.appearance);
       obj.scale.setScalar(0.95);
       frameSelectionPreviewObject(obj);
       previewScene.add(obj);
@@ -29998,46 +30011,46 @@
       container.innerHTML = '';
       if (!target || !target.cell) return;
       const kind = target.cell.kind;
-      if (kind === 'house' || kind === 'voxel-build') {
-        const bodyWrap = document.createElement('div');
-        bodyWrap.style.display = 'contents';
-        SELECTION_BODY_COLOR_OPTIONS.forEach(c => {
-          const chip = document.createElement('button');
-          chip.className = 'selection-prop-chip color-chip';
-          chip.innerHTML = `<span class="selection-prop-swatch" style="background:${c.color}"></span>${c.label}`;
-          chip.onclick = () => {
-            applySelectionProperty('bodyColor', c.value);
-            setTimeout(() => {
-              const t = selectedBoardObjectTarget();
-              if (t) updateSelectionPreview(t);
-            }, 10);
-          };
-          bodyWrap.appendChild(chip);
+      const colorConfig = selectionColorConfig(kind);
+      const currentAppearance = normalizeAppearance(target.cell.appearance) || {};
+      if (colorConfig) {
+        colorConfig.rows.forEach(row => {
+          const rowWrap = document.createElement('div');
+          rowWrap.style.display = 'contents';
+          row.options.forEach(c => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'selection-prop-chip color-chip';
+            chip.title = row.label + ': ' + c.label;
+            if (currentAppearance[row.key] === c.value) {
+              chip.classList.add('active');
+              chip.setAttribute('aria-pressed', 'true');
+            } else {
+              chip.setAttribute('aria-pressed', 'false');
+            }
+            const swatch = document.createElement('span');
+            swatch.className = 'selection-prop-swatch';
+            swatch.style.background = c.color;
+            chip.appendChild(swatch);
+            chip.appendChild(document.createTextNode(c.label));
+            chip.addEventListener('click', () => {
+              applySelectionProperty(row.key, c.value);
+              setTimeout(() => {
+                const t = selectedBoardObjectTarget();
+                if (t) updateSelectionPreview(t);
+              }, 10);
+            });
+            rowWrap.appendChild(chip);
+          });
+          container.appendChild(rowWrap);
         });
-        container.appendChild(bodyWrap);
-
-        const topWrap = document.createElement('div');
-        topWrap.style.display = 'contents';
-        SELECTION_TOP_COLOR_OPTIONS.forEach(c => {
-          const chip = document.createElement('button');
-          chip.className = 'selection-prop-chip color-chip';
-          chip.innerHTML = `<span class="selection-prop-swatch" style="background:${c.color}"></span>${c.label}`;
-          chip.onclick = () => {
-            applySelectionProperty('topColor', c.value);
-            setTimeout(() => {
-              const t = selectedBoardObjectTarget();
-              if (t) updateSelectionPreview(t);
-            }, 10);
-          };
-          topWrap.appendChild(chip);
-        });
-        container.appendChild(topWrap);
 
         // Voxel / Normal style toggle
-        if (kind !== 'voxel-build') {
+        if (kind === 'house') {
           const styleChip = document.createElement('button');
+          styleChip.type = 'button';
           styleChip.className = 'selection-prop-chip';
-          const isCurrentlyVoxel = target.cell.appearance?.objectStyle === 'voxel' || 
+          const isCurrentlyVoxel = target.cell.appearance?.objectStyle === 'voxel' ||
             (renderVoxelTerrain && target.cell.appearance?.objectStyle !== 'normal');
           styleChip.textContent = isCurrentlyVoxel ? 'Normal' : 'Voxel';
           styleChip.onclick = () => {
@@ -30070,6 +30083,9 @@
             previewRenderer.render(previewScene, previewCamera);
           }
         }
+        previewBox.querySelectorAll('.selection-tab').forEach(t => {
+          t.setAttribute('aria-selected', t === tab ? 'true' : 'false');
+        });
       });
     }
 
@@ -30460,6 +30476,7 @@
       if (!summary) {
         panel.classList.remove('has-selection');
         previewBox.hidden = true;
+        updateSelectionPreview(null);
         syncAgentTargetChip(null, null);
         if (previewProps) {
           previewProps.innerHTML = '';
@@ -30490,6 +30507,7 @@
         previewList.appendChild(li);
       }
       renderSelectionProperties(summary, entries);
+      updateSelectionPreview(selectedObject);
       if (panelTitle) panelTitle.textContent = 'Selection';
       // Slide the panel in (expanded) and pin so the user can chat about it.
       setPanelCollapsed(false, { pin: true });
