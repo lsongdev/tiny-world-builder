@@ -20172,14 +20172,9 @@
   }
 
   function normalizedAssetTemplateTool(template, index) {
-    const clipboard = template && template.clipboard;
-    const cells = normalizeClipboardCells(clipboard && clipboard.cells);
-    if (!cells.length) return null;
+    const clipboard = normalizeClipboardPayload(template && template.clipboard);
+    if (!clipboard) return null;
     const id = (typeof template.id === 'string' && template.id) ? template.id : 'template-' + index;
-    const size = clipboard && clipboard.size ? clipboard.size : {
-      x: Math.max(...cells.map(c => c.dx)) + 1,
-      z: Math.max(...cells.map(c => c.dz)) + 1,
-    };
     return {
       id: 'asset-template:' + id,
       label: template.name || 'Template ' + (index + 1),
@@ -20189,12 +20184,7 @@
         id,
         name: template.name || 'Template ' + (index + 1),
         createdAt: Number(template.createdAt) || 0,
-        clipboard: {
-          version: 1,
-          origin: clipboard.origin || { x: 0, z: 0 },
-          size,
-          cells,
-        },
+        clipboard,
       },
       isAssetTemplate: true,
       color: '#c98f54',
@@ -20568,7 +20558,8 @@
   function selectStampToolFromCard(tool) {
     if (tool.isAssetTemplate) {
       const template = tool.assetTemplate;
-      if (!template || !setAssetClipboard(template.clipboard)) return;
+      const clipboard = normalizeClipboardPayload(template && template.clipboard);
+      if (!template || !clipboard) return;
       rememberRecentStampTool(tool);
       selectedAssetTemplateId = template.id;
       selectTool({
@@ -20576,12 +20567,12 @@
         label: template.name,
         kind: 'asset-template',
         assetTemplateId: template.id,
-        assetTemplate: template,
+        assetTemplate: Object.assign({}, template, { clipboard }),
         isAssetTemplate: true,
         color: '#c98f54',
       });
       const status = document.getElementById('stamp-builder-status');
-      const count = template.clipboard.cells.length;
+      const count = clipboard.cells.length;
       if (status) status.textContent = 'Selected template: ' + template.name + ' (' + count + ' cell' + (count === 1 ? '' : 's') + ')';
       return;
     }
@@ -21130,8 +21121,9 @@
     }
     if (selectedTool.kind === 'asset-template') {
       const template = selectedTool.assetTemplate || assetTemplateById(selectedTool.assetTemplateId || selectedAssetTemplateId);
-      if (!template || !setAssetClipboard(template.clipboard)) return;
-      pasteClipboardAtTarget({ x, z, userEdited: isOutsideHomeGrid(x, z) }, { animate: true, impactDust: true });
+      const clipboard = normalizeClipboardPayload(template && template.clipboard);
+      if (!clipboard) return;
+      pasteClipboardPayloadAtTarget(clipboard, { x, z, userEdited: isOutsideHomeGrid(x, z) }, { animate: true, impactDust: true });
       return;
     }
 
@@ -21823,6 +21815,20 @@
       .filter(Boolean);
   }
 
+  function normalizeClipboardPayload(payload) {
+    const cells = normalizeClipboardCells(payload && payload.cells);
+    if (!cells.length) return null;
+    return {
+      version: 1,
+      origin: payload.origin || { x: 0, z: 0 },
+      size: payload.size || {
+        x: Math.max(...cells.map(c => c.dx)) + 1,
+        z: Math.max(...cells.map(c => c.dz)) + 1,
+      },
+      cells,
+    };
+  }
+
   function makeClipboardPayload(targets) {
     const valid = (targets || []).filter(t => t && Number.isFinite(t.x) && Number.isFinite(t.z) && t.cell);
     if (!valid.length) return null;
@@ -21865,18 +21871,10 @@
   }
 
   function setAssetClipboard(payload) {
-    const cells = normalizeClipboardCells(payload && payload.cells);
-    if (!cells.length) return false;
-    assetClipboard = {
-      version: 1,
-      origin: payload.origin || { x: 0, z: 0 },
-      size: payload.size || {
-        x: Math.max(...cells.map(c => c.dx)) + 1,
-        z: Math.max(...cells.map(c => c.dz)) + 1,
-      },
-      cells,
-    };
-    copiedHoverCell = cells.length === 1 ? cloneCellIntent(cells[0].cell) : null;
+    const clipboard = normalizeClipboardPayload(payload);
+    if (!clipboard) return false;
+    assetClipboard = clipboard;
+    copiedHoverCell = clipboard.cells.length === 1 ? cloneCellIntent(clipboard.cells[0].cell) : null;
     return true;
   }
 
@@ -22008,6 +22006,11 @@
     return pasteHoveredCellIntent() || pasteClipboardAtTarget(selectedPasteFallbackTarget(), { animate: true, impactDust: true });
   }
 
+  function pasteClipboardPayloadAtActiveTarget(payload) {
+    return pasteClipboardPayloadAtTarget(payload, hoverWorldTarget(true), { animate: true, impactDust: true })
+      || pasteClipboardPayloadAtTarget(payload, selectedPasteFallbackTarget(), { animate: true, impactDust: true });
+  }
+
   function duplicateActiveCellIntent() {
     const selectedTargets = selectedClipboardTargets(true);
     if (!selectedTargets.length) {
@@ -22113,10 +22116,15 @@
     return true;
   }
 
-  function loadLatestTemplateToClipboard() {
+  function latestTemplateClipboardPayload() {
     const templates = loadAssetTemplates();
     const latest = templates[0] && templates[0].clipboard;
-    return !!(latest && setAssetClipboard(latest));
+    return normalizeClipboardPayload(latest);
+  }
+
+  function pasteLatestTemplateAtActiveTarget() {
+    const clipboard = latestTemplateClipboardPayload();
+    return !!(clipboard && pasteClipboardPayloadAtActiveTarget(clipboard));
   }
 
   // keyboard shortcuts
@@ -22179,7 +22187,7 @@
       if (duplicateActiveCellIntent()) e.preventDefault();
     }
     else if (k === 'l') {
-      if (loadLatestTemplateToClipboard() && pasteClipboardAtActiveTarget()) e.preventDefault();
+      if (pasteLatestTemplateAtActiveTarget()) e.preventDefault();
     }
     else if (k === 'p' || k === 'i') togglePerspective();
     else if (k === 'r') { adjustHoverTerrainHeight(+1); }
@@ -30591,9 +30599,7 @@
         else if (value === 'paste') pasteClipboardAtActiveTarget();
         else if (value === 'duplicate') duplicateActiveCellIntent();
         else if (value === 'save-template') saveActiveSelectionTemplate();
-        else if (value === 'paste-template' && loadLatestTemplateToClipboard()) {
-          pasteClipboardAtActiveTarget();
-        }
+        else if (value === 'paste-template') pasteLatestTemplateAtActiveTarget();
         renderSelection();
         return;
       }

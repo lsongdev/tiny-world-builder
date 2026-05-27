@@ -29,8 +29,8 @@ Clipboard and templates:
 - Pasting or duplicating a multi-cell clipboard should call `replaceWorldCoords()` with placed cells so the pasted region stays selected for immediate follow-up edits.
 - Duplicating selected cells should use a one-shot payload and must not overwrite the user's explicit copy/cut clipboard.
 - Moving selected cells between board tiles should reuse the clipboard payload shape internally but must not overwrite the user's explicit copy/cut clipboard.
-- Paste actions should target the hovered cell first, then fall back to the selected region origin. Clear stale hover when the pointer leaves the canvas so this fallback remains reachable. The latest-template shortcut should paste the loaded template, not just stage it in memory.
-- Saved asset templates should also surface in the Stamps panel under `Templates`; selecting one loads its clipboard and clicking the board places it through the normal paste path.
+- Paste actions should target the hovered cell first, then fall back to the selected region origin. Clear stale hover when the pointer leaves the canvas so this fallback remains reachable. The latest-template shortcut should paste a one-shot template payload, not overwrite the user's explicit copy/cut clipboard.
+- Saved asset templates should also surface in the Stamps panel under `Templates`; selecting one should place from its one-shot template payload and preserve the user's explicit copy/cut clipboard.
 - Template cards in Stamps should provide a delete control that removes the `localStorage` entry, refreshes Stamps counts/cards, and clears stale selected-template tool state.
 - Saved template names should summarize their copied cell contents so template cards stay readable and searchable without a separate naming dialog.
 - `Delete`/`Backspace` should clear the active selection or hovered cell without writing to the asset clipboard; keep this separate from cut/copy semantics.
