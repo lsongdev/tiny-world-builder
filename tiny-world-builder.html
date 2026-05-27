@@ -1762,7 +1762,7 @@
     font-style: italic;
   }
 
-  /* Tabbed selection: Preview / Details switch (one pane visible at a time) */
+  /* Tabbed selection: Preview / Properties switch (one pane visible at a time) */
   .selection-tabbar {
     display: inline-flex;
     background: rgba(255,255,255,0.45);
@@ -5348,7 +5348,7 @@
     <div class="agent-selection-preview" id="agent-selection-preview" hidden>
       <div class="selection-tabbar" role="tablist" aria-label="Selection view">
         <button type="button" class="selection-tab active" data-tab="preview" role="tab" aria-selected="true">Preview</button>
-        <button type="button" class="selection-tab" data-tab="details" role="tab" aria-selected="false">Details</button>
+        <button type="button" class="selection-tab" data-tab="properties" role="tab" aria-selected="false">Properties</button>
       </div>
       <div class="selection-tab-content active" data-content="preview">
         <div class="selection-preview-pane">
@@ -5356,7 +5356,7 @@
           <div class="selection-preview-actions" id="selection-preview-actions"></div>
         </div>
       </div>
-      <div class="selection-tab-content" data-content="details">
+      <div class="selection-tab-content" data-content="properties">
         <div class="selection-details-pane">
           <div class="agent-selection-count" id="agent-selection-count">0 tiles selected</div>
           <ul class="agent-selection-list" id="agent-selection-list"></ul>
@@ -30631,7 +30631,7 @@
       }
     }
 
-    // Tab switching for selection preview (Preview vs Details)
+    // Tab switching for selection preview (Preview vs Properties)
     if (previewBox) {
       previewBox.addEventListener('click', (e) => {
         const tab = e.target.closest('.selection-tab');
@@ -31127,7 +31127,7 @@
         previewList.appendChild(li);
       }
       renderSelectionProperties(summary, entries);
-      if (document.documentElement.classList.contains('ai-disabled')) setSelectionTab('details');
+      if (document.documentElement.classList.contains('ai-disabled')) setSelectionTab('properties');
       updateSelectionPreview(selectedObject);
       if (panelTitle) panelTitle.textContent = 'Selection';
       // Slide the panel in (expanded) and pin so the user can chat about it.
