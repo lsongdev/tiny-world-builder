@@ -120,7 +120,8 @@ GPU caches (introduced for low-end GPU + visible-distance scaling):
   cached tiny box geometry and the shared quantized particle material cache, so
   slow falling crumbs do not consume chimney/impact smoke capacity. Make them
   visible by tuning cap/rate/size within that pool before adding another effect
-  path.
+  path. Object landing bursts should also spawn through that same pool at the
+  object's x/z instead of creating a second underside particle system.
 - Floating-island rocket/engine smoke puffs should reuse the existing capped `smokeParticles` pool and cached particle materials. Impact-triggered puffs from heavy drop-ins should be brief, grey/dark-grey, non-shadowing particles rather than a second smoke system.
 - Under-island clouds and rocket plume/smoke effects must render before board/tile transparent fade materials (`UNDER_ISLAND_EFFECT_RENDER_ORDER`) so foreground grass, cliffs, fences, and buildings visually occlude them instead of sorting behind the puffs.
 - Crop duster planes should remain ambient year-round. Only crop-dusting passes are summer/crop-gated; non-summer or no-crop states should fall back to banner flyovers rather than hiding the plane system.

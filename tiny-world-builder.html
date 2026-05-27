@@ -18834,6 +18834,9 @@
         const gz = a.obj.userData.gz;
         const ox = (typeof gx === 'number') ? gx : Math.round(a.obj.position.x + GRID / 2 - 0.5);
         const oz = (typeof gz === 'number') ? gz : Math.round(a.obj.position.z + GRID / 2 - 0.5);
+        if (typeof triggerUndersideDebrisBurstAt === 'function') {
+          triggerUndersideDebrisBurstAt(a.obj.position.x, a.obj.position.z, Math.max(1, mass));
+        }
         if (mass >= 2) {
           triggerRipple(ox, oz, mass); // also plays 'ripple' SFX
           if (mass >= 4 && typeof triggerIslandRocketSmokePuffs === 'function') {
@@ -18857,6 +18860,9 @@
           const gz = a.obj.userData.gz;
           const ox = (typeof gx === 'number') ? gx : Math.round(a.obj.position.x + GRID / 2 - 0.5);
           const oz = (typeof gz === 'number') ? gz : Math.round(a.obj.position.z + GRID / 2 - 0.5);
+          if (typeof triggerUndersideDebrisBurstAt === 'function') {
+            triggerUndersideDebrisBurstAt(a.obj.position.x, a.obj.position.z, Math.max(1, mass));
+          }
           if (mass >= 2) {
             triggerRipple(ox, oz, mass);
             if (mass >= 4 && typeof triggerIslandRocketSmokePuffs === 'function') {
@@ -26702,11 +26708,12 @@
     }
   }
 
-  function islandUndersideDebrisOrigin() {
+  function islandUndersideDebrisOrigin(targetX, targetZ, spread = 0.18) {
     const span = GRID * TILE;
     const half = span * 0.5;
-    let x = 0, z = 0;
-    if (Math.random() < 0.58) {
+    let x = Number.isFinite(targetX) ? targetX : 0;
+    let z = Number.isFinite(targetZ) ? targetZ : 0;
+    if (!Number.isFinite(targetX) || !Number.isFinite(targetZ)) {
       const side = Math.floor(Math.random() * 4);
       const across = (Math.random() - 0.5) * span * 0.86;
       const edge = half * (0.80 + Math.random() * 0.16);
@@ -26714,9 +26721,14 @@
       else if (side === 1) { x = across; z = edge; }
       else if (side === 2) { x = -edge; z = across; }
       else { x = edge; z = across; }
+      if (Math.random() >= 0.58) {
+        x = (Math.random() - 0.5) * span * 0.72;
+        z = (Math.random() - 0.5) * span * 0.72;
+      }
     } else {
-      x = (Math.random() - 0.5) * span * 0.72;
-      z = (Math.random() - 0.5) * span * 0.72;
+      const limit = half * 0.92;
+      x = Math.max(-limit, Math.min(limit, x + (Math.random() - 0.5) * spread));
+      z = Math.max(-limit, Math.min(limit, z + (Math.random() - 0.5) * spread));
     }
     const radial = half > 0 ? Math.min(1, Math.max(Math.abs(x), Math.abs(z)) / half) : 1;
     const centerDrop = Math.max(1.55, Math.min(5.4, GRID * 0.18));
@@ -26724,16 +26736,20 @@
     return { x, y: -DIRT_H - undersideDrop, z };
   }
 
-  function spawnUndersideDebris(count = 1) {
+  function spawnUndersideDebris(count = 1, opts = {}) {
     if (!homeBorderGroup || !homeBorderGroup.children.length) return;
     const colors = [0x4f4c48, 0x665f55, 0x837866, 0xa08f78];
+    const direct = Number.isFinite(opts.x) && Number.isFinite(opts.z);
+    const spread = opts.spread === undefined ? (direct ? 0.46 : 0.18) : opts.spread;
+    const chunkChance = opts.chunkChance === undefined ? 0.18 : opts.chunkChance;
+    const speedBoost = opts.speedBoost === undefined ? 1 : opts.speedBoost;
     for (let i = 0; i < count; i++) {
       if (undersideDebrisParticles.length >= MAX_UNDERSIDE_DEBRIS_PARTICLES) break;
-      const origin = islandUndersideDebrisOrigin();
+      const origin = islandUndersideDebrisOrigin(opts.x, opts.z, spread);
       const colorHex = colors[Math.floor(Math.random() * colors.length)];
       const initialOpacity = 0.50 + Math.random() * 0.28;
       const p = new THREE.Mesh(undersideDebrisGeo, getCachedParticleMaterial(undersideDebrisMat, initialOpacity, colorHex));
-      const chunk = Math.random() < 0.18;
+      const chunk = Math.random() < chunkChance;
       const size = chunk
         ? 0.055 + Math.random() * 0.050
         : 0.026 + Math.random() * 0.052;
@@ -26750,14 +26766,14 @@
       p.scale.set(size * (0.68 + Math.random() * 0.58), size * (0.58 + Math.random() * 0.48), size * (0.68 + Math.random() * 0.58));
       p.userData = {
         life: 0,
-        maxLife: 1.70 + Math.random() * 1.45,
+        maxLife: (direct ? 1.28 : 1.70) + Math.random() * (direct ? 1.02 : 1.45),
         maxOpacity: initialOpacity,
         baseScaleX: p.scale.x,
         baseScaleY: p.scale.y,
         baseScaleZ: p.scale.z,
-        vx: (Math.random() - 0.5) * 0.075,
-        vy: -0.34 - Math.random() * 0.54,
-        vz: (Math.random() - 0.5) * 0.075,
+        vx: (Math.random() - 0.5) * (direct ? 0.16 : 0.075),
+        vy: (-0.34 - Math.random() * 0.54) * speedBoost,
+        vz: (Math.random() - 0.5) * (direct ? 0.16 : 0.075),
         spinX: (Math.random() - 0.5) * 2.0,
         spinY: (Math.random() - 0.5) * 2.4,
         spinZ: (Math.random() - 0.5) * 1.8,
@@ -26767,6 +26783,18 @@
       xrWorldRoot.add(p);
       undersideDebrisParticles.push(p);
     }
+  }
+
+  function triggerUndersideDebrisBurstAt(x, z, mass = 1) {
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return;
+    const count = Math.max(5, Math.min(22, Math.round(5 + mass * 1.65)));
+    spawnUndersideDebris(count, {
+      x,
+      z,
+      spread: 0.34 + Math.min(0.62, mass * 0.035),
+      chunkChance: Math.min(0.42, 0.16 + mass * 0.025),
+      speedBoost: Math.min(1.65, 1.05 + mass * 0.045),
+    });
   }
 
   function tickUndersideDebris(dt) {
