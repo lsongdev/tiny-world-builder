@@ -42,6 +42,7 @@ Clipboard and templates:
 Selection properties:
 
 - Keep selection property controls grouped by durable sections (`Edit`, `Transform`, `Appearance`, `Ground`) so dense multi-selection actions stay scannable.
+- Selection properties must remain available when AI interfaces are disabled (`?ai=0` / `html.ai-disabled`); hide prompt/chat controls, not the selected-object properties surface, and open selected objects directly to Details so the property rows are visible.
 - Split dense edit actions into scannable rows when needed, but keep routing through durable row keys such as `selectionAction` so behavior remains centralized.
 - Section changes should be presentation-only unless the edit contract changes; preserve existing row keys and route behavior through `applySelectionProperty()`.
 - Collapsible property sections should persist in `tinyworld:selection-props-collapsed.v1`; toggling sections must not remove or rename underlying row keys/actions.

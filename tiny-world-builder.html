@@ -4122,6 +4122,13 @@
     .tool kbd { display: none; }
   }
   html.ai-disabled [data-ai-interface] { display: none !important; }
+  html.ai-disabled #agent-panel.has-selection {
+    display: flex !important;
+  }
+  html.ai-disabled #agent-panel.has-selection .agent-panel-clear,
+  html.ai-disabled #agent-panel.has-selection .agent-messages {
+    display: none !important;
+  }
 </style>
 <script type="text/javascript">
   // AI interfaces are a dev/flagged feature. Production hosts default to no
@@ -30606,26 +30613,30 @@
       }
     }
 
+    function setSelectionTab(targetTab) {
+      if (!previewBox) return;
+      previewBox.querySelectorAll('.selection-tab').forEach(t => {
+        const active = t.getAttribute('data-tab') === targetTab;
+        t.classList.toggle('active', active);
+        t.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      previewBox.querySelectorAll('.selection-tab-content').forEach(c => {
+        c.classList.toggle('active', c.getAttribute('data-content') === targetTab);
+      });
+      if (targetTab === 'preview') {
+        resizePreviewRenderer();
+        if (previewRenderer && previewScene && previewCamera) {
+          previewRenderer.render(previewScene, previewCamera);
+        }
+      }
+    }
+
     // Tab switching for selection preview (Preview vs Details)
     if (previewBox) {
       previewBox.addEventListener('click', (e) => {
         const tab = e.target.closest('.selection-tab');
         if (!tab) return;
-        const targetTab = tab.getAttribute('data-tab');
-        previewBox.querySelectorAll('.selection-tab').forEach(t => t.classList.toggle('active', t === tab));
-        previewBox.querySelectorAll('.selection-tab-content').forEach(c => {
-          c.classList.toggle('active', c.getAttribute('data-content') === targetTab);
-        });
-        // ensure preview fills width + re-renders when switched to
-        if (targetTab === 'preview') {
-          resizePreviewRenderer();
-          if (previewRenderer && previewScene && previewCamera) {
-            previewRenderer.render(previewScene, previewCamera);
-          }
-        }
-        previewBox.querySelectorAll('.selection-tab').forEach(t => {
-          t.setAttribute('aria-selected', t === tab ? 'true' : 'false');
-        });
+        setSelectionTab(tab.getAttribute('data-tab'));
       });
     }
 
@@ -31116,6 +31127,7 @@
         previewList.appendChild(li);
       }
       renderSelectionProperties(summary, entries);
+      if (document.documentElement.classList.contains('ai-disabled')) setSelectionTab('details');
       updateSelectionPreview(selectedObject);
       if (panelTitle) panelTitle.textContent = 'Selection';
       // Slide the panel in (expanded) and pin so the user can chat about it.
