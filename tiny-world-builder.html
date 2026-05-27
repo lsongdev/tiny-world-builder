@@ -20035,6 +20035,10 @@
   let voxelStampRefreshTimer = 0;
   let selectedVoxelBuildId = VOXEL_BUILD_STAMPS[0] && VOXEL_BUILD_STAMPS[0].id;
   let selectedAssetTemplateId = null;
+  const stampBuilderThumbQueue = [];
+  const stampBuilderThumbQueuedCanvases = new WeakSet();
+  let stampBuilderThumbQueueTimer = 0;
+  let stampBuilderThumbQueueRunId = 0;
   const STAMP_BUILDER_RECENT_LS = 'tinyworld:stamp-builder-recent.v1';
   const STAMP_BUILDER_RECENT_MAX = 12;
   const STAMP_BUILDER_CATEGORY_DEFS = [
@@ -20564,6 +20568,65 @@
     scene.traverse(o => safeDisposeGeometry(o.geometry));
   }
 
+  function cancelStampBuilderThumbQueue() {
+    stampBuilderThumbQueueRunId++;
+    stampBuilderThumbQueue.length = 0;
+    if (stampBuilderThumbQueueTimer) {
+      clearTimeout(stampBuilderThumbQueueTimer);
+      stampBuilderThumbQueueTimer = 0;
+    }
+  }
+
+  function scheduleStampBuilderThumbQueue(delay = 0) {
+    if (stampBuilderThumbQueueTimer) return;
+    stampBuilderThumbQueueTimer = setTimeout(() => {
+      stampBuilderThumbQueueTimer = 0;
+      requestAnimationFrame(drainStampBuilderThumbQueue);
+    }, delay);
+  }
+
+  function drainStampBuilderThumbQueue() {
+    if (!stampBuilderThumbQueue.length) return;
+    const start = performance.now();
+    let built = 0;
+    while (stampBuilderThumbQueue.length && built < 2 && performance.now() - start < 12) {
+      const item = stampBuilderThumbQueue.shift();
+      if (!item || item.runId !== stampBuilderThumbQueueRunId) continue;
+      if (!item.canvas || !item.canvas.isConnected) continue;
+      stampBuilderThumbQueuedCanvases.delete(item.canvas);
+      if (item.canvas.dataset.stampKey !== item.key) continue;
+      try {
+        renderStampBuilderThumb(item.tool, item.canvas);
+      } catch (_) {
+        drawFallbackThumb(item.canvas, item.tool && item.tool.label, item.tool && item.tool.color || '#9b9a8f');
+      }
+      built++;
+    }
+    if (stampBuilderThumbQueue.length) scheduleStampBuilderThumbQueue(32);
+  }
+
+  function scheduleStampBuilderThumb(tool, canvas, key) {
+    if (!tool || !canvas) return;
+    const cacheKey = thumbCacheKeyForTool(tool);
+    const panelKey = cacheKey ? 'panel:' + cacheKey : '';
+    if (!tool.isAssetTemplate && drawCachedThumb(canvas, panelKey)) return;
+    drawFallbackThumb(canvas, tool.label, tool.color || '#9b9a8f');
+    if (tool.isAssetTemplate) {
+      try { renderAssetTemplateThumb(tool, canvas); }
+      catch (_) { drawFallbackThumb(canvas, tool.label, tool.color || '#c98f54'); }
+      return;
+    }
+    if (stampBuilderThumbQueuedCanvases.has(canvas)) return;
+    stampBuilderThumbQueuedCanvases.add(canvas);
+    stampBuilderThumbQueue.push({
+      runId: stampBuilderThumbQueueRunId,
+      tool,
+      canvas,
+      key,
+    });
+    scheduleStampBuilderThumbQueue();
+  }
+
   function stampBuilderSelectionKey(tool) {
     if (!tool) return '';
     if (tool.assetTemplateId) return 'asset-template:' + tool.assetTemplateId;
@@ -20643,6 +20706,7 @@
   function renderStampBuilderCards() {
     const grid = document.getElementById('stamp-builder-grid');
     if (!grid) return;
+    cancelStampBuilderThumbQueue();
     grid.innerHTML = '';
     updateStampBuilderSummary();
     const allTools = stampBuilderAllTools();
@@ -20693,6 +20757,7 @@
         card.appendChild(deleteBtn);
       }
       const canvas = document.createElement('canvas');
+      canvas.dataset.stampKey = key;
       const title = document.createElement('strong');
       title.textContent = tool.label;
       const meta = document.createElement('div');
@@ -20727,11 +20792,7 @@
       });
       card.append(canvas, title, meta);
       grid.appendChild(card);
-      try {
-        renderStampBuilderThumb(tool, canvas);
-      } catch (err) {
-        drawFallbackThumb(canvas, tool.label, tool.color || '#9b9a8f');
-      }
+      scheduleStampBuilderThumb(tool, canvas, key);
     }
   }
 
