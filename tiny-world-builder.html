@@ -12050,7 +12050,7 @@
   }
 
   function createModelStampPaletteMaterial(asset) {
-    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true, flatShading: true });
+    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true });
     mat.name = 'TinyWorld palette fallback';
     mat.userData.modelStampHydrated = 'palette';
     mat.userData.modelStampPaletteKind = modelStampPaletteKind(asset);
@@ -12346,7 +12346,7 @@
       else geo.computeVertexNormals();
       if (group.uvs.length === (group.positions.length / 3) * 2) geo.setAttribute('uv', new THREE.Float32BufferAttribute(group.uvs, 2));
       const sourceMat = materialLib[group.name];
-      const mat = sourceMat || new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
+      const mat = sourceMat || new THREE.MeshLambertMaterial({ color: 0xffffff });
       if (!sourceMat) {
         mat.name = 'Missing MTL: ' + group.name;
         mat.userData.modelStampMissingMtl = true;

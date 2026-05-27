@@ -38,6 +38,7 @@ Use this together with:
 
 - Prefer 2–4 materials per object: body, dark trim, highlight, accent.
 - Never mutate shared `M.*` material colors for one instance; clone or create a new material. The one allowed global exception is `applySeasonFoliage()`, which centrally retints shared foliage/grass materials for season changes.
+- Three.js r128 `MeshLambertMaterial` does not accept `flatShading`; keep faceted model-stamp fallbacks through non-indexed/flat-normal geometry instead of unsupported material flags.
 - Cottage-style defaults are now part of the built-in material language: use deterministic canvas textures (`texCottageGrass`, `texCottageWood`, `texCottageGlass`, `texCottageStone`, `texCottageDirt`) for grass, board-side/foundation stone, windows, wood, and dirt before adding new ad-hoc texture generators.
 - For imported texture variants, create explicit material variants and swap them at the model mesh level.
 - For toolbar thumbnails, increase contrast/saturation carefully so icons read against the white toolbar, but keep the in-world material natural.
