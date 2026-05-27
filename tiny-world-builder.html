@@ -30399,6 +30399,9 @@
       { label: 'Ash', value: '#a99b85', color: '#a99b85' },
       { label: 'Dark', value: '#3f2a18', color: '#3f2a18' },
     ];
+    function selectionColorOptions(options) {
+      return [{ label: 'Default', value: 'default' }].concat(options || []);
+    }
     const SELECTION_MATERIAL_OPTIONS = [
       { label: 'Default', value: 'default' },
       { label: 'Brick', value: 'brick' },
@@ -30421,8 +30424,8 @@
         return {
           kinds: new Set([kind]),
           rows: [
-            { key: 'topColor', label: 'Top', options: SELECTION_TOP_COLOR_OPTIONS },
-            { key: 'bodyColor', label: 'Body', options: SELECTION_BODY_COLOR_OPTIONS },
+            { key: 'topColor', label: 'Top', options: selectionColorOptions(SELECTION_TOP_COLOR_OPTIONS) },
+            { key: 'bodyColor', label: 'Body', options: selectionColorOptions(SELECTION_BODY_COLOR_OPTIONS) },
           ],
         };
       }
@@ -30430,8 +30433,8 @@
         return {
           kinds: new Set(['tree']),
           rows: [
-            { key: 'topColor', label: 'Leaves', options: SELECTION_LEAF_COLOR_OPTIONS },
-            { key: 'bodyColor', label: 'Trunk', options: SELECTION_TRUNK_COLOR_OPTIONS },
+            { key: 'topColor', label: 'Leaves', options: selectionColorOptions(SELECTION_LEAF_COLOR_OPTIONS) },
+            { key: 'bodyColor', label: 'Trunk', options: selectionColorOptions(SELECTION_TRUNK_COLOR_OPTIONS) },
           ],
         };
       }
@@ -30439,8 +30442,8 @@
         return {
           kinds: new Set(['rock']),
           rows: [
-            { key: 'topColor', label: 'Highlight', options: SELECTION_BODY_COLOR_OPTIONS },
-            { key: 'bodyColor', label: 'Stone', options: SELECTION_BODY_COLOR_OPTIONS },
+            { key: 'topColor', label: 'Highlight', options: selectionColorOptions(SELECTION_BODY_COLOR_OPTIONS) },
+            { key: 'bodyColor', label: 'Stone', options: selectionColorOptions(SELECTION_BODY_COLOR_OPTIONS) },
           ],
         };
       }
@@ -30448,8 +30451,8 @@
         return {
           kinds: new Set([kind]),
           rows: [
-            { key: 'bodyColor', label: kind === 'bridge' ? 'Wood' : 'Main', options: SELECTION_TRUNK_COLOR_OPTIONS },
-            { key: 'topColor', label: 'Accent', options: SELECTION_TOP_COLOR_OPTIONS },
+            { key: 'bodyColor', label: kind === 'bridge' ? 'Wood' : 'Main', options: selectionColorOptions(SELECTION_TRUNK_COLOR_OPTIONS) },
+            { key: 'topColor', label: 'Accent', options: selectionColorOptions(SELECTION_TOP_COLOR_OPTIONS) },
           ],
         };
       }
@@ -30457,8 +30460,8 @@
         return {
           kinds: SELECTION_CROP_COLOR_KINDS,
           rows: [
-            { key: 'topColor', label: kind === 'bush' ? 'Berries' : kind === 'flower' ? 'Bloom' : 'Harvest', options: SELECTION_TOP_COLOR_OPTIONS },
-            { key: 'bodyColor', label: 'Stems', options: SELECTION_LEAF_COLOR_OPTIONS },
+            { key: 'topColor', label: kind === 'bush' ? 'Berries' : kind === 'flower' ? 'Bloom' : 'Harvest', options: selectionColorOptions(SELECTION_TOP_COLOR_OPTIONS) },
+            { key: 'bodyColor', label: 'Stems', options: selectionColorOptions(SELECTION_LEAF_COLOR_OPTIONS) },
           ],
         };
       }
@@ -30466,8 +30469,8 @@
         return {
           kinds: new Set([kind]),
           rows: [
-            { key: 'bodyColor', label: kind === 'sheep' ? 'Wool' : 'Coat', options: SELECTION_BODY_COLOR_OPTIONS },
-            { key: 'topColor', label: kind === 'sheep' ? 'Face' : 'Markings', options: SELECTION_TOP_COLOR_OPTIONS },
+            { key: 'bodyColor', label: kind === 'sheep' ? 'Wool' : 'Coat', options: selectionColorOptions(SELECTION_BODY_COLOR_OPTIONS) },
+            { key: 'topColor', label: kind === 'sheep' ? 'Face' : 'Markings', options: selectionColorOptions(SELECTION_TOP_COLOR_OPTIONS) },
           ],
         };
       }
@@ -30491,16 +30494,19 @@
             chip.type = 'button';
             chip.className = 'selection-prop-chip color-chip';
             chip.title = row.label + ': ' + c.label;
-            if (currentAppearance[row.key] === c.value) {
+            const activeColorValue = currentAppearance[row.key] || 'default';
+            if (activeColorValue === c.value) {
               chip.classList.add('active');
               chip.setAttribute('aria-pressed', 'true');
             } else {
               chip.setAttribute('aria-pressed', 'false');
             }
-            const swatch = document.createElement('span');
-            swatch.className = 'selection-prop-swatch';
-            swatch.style.background = c.color;
-            chip.appendChild(swatch);
+            if (c.color) {
+              const swatch = document.createElement('span');
+              swatch.className = 'selection-prop-swatch';
+              swatch.style.background = c.color;
+              chip.appendChild(swatch);
+            }
             chip.appendChild(document.createTextNode(c.label));
             chip.addEventListener('click', () => {
               applySelectionProperty(row.key, c.value);
@@ -30680,8 +30686,9 @@
         if (rowKey === 'bodyColor' || rowKey === 'topColor') {
           if (!SELECTION_COLOR_EDITABLE_KINDS.has(cell.kind)) return;
           const appearance = Object.assign({}, normalizeAppearance(cell.appearance) || {});
-          appearance[rowKey] = value;
-          setCell(x, z, { ...cell, appearance, animate: false, impactDust: false });
+          if (value === 'default') delete appearance[rowKey];
+          else appearance[rowKey] = value;
+          setCell(x, z, { ...cell, appearance: Object.keys(appearance).length ? appearance : null, animate: false, impactDust: false });
         } else if (rowKey === 'buildingType') {
           if (cell.kind !== 'house') return;
           const floors = value === 'tower' ? Math.max(cell.floors || 1, 2)
@@ -30743,6 +30750,21 @@
         for (const item of items) {
           const value = getter(item);
           if (value === undefined || value === null) return null;
+          if (!hasValue) {
+            hasValue = true;
+            firstValue = value;
+          } else if (value !== firstValue) {
+            return null;
+          }
+        }
+        return hasValue ? firstValue : null;
+      };
+      const uniformAppearanceValue = (items, key) => {
+        let hasValue = false;
+        let firstValue = null;
+        for (const item of items) {
+          const appearance = normalizeAppearance(item && item.appearance) || {};
+          const value = appearance[key] || 'default';
           if (!hasValue) {
             hasValue = true;
             firstValue = value;
@@ -30884,10 +30906,7 @@
           key: row.key,
           label: row.label,
           color: true,
-          currentValue: uniformValue(colorCells, cell => {
-            const appearance = normalizeAppearance(cell.appearance) || {};
-            return appearance[row.key];
-          }),
+          currentValue: uniformAppearanceValue(colorCells, row.key),
           options: row.options,
         })));
         if (primary === 'house') {
