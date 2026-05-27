@@ -21416,7 +21416,12 @@
     if (!hit) return '';
     const bx = hit.boardX || 0;
     const bz = hit.boardZ || 0;
-    return (hit.x + bx * GRID) + ',' + (hit.z + bz * GRID);
+    const x = hit.x + bx * GRID;
+    const z = hit.z + bz * GRID;
+    if (selectedTool && selectedTool.kind === 'fence') {
+      return x + ',' + z + ':' + fenceSideFromHover(hit);
+    }
+    return x + ',' + z;
   }
 
   function drawWorldCoordForHit(hit) {

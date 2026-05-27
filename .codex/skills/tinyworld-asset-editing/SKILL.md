@@ -18,6 +18,7 @@ Placement rules:
 - The selection properties `Actions` row can expose an `Apply tool` command; it should reuse the same bulk-placement helper rather than duplicating placement logic.
 - Shift-drag rectangle fill with a placement tool should leave the filled region selected so users can immediately adjust properties, move, copy, template, or apply another tool.
 - Freehand drawing uses `dragMode === 'draw'`, `drawVisitedCells`, `drawLastWorldCoord`, and `applyDrawToolToHit()`. Drawing should not repeatedly stack terrain, bridges, or same-kind objects while the pointer crosses the same cell.
+- Freehand fence/wall/boundary drawing should de-dupe by world cell plus resolved fence side, so repeated strokes of the same side no-op but corner strokes can add another side to the tile.
 - Fence, wall, and boundary are still `kind: 'fence'`; use `fenceSide` plus `floors`. Wall starts at level 4, boundary at level 5. Drawing a higher-level fence over an existing same-side fence should upgrade to that base level, not silently no-op. This also applies when the fence is stored as an `extras` entry beside another occupant.
 - Interpolated freehand fence/wall/boundary cells should derive auto `fenceSide` from each draw step direction, not from the final pointer edge copied onto every skipped cell. Fixed side variants (`north`, `center-x`, etc.) should still win.
 
