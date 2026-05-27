@@ -8011,10 +8011,28 @@
   function applyAppearanceToObject(root, kind, appearance) {
     const a = normalizeAppearance(appearance);
     if (!root || !a) return root;
-    const topBase = new Set([M.roofBlue, M.manorRoof, M.towerRoof, M.castleRoof, M.skyRoof, M.leaves]);
-    const topDark = new Set([M.roofBlueD, M.manorRoofD, M.towerRoofD, M.castleRoofD, M.leavesDk]);
-    const bodyBase = new Set([M.wallCream, M.manorBrick, M.towerStone, M.castleStone, M.skyBody, M.trunk]);
-    const bodyDark = new Set([M.wallTrim, M.manorBrickD, M.towerStoneD, M.castleStoneD]);
+    const topBase = new Set([
+      M.roofBlue, M.manorRoof, M.towerRoof, M.castleRoof, M.skyRoof,
+      M.leaves, M.rockHi, M.cropLeaf, M.cornCob, M.cornLeaf, M.wheatHead,
+      M.pumpkin, M.carrotBody, M.sunflowerPetal, M_PLANT.petalRed,
+      M_PLANT.petalYellow, M_PLANT.petalPurple, M_PLANT.petalWhite,
+      M_PLANT.bushBerry, M_ANIMAL.cowSpot, M_ANIMAL.cowMuzzle,
+      M_ANIMAL.sheepFace,
+    ]);
+    const topDark = new Set([
+      M.roofBlueD, M.manorRoofD, M.towerRoofD, M.castleRoofD, M.leavesDk,
+      M.pumpkinDk, M.sunflowerCenter, M_ANIMAL.hoof,
+    ]);
+    const bodyBase = new Set([
+      M.wallCream, M.manorBrick, M.towerStone, M.castleStone, M.skyBody,
+      M.trunk, M.bridgeWood, M.fence, M.rock, M.cropStem, M.cornStalk,
+      M.wheatStalk, M.pumpkinStem, M.sunflowerStalk, M_ANIMAL.cowWhite,
+      M_ANIMAL.sheepWool,
+    ]);
+    const bodyDark = new Set([
+      M.wallTrim, M.manorBrickD, M.towerStoneD, M.castleStoneD,
+      M.bridgeWoodD, M.fenceWire, M.fenceSteel, M.rockDk,
+    ]);
     function remap(mat) {
       if (!mat) return mat;
       let next = mat;
@@ -29910,6 +29928,69 @@
       { label: 'Dirt', value: 'cottage-dirt' },
       { label: 'Sand', value: 'sand' },
     ];
+    const SELECTION_COLOR_EDITABLE_KINDS = new Set([
+      'house', 'voxel-build', 'tree', 'rock', 'bridge', 'fence', 'crop',
+      'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower', 'flower', 'bush',
+      'cow', 'sheep',
+    ]);
+    const SELECTION_CROP_COLOR_KINDS = new Set(['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower', 'flower', 'bush']);
+    function selectionColorConfig(kind) {
+      if (kind === 'house' || kind === 'voxel-build') {
+        return {
+          kinds: new Set([kind]),
+          rows: [
+            { key: 'topColor', label: 'Top', options: SELECTION_TOP_COLOR_OPTIONS },
+            { key: 'bodyColor', label: 'Body', options: SELECTION_BODY_COLOR_OPTIONS },
+          ],
+        };
+      }
+      if (kind === 'tree') {
+        return {
+          kinds: new Set(['tree']),
+          rows: [
+            { key: 'topColor', label: 'Leaves', options: SELECTION_LEAF_COLOR_OPTIONS },
+            { key: 'bodyColor', label: 'Trunk', options: SELECTION_TRUNK_COLOR_OPTIONS },
+          ],
+        };
+      }
+      if (kind === 'rock') {
+        return {
+          kinds: new Set(['rock']),
+          rows: [
+            { key: 'topColor', label: 'Highlight', options: SELECTION_BODY_COLOR_OPTIONS },
+            { key: 'bodyColor', label: 'Stone', options: SELECTION_BODY_COLOR_OPTIONS },
+          ],
+        };
+      }
+      if (kind === 'bridge' || kind === 'fence') {
+        return {
+          kinds: new Set([kind]),
+          rows: [
+            { key: 'bodyColor', label: kind === 'bridge' ? 'Wood' : 'Main', options: SELECTION_TRUNK_COLOR_OPTIONS },
+            { key: 'topColor', label: 'Accent', options: SELECTION_TOP_COLOR_OPTIONS },
+          ],
+        };
+      }
+      if (SELECTION_CROP_COLOR_KINDS.has(kind)) {
+        return {
+          kinds: SELECTION_CROP_COLOR_KINDS,
+          rows: [
+            { key: 'topColor', label: kind === 'bush' ? 'Berries' : kind === 'flower' ? 'Bloom' : 'Harvest', options: SELECTION_TOP_COLOR_OPTIONS },
+            { key: 'bodyColor', label: 'Stems', options: SELECTION_LEAF_COLOR_OPTIONS },
+          ],
+        };
+      }
+      if (kind === 'cow' || kind === 'sheep') {
+        return {
+          kinds: new Set([kind]),
+          rows: [
+            { key: 'bodyColor', label: kind === 'sheep' ? 'Wool' : 'Coat', options: SELECTION_BODY_COLOR_OPTIONS },
+            { key: 'topColor', label: kind === 'sheep' ? 'Face' : 'Markings', options: SELECTION_TOP_COLOR_OPTIONS },
+          ],
+        };
+      }
+      return null;
+    }
 
     function populatePreviewActions(target) {
       const container = document.getElementById('selection-preview-actions');
@@ -30103,7 +30184,7 @@
         const cell = getWorldCell(x, z);
         if (!cell) return;
         if (rowKey === 'bodyColor' || rowKey === 'topColor') {
-          if (cell.kind !== 'house' && cell.kind !== 'tree' && cell.kind !== 'voxel-build') return;
+          if (!SELECTION_COLOR_EDITABLE_KINDS.has(cell.kind)) return;
           const appearance = Object.assign({}, normalizeAppearance(cell.appearance) || {});
           appearance[rowKey] = value;
           setCell(x, z, { ...cell, appearance, animate: false, impactDust: false });
@@ -30295,20 +30376,19 @@
           { label: 'West', value: 'w' },
         ] });
       }
-      if (primary === 'house' || primary === 'voxel-build') {
-        const colorCells = selectedCells.filter(cell => cell.kind === 'house' || cell.kind === 'voxel-build');
-        const currentTopColor = uniformValue(colorCells, cell => {
-          const appearance = normalizeAppearance(cell.appearance) || {};
-          return appearance.topColor;
-        });
-        const currentBodyColor = uniformValue(colorCells, cell => {
-          const appearance = normalizeAppearance(cell.appearance) || {};
-          return appearance.bodyColor;
-        });
-        addRows('Appearance', [
-          { key: 'topColor', label: 'Top', color: true, currentValue: currentTopColor, options: SELECTION_TOP_COLOR_OPTIONS },
-          { key: 'bodyColor', label: 'Body', color: true, currentValue: currentBodyColor, options: SELECTION_BODY_COLOR_OPTIONS },
-        ]);
+      const colorConfig = selectionColorConfig(primary);
+      if (colorConfig) {
+        const colorCells = selectedCells.filter(cell => colorConfig.kinds.has(cell.kind));
+        addRows('Appearance', colorConfig.rows.map(row => ({
+          key: row.key,
+          label: row.label,
+          color: true,
+          currentValue: uniformValue(colorCells, cell => {
+            const appearance = normalizeAppearance(cell.appearance) || {};
+            return appearance[row.key];
+          }),
+          options: row.options,
+        })));
         if (primary === 'house') {
           const houseCells = selectedCells.filter(cell => cell.kind === 'house');
           addRow('Appearance', { key: 'buildingType', label: 'Shape', currentValue: uniformValue(houseCells, cell => cell.buildingType || 'cottage'), options: [
@@ -30319,20 +30399,6 @@
             { label: 'High-rise', value: 'skyscraper' },
           ] });
         }
-      } else if (primary === 'tree') {
-        const treeCells = selectedCells.filter(cell => cell.kind === 'tree');
-        const currentLeafColor = uniformValue(treeCells, cell => {
-          const appearance = normalizeAppearance(cell.appearance) || {};
-          return appearance.topColor;
-        });
-        const currentTrunkColor = uniformValue(treeCells, cell => {
-          const appearance = normalizeAppearance(cell.appearance) || {};
-          return appearance.bodyColor;
-        });
-        addRows('Appearance', [
-          { key: 'topColor', label: 'Leaves', color: true, currentValue: currentLeafColor, options: SELECTION_LEAF_COLOR_OPTIONS },
-          { key: 'bodyColor', label: 'Trunk', color: true, currentValue: currentTrunkColor, options: SELECTION_TRUNK_COLOR_OPTIONS },
-        ]);
       }
       addRow('Transform', { key: 'size', label: 'Size', currentValue: currentSize, options: [
         { label: 'Small', value: 'small' },
