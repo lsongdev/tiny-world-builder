@@ -29857,10 +29857,14 @@
             : 'materialTextureScale';
         updateSelectedBoardObjects(target => {
           const appearance = Object.assign({}, normalizeAppearance(target.cell.appearance) || {});
-          const current = appearance[key] || 1;
-          appearance[key] = Math.max(0.5, Math.min(4, current * (value === 'down' ? 0.8 : 1.25)));
-          if (Math.abs(appearance[key] - 1) < 0.001) delete appearance[key];
-          return { appearance };
+          if (value === 'reset') {
+            delete appearance[key];
+          } else {
+            const current = appearance[key] || 1;
+            appearance[key] = Math.max(0.5, Math.min(4, current * (value === 'down' ? 0.8 : 1.25)));
+            if (Math.abs(appearance[key] - 1) < 0.001) delete appearance[key];
+          }
+          return { appearance: Object.keys(appearance).length ? appearance : null };
         });
         return;
       }
@@ -30026,16 +30030,19 @@
           { key: 'objectMaterialScale', label: 'All mat scale', options: [
             { label: 'Smaller', value: 'down' },
             { label: 'Larger', value: 'up' },
+            { label: 'Reset', value: 'reset' },
           ] },
           { key: 'bodyMaterial', label: 'Body material', currentValue: currentBodyMaterial, options: SELECTION_MATERIAL_OPTIONS },
           { key: 'bodyMaterialScale', label: 'Body mat scale', options: [
             { label: 'Smaller', value: 'down' },
             { label: 'Larger', value: 'up' },
+            { label: 'Reset', value: 'reset' },
           ] },
           { key: 'topMaterial', label: 'Top material', currentValue: currentTopMaterial, options: SELECTION_MATERIAL_OPTIONS },
           { key: 'topMaterialScale', label: 'Top mat scale', options: [
             { label: 'Smaller', value: 'down' },
             { label: 'Larger', value: 'up' },
+            { label: 'Reset', value: 'reset' },
           ] },
         ]);
         if (selectedTargets.some(t => t.cell && t.cell.kind !== 'voxel-build')) {
