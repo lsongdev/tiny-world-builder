@@ -12274,10 +12274,11 @@
     if (!asset) return makeModelStampPlaceholder(null, 'Model missing');
     const cache = loadModelStampAsset(asset);
     if (cache && cache.state === 'ready' && cache.scene) {
-      return normalizeModelStampObject(cloneModelStampScene(cache.scene), asset);
+      const stamp = normalizeModelStampObject(cloneModelStampScene(cache.scene), asset);
+      return applyAppearanceToObject(stamp, 'model-stamp', opts.appearance);
     }
     const placeholder = makeModelStampPlaceholder(asset, cache && cache.errorMessage ? cache.errorMessage : 'Loading model');
-    return placeholder;
+    return applyAppearanceToObject(placeholder, 'model-stamp', opts.appearance);
   }
 
   function scheduleModelStampRefresh(modelStampId) {
@@ -18234,7 +18235,7 @@
     if (kind === 'house' && isUnderpassTerrain(cell.terrain)) {
       mesh = wrapHouseForUnderpass(mesh, cell.terrain);
     }
-    applyAppearanceToObject(mesh, kind, cell.appearance);
+    if (kind !== 'model-stamp') applyAppearanceToObject(mesh, kind, cell.appearance);
     const appearanceForTransform = appearanceForRender;
     const userScale = appearanceForTransform && appearanceForTransform.objectScale ? appearanceForTransform.objectScale : 1;
     const userScaleX = appearanceForTransform && appearanceForTransform.scaleX ? appearanceForTransform.scaleX : 1;
