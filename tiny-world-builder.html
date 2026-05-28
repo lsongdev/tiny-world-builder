@@ -1037,6 +1037,14 @@
               <input type="checkbox" id="render-planes-enabled" />
               <span>Planes <em class="gen-hint">ambient flyovers and towed banners</em></span>
             </label>
+            <label class="gen-check" data-settings-keywords="distant worlds mini islands background dressing decoration performance">
+              <input type="checkbox" id="render-distant-worlds" />
+              <span>Distant worlds <em class="gen-hint">background mini-islands</em></span>
+            </label>
+            <label class="gen-check" data-settings-keywords="cloud sea clouds below islands floating atmosphere fog performance">
+              <input type="checkbox" id="render-cloud-sea" />
+              <span>Cloud sea <em class="gen-hint">soft cloud layer beneath the islands</em></span>
+            </label>
             <div class="range-row">
               <span>Undercloud width</span>
               <input id="render-undercloud-spread" type="range" min="70" max="220" step="1" />
@@ -1342,6 +1350,7 @@
   <script src="engine/world/28-generate-panel-agent.js"></script>
   <script src="engine/world/29-persistence-api.js"></script>
   <script src="engine/world/30-ui-boot-wiring.js"></script>
+  <script src="engine/world/31-cloud-sea.js"></script>
   <script src="engine/world/99-late-boot.js"></script>
 </body>
 </html>

@@ -92,6 +92,9 @@
       distantWorldGroup.remove(c);
       disposeGroup(c);
     }
+    // Setting off: leave the group empty + hidden (also reclaims merge/draw cost).
+    if (!renderDistantWorlds) { distantWorldGroup.visible = false; return; }
+    distantWorldGroup.visible = true;
     const placements = [
       { x: -20, z: -15, y: -1.2, s: 0.44, r: 0.25 },
       { x: 22, z: -13, y: -1.6, s: 0.36, r: -0.45 },
@@ -119,6 +122,14 @@
       o.frustumCulled = true;
       o.raycast = function () {};
     });
+  }
+
+  // Render-settings toggle: show/hide the decorative background mini-worlds.
+  function setDistantWorldsVisible(on) {
+    renderDistantWorlds = !!on;
+    try { localStorage.setItem(RENDER_LS.distantWorlds, renderDistantWorlds ? '1' : '0'); } catch (_) {}
+    // Rebuild handles both directions: populates when on, clears+hides when off.
+    buildDistantWorlds();
   }
 
   function addIslandSideBacking(parent) {

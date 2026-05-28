@@ -13,3 +13,9 @@
   // load and reached forward into module 27 (syncPlanetUnderlayToggle) and
   // syncAiSettings. Runs identically here, after every module is defined.
   setupRenderSettings();
+
+  // Build the cloud sea now if it was left enabled in a previous session
+  // (default is off, so this is usually a no-op).
+  if (typeof setCloudSeaEnabled === 'function' && typeof renderCloudSea !== 'undefined') {
+    setCloudSeaEnabled(renderCloudSea);
+  }

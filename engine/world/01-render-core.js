@@ -159,6 +159,8 @@
     cloudHeight: 'tinyworld:render:cloudHeight',
     cloudShadow: 'tinyworld:render:cloudShadow',
     planesEnabled: 'tinyworld:render:planesEnabled',
+    distantWorlds: 'tinyworld:render:distantWorlds',
+    cloudSea: 'tinyworld:render:cloudSea',
     underCloudSpread: 'tinyworld:render:underCloudSpread',
     skyBlueDepth: 'tinyworld:render:skyBlueDepth',
     skyBlueSaturation: 'tinyworld:render:skyBlueSaturation',
@@ -234,6 +236,8 @@
     cloudHeight: '6',
     cloudShadow: '0',
     planesEnabled: '0',
+    distantWorlds: '1',
+    cloudSea: '0',
     underCloudSpread: '1.35',
     skyBlueDepth: '0.58',
     skyBlueSaturation: '1',
@@ -420,6 +424,10 @@
   // denser parts of each cloud cast on the world below.
   let renderCloudShadow = storedNumber(RENDER_LS.cloudShadow, 0, 0, 1);
   let renderPlanesEnabled = localStorage.getItem(RENDER_LS.planesEnabled) === '1';
+  // Decorative background mini-worlds (distant-worlds group); on by default.
+  let renderDistantWorlds = localStorage.getItem(RENDER_LS.distantWorlds) !== '0';
+  // Soft sprite "cloud sea" below the islands; off by default (opt-in).
+  let renderCloudSea = localStorage.getItem(RENDER_LS.cloudSea) === '1';
   let renderUnderCloudSpread = storedNumber(RENDER_LS.underCloudSpread, 1.35, 0.7, 2.2);
   let renderSkyBlueDepth = storedNumber(RENDER_LS.skyBlueDepth, 0.58, 0, 1);
   let renderSkyBlueSaturation = storedNumber(RENDER_LS.skyBlueSaturation, 1, 0.25, 2.2);

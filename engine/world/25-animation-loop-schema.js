@@ -47,6 +47,7 @@
     tickStart = repaintProfileBegin();
     tickUndersideDebris(dt);
     updateClouds(dt);
+    if (typeof tickCloudSea === 'function') tickCloudSea(t, dt);
     tickWaterTextureFlow(dt);
     updateWaterfallEffects(t);
     repaintProfileEnd('tick.effects', tickStart);
