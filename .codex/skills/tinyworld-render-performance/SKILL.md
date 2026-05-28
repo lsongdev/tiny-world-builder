@@ -25,11 +25,29 @@ GPU caches (introduced for low-end GPU + visible-distance scaling):
 - Backdrop/game-screen vignette should remain a cheap CSS overlay variable, not another WebGL post pass. Keep it separate from scene brightness/lighting so it can frame the background without retuning materials.
 - Sky/background colour controls are direct scene/CSS settings, not post passes: `Sky blue depth` darkens the shader sphere and CSS backdrop, `Sky blue saturation` pushes the same blue hue harder, and `Undercloud width` rebuilds the small under-island cloud ring. `Cloud height` also controls undercloud depth below the island, slightly farther than the upper cloud distance, so one height adjustment moves both cloud layers. Keep the undercloud layer as a handful of instanced cloud-puff groups attached below the floating island; do not make a full volumetric cloud field or reuse the full multi-mesh shadow-casting sky cloud factory there.
 - Floating-island underside depth should use a small number of cached voxel/box slabs and cached utility cylinders attached to `homeBorderGroup`, not per-cell underside geometry. Treat underside/edge/rocket/utility dressing as decorative scenery: set `castShadow = false` and `receiveShadow = false` after building it so hundreds of tiny underside meshes do not enter the shadow-map pass.
-- Animated waterfall froth should stay capped to a few simple meshes per exposed water edge and reuse the waterfall animation set.
-- Waterfall curtain/blade variety should stay mesh-light: vary plane lengths,
-  add only a few faint lower tail planes, and use the shared quantized particle
-  material cache for opacity changes. Do not introduce a per-frame cloned
-  material or shader pass just to make blade ends fade unevenly.
+- Animated waterfall froth/chunks should stay batched as `THREE.InstancedMesh`
+  pools per exposed water edge, not one mesh per puff/drop. Keep the instance
+  matrix update inside `updateWaterfallEffects()` and mark the pools
+  non-shadowing.
+- Waterfall curtain/blade variety should come from the shared shader sheets
+  (`getWaterfallCurtainMaterial()` / `getWaterfallSurfaceMaterial()`), so each
+  exposed water edge uses one vertical sheet plus one surface-flow sheet instead
+  of many blade/tail meshes. If a future pass merges whole rows of waterfalls,
+  keep the same shader-sheet contract and aggregate spans above the per-cell
+  tile factories.
+- Voxel object factories that emit repeated `vbox()` pieces should finish with
+  `optimizeVoxelObjectGroup(...)` so matching geometry/material pieces become
+  local `THREE.InstancedMesh` buckets. Keep the legacy factory code intact; the
+  optimization is a render-layer replacement for repeated live meshes, not a
+  removal of the authored object.
+- Home and duplicate floating-island bases count as voxel object assemblies too:
+  run `optimizeVoxelObjectGroup(...)` after underside/engine/edge dressing is
+  authored so repeated clamps, boxes, and small slabs batch before LOD copies
+  multiply their draw cost.
+- Contiguous same-style voxel fence rows should render as span meshes through
+  `findFenceRenderSpan()` / `makeVoxelFenceSpan()` while keeping per-cell
+  `world` intent and tile picking unchanged. Refresh the full connected fence
+  component after edits so old anchors/non-anchors do not linger.
 - Waterfall froth/foam should drift slowly. Keep `WATERFALL_FROTH_SPEED`
   conservative (currently `0.30`) so the white puff layer reads as moving foam,
   not flashing particles.
@@ -62,7 +80,7 @@ GPU caches (introduced for low-end GPU + visible-distance scaling):
 - Stamps panel card thumbnails share the toolbar thumbnail renderer/cache but should not synchronously build every 3D thumbnail during open/search/category renders. Keep fallback thumbs immediate, cancel stale card-thumb queues on panel re-render, and drain expensive card thumbs in small `requestAnimationFrame` batches.
 - Home grids above the windowing threshold are **intent-full / render-windowed**: `world[][]` may hold the full 512×512 board, but `cellMeshes` must only hold the camera-centred home render window. Keep large-grid bulk load/clear paths on intent writes plus `requestHomeRenderWindowSync()`, not `GRID²` mesh rebuilds. Keep `world[][]` sparse: virtual default grass comes from `getWorldCell()`/`ensureWorldCell()`, not from preallocating `HOME_GRID_MAX²` cells. Any direct `world[x][z]` read on an editing/API path must either guard the row or use `getWorldCell()` so untouched large-grid rows still behave as default terrain.
 - Duplicate editable islands follow the same sparse-intent rule: a new island gets one pickable default grass surface and only edited cells get materialized through `setCell()`. Do not restore per-island `GRID²` grass seeding; 50 islands must stay mostly proxies/sparse cells until edited.
-- Use `?demo=island-stress&islands=50&stats=1` or `window.__runIslandStressDemo(50)` to measure duplicate-island scaling. The stats overlay reports island LOD counts (`full/proxy/hidden`) plus live `cellMeshes`.
+- Use `?demo=island-stress&islands=50&stats=1` or `window.__runIslandStressDemo(50)` to measure duplicate-island scaling. The stats overlay reports island LOD counts (`full/proxy/hidden`) plus the active full-detail budget and live `cellMeshes`. Keep duplicate editable islands under a capped full-detail LOD budget; the selected island remains full and only the nearest in-budget islands keep full bases/engines/content, while the rest use proxies.
 - Preview/ghost boards are full `GRID²` boards today. Until they are chunked/windowed too, clamp 96+ grids to `ghostRadius = 0` / preview distance 0, and keep 128+ boards preview-disabled. Otherwise a single neighbour at 128+ explodes into tens of thousands of meshes/instances per board. Do not degrade visible Preview objects into cheap proxy boxes/cones/pyramids; if full-fidelity preview is too expensive, reduce or disable preview rings instead. If the cheap ghost terrain instancing path is used, clear its global buckets when ghost boards are cleared/disabled/resized so stale instanced terrain cannot remain in the scene.
 - To keep draw calls low on full-detail ghost boards, all terrain tiles and objects are merged by material and fade role (`'tile'` / `'object'`) into single meshes using `mergeGhostTerrainByMaterial(board)`. The merged meshes are centered at the board center to preserve distance-based fading via `opacityAtWorldPosition`. Raycasting resolves click/hover cell coordinates `(gx, gz)` using `resolveRaycastCell(h)` by mapping hit coordinates relative to the board bounds. When a ghost cell is materialized (clicked or edited), `removeGhostCellMesh` triggers `rebuildGhostBoard` to regenerate the merged meshes without the edited cell.
 - Full-quality ghost tiles are `THREE.Group` roots with many static leaf meshes. `mergeGhostTerrainByMaterial(board)` must traverse those leaf meshes, merge by each leaf's base material, and skip special animated/effect meshes such as waterfall/weather children. Do not regress to only checking direct board children; that leaves the merge path effectively disabled.
@@ -80,7 +98,7 @@ GPU caches (introduced for low-end GPU + visible-distance scaling):
   reveal they can read as transient artifacts because faded materials use
   transparent/depthWrite-off buckets, and sliced builds may briefly render
   adjacency-sensitive path/water/shore details before the final settle pass.
-- Stats overlay (`?stats=1` or backtick key) reads `renderer.info` and reports FPS, draws, tris, geoms, mats, programs, textures, ghost-board count + queue depth. Use it to measure any rendering change.
+- Stats overlay (`?stats=1` or backtick key) reads `renderer.info` and reports FPS, draws, tris, geoms, mats, programs, textures, ghost-board count + queue depth. It also shows the repaint profiler when visible: render submit buckets, frame tick buckets, `setCell` refresh/plan/save time, tile/object/extras rebuild time, queue drains, and dispose traversal. Use `?repaint=1` or `window.__tinyworldRepaintProfile.setEnabled(true)` for a focused repaint breakdown, and `window.__tinyworldRepaintProfile.snapshot()` to inspect the current top buckets.
 - Default color grade should stay neutral: brightness 1, saturation 1, contrast 1.
 - Render settings are user-adjustable and persisted in `localStorage` under `tinyworld:render:*`.
 - Tilt-shift blur stays active while the camera is moving, panning, zooming,
@@ -125,6 +143,20 @@ GPU caches (introduced for low-end GPU + visible-distance scaling):
   path. Object landing bursts should also spawn through that same pool at the
   object's x/z instead of creating a second underside particle system.
 - Floating-island rocket/engine smoke puffs should reuse the existing capped `smokeParticles` pool and cached particle materials. Impact-triggered puffs from heavy drop-ins should be brief, grey/dark-grey, non-shadowing particles rather than a second smoke system.
+- Home-island rocket/jet plumes should be a few yaw-facing shader sheets using
+  cached plane geometry and shared materials, not dozens of individual animated
+  flame cubes per engine. Rotate the sheet only around the local Y axis so it
+  reads from the camera without copying the full camera quaternion or moving the
+  thrust off the nozzle. The tick path should update one shared time uniform plus
+  light sheet scale/position pulses, while intermittent smoke stays on the capped
+  particle pool. Keep the old voxel plume object builder available as an
+  inactive legacy helper so those objects can be reused later without
+  re-authoring them.
+- Duplicate-island lift propellers should switch to one cached circle geometry
+  plus one shared dark shader material for the high-RPM blur/strobe disc. Keep
+  the physical blade groups visible only during startup/slow spin, keep bulky
+  outer caps and old hub-block cubes opt-in rather than default, and avoid
+  per-prop material clones or per-frame shader allocation.
 - Under-island clouds and rocket plume/smoke effects must render before board/tile transparent fade materials (`UNDER_ISLAND_EFFECT_RENDER_ORDER`) so foreground grass, cliffs, fences, and buildings visually occlude them instead of sorting behind the puffs.
 - Crop duster planes should remain ambient year-round. Only crop-dusting passes are summer/crop-gated; non-summer or no-crop states should fall back to banner flyovers rather than hiding the plane system.
 - Ghost board frustum culling: In `renderScene()`, active ghost boards must be dynamically frustum-culled using the camera view frustum. Apply a safety padding (e.g., `GRID * TILE * 0.5`) to the bounding boxes to prevent mountain shadow pop-out.

@@ -37,6 +37,13 @@ Anything you add that should live on the island should be appended inside
 `buildHomeBorder()` so it rebuilds correctly when the user changes
 `#render-home-grid` (the home board size selector).
 
+Home-island rocket engines keep their chunky voxel casing, but the animated
+jet plume is a small set of static or simply X-flipped shader sheets. Do not
+rebuild it as many per-layer flame cubes; the sheet approach keeps the
+underside readable while staying cheap for large-island scenes. Keep older
+voxel object builders as inactive legacy helpers rather than deleting them;
+they may be useful again for alternate engine styles or detail settings.
+
 ## Autoincentive sponsor banner
 
 The PNG/JPG ships inline as `AUTOINCENTIVE_BANNER_DATA_URL` (~41 KB base64
@@ -93,10 +100,27 @@ travelling along the X axis). Banner messages come from `BANNER_MESSAGES`.
   `voxel_lift_engine.html`: propellers face downward and the thrust/plume/glow
   system remains off. Do not register these with `islandRocketFlames` or
   `islandRocketEngines`.
+- For duplicate-island lift engines, the engine wrapper rotates local axes
+  downward. Keep propeller local `X`/`Y` offsets at `0` so it stays centred on
+  the visible lift shaft; use local `Z` (currently
+  `EDITABLE_ISLAND_PROP_LOCAL_Z = -2.84`) for the lower shaft mount, and keep
+  the short non-spinning spindle sleeve at `EDITABLE_ISLAND_PROP_SPINDLE_LINK_Z`
+  so the propeller visibly connects to the shaft. Keep the legacy large outer
+  hub cap and old two-cube hub blocks behind opt-in flags; the default propeller
+  should not show block lumps on top of the shader/blur disc. High-RPM
+  readability comes from the shared dark shader blur/strobe disc, while the
+  voxel blade groups are a startup/slow-spin visual.
 - Duplicate island lift engines are island attachments, not board cells.
   Persist their `engines` state on the island record, stamp engine meshes with
   `editableIslandEngineId` for raycast selection, and tick their propellers from
   the central animation loop.
+- Mooring cables are point-to-point world decorations, not board cells. Store
+  only anchor records in `moorings` (`scope: home|island`, optional
+  `islandId`, and local `{x,y,z}`), rebuild their TubeGeometry under the
+  non-pickable `mooringGroup`, and include them in undo/export/save state. When
+  placing a cable, raycast exact surface points rather than `pickTile()` so
+  underside picks work, and reject routes that pass through registered
+  propeller, jet engine, or rocket plume hazard spheres.
 - Number duplicate-island engine slots around the island. Slots 1 and 3 spin
   clockwise; slots 2 and 4 spin anticlockwise, so diagonal props match while
   adjacent props counter-rotate.

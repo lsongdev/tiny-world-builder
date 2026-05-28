@@ -116,8 +116,57 @@ if (!/addVoxelTerrainTop\(g, terrain, x, z, visualRise - seamOverlap \* 0\.5/.te
 if (!/terrain === 'water'\) return -0\.070/.test(html) || !/terrain === 'dirt'\) return 0\.034/.test(html)) {
   fail('terrain surface offsets must lower water channels and lift dirt/soil slightly');
 }
-if (!/waterfallFoamPuff/.test(html) || !/function getWaterfallFoamGeometry/.test(html) || !/kind: 'foam'/.test(html)) {
-  fail('waterfalls must include animated translucent foam puffs');
+if (!/waterfallFoamPuff/.test(html) || !/function getWaterfallFoamGeometry/.test(html) || !/kind: 'foamBatch'/.test(html)) {
+  fail('waterfalls must include batched translucent foam puffs');
+}
+if (!/function getWaterfallCurtainMaterial/.test(html) || !/function getWaterfallSurfaceMaterial/.test(html) || !/kind: 'shaderSheet'/.test(html)) {
+  fail('waterfall curtains and surface flows must use shared shader sheets');
+}
+if (!/function optimizeVoxelObjectGroup/.test(html) || !/new THREE\.InstancedMesh\(bucket\.geometry, bucket\.material, bucket\.items\.length\)/.test(html)) {
+  fail('voxel object factories must have a shared InstancedMesh batching helper');
+}
+if (!/optimizeVoxelObjectGroup\(g, \{ reason: 'voxel-build-stamp' \}\)/.test(html) || !/optimizeVoxelObjectGroup\(g, \{ reason: 'voxel-crop' \}\)/.test(html)) {
+  fail('voxel stamps and crops must route repeated boxes through the batching helper');
+}
+if (!/window\.__tinyworldRepaintProfile/.test(html) || !/repaintProfileEnd\('render\.direct'/.test(html) || !/repaintProfileEnd\('setCell\.refresh'/.test(html) || !/repaintProfileEnd\('tick\.effects'/.test(html)) {
+  fail('stats mode must expose repaint profiling across render, setCell refresh, and frame effect buckets');
+}
+if (!/function editableIslandFullLodBudget/.test(html) || !/function editableIslandFullLodSet/.test(html) || !/islandStats\.fullBudget/.test(html)) {
+  fail('duplicate editable islands must cap full-detail LODs and report the active full-island budget');
+}
+if (!/optimizeVoxelObjectGroup\(homeBorderGroup, \{ reason: 'home-island-border' \}\)/.test(html) || !/optimizeVoxelObjectGroup\(g, \{ reason: 'editable-island-base' \}\)/.test(html)) {
+  fail('home and duplicate island base dressing must route repeated voxel pieces through batching');
+}
+if (!/function findFenceRenderSpan/.test(html) || !/function makeVoxelFenceSpan/.test(html) || !/batchedSpan: true/.test(html)) {
+  fail('voxel fences must collapse same-style contiguous rows into batched spans');
+}
+if (!/function getEditableIslandPropellerDiscMaterial/.test(html) || !/propellerDiscShader/.test(html) || !/propellerBlurDisc/.test(html)) {
+  fail('editable island lift propellers must switch to a shared shader blur disc at high RPM');
+}
+if (!/const EDITABLE_ISLAND_PROP_LOCAL_Z = -2\.84/.test(html) || !/const EDITABLE_ISLAND_PROP_SPINDLE_LINK_Z = -2\.66/.test(html) || !/prop\.position\.set\(0,\s*0,\s*EDITABLE_ISLAND_PROP_LOCAL_Z - \(level - 1\) \* 0\.18\)/.test(html) || !/sourceCube\(body,\s*0,\s*0,\s*EDITABLE_ISLAND_PROP_SPINDLE_LINK_Z/.test(html) || !/prop\.userData\.spinRamp/.test(html)) {
+  fail('editable island lift propellers must stay centered on the lift shaft and ramp into the blur disc');
+}
+if (!/showLegacyOuterCap = opts\.showOuterPropellerCap === true/.test(html) || !/showHubBlocks = opts\.showPropellerHubBlocks === true/.test(html) || !/legacyPropellerHubBlock/.test(html)) {
+  fail('editable island lift propellers must hide old cap and hub blocks by default while keeping them opt-in');
+}
+if (!/uTint: \{ value: new THREE\.Color\(0x2d3235\) \}/.test(html) || !/uWarm: \{ value: new THREE\.Color\(0x5f4935\) \}/.test(html)) {
+  fail('editable island lift propeller blur disc must stay dark enough to read at speed');
+}
+if (!/function getIslandRocketPlumeMaterial/.test(html) || !/rocketPlumeShader/.test(html) || !/rocketPlumeSheet/.test(html)) {
+  fail('home island rocket plumes must use shared static shader sheets');
+}
+if (!/function updateIslandRocketPlumeFacing/.test(html) || !/mesh\.rotation\.y = Math\.atan2\(dx, dz\)/.test(html)) {
+  fail('home island rocket plume sheets must yaw toward the camera so they do not render as flat slices');
+}
+if (/rocketPlumeSheet[\s\S]{0,900}quaternion\.copy\(camera\.quaternion\)/.test(html) || /rocketPlumeSheet[\s\S]{0,900}lookAt\(camera/.test(html)) {
+  fail('home island rocket plume sheets must use constrained yaw-facing, not full camera quaternion/lookAt billboarding');
+}
+if (!/const LEGACY_ISLAND_ROCKET_PLUME_LAYERS = \[/.test(html) || !/function addLegacyIslandRocketVoxelPlume/.test(html) || !/function registerIslandRocketFlame/.test(html)) {
+  fail('legacy home island rocket voxel plume objects must remain available for reuse');
+}
+const rocketEngineFactory = html.match(/function makeVoxelRocketEngine[\s\S]*?function addIslandRocketEngines/);
+if (!rocketEngineFactory || !/addIslandRocketPlume\(g, seed\)/.test(rocketEngineFactory[0]) || /addLegacyIslandRocketVoxelPlume/.test(rocketEngineFactory[0])) {
+  fail('home island rocket engine default must use the shader plume while keeping legacy voxel plumes inactive');
 }
 if (!/function voxelInvertedSteppedRoof/.test(html) || !/voxelInvertedSteppedRoof\(homeBorderGroup, GRID \* TILE/.test(html)) {
   fail('home board must include the inverted stepped roof underside for floating-island depth');

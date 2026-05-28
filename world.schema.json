@@ -27,6 +27,12 @@
       "description": "Optional editable duplicate island boards. Cells on these islands use world coordinates derived from boardX/boardZ and are saved in cells only when non-default.",
       "items": { "$ref": "#/$defs/island" }
     },
+    "moorings": {
+      "type": "array",
+      "description": "Optional point-to-point cable ties between the home board and duplicate islands. Anchors are stored in home or island local coordinates so cables follow moved islands.",
+      "maxItems": 96,
+      "items": { "$ref": "#/$defs/mooring" }
+    },
     "cameraMode": {
       "type": "string",
       "enum": ["ortho", "topdown", "perspective", "fp"],
@@ -115,6 +121,36 @@
         "type": { "type": "string", "enum": ["lift", "turbo", "heavy"] },
         "level": { "type": "integer", "minimum": 1, "maximum": 3 },
         "installed": { "type": "boolean" }
+      }
+    },
+    "mooring": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["a", "b"],
+      "properties": {
+        "id": { "type": "string" },
+        "a": { "$ref": "#/$defs/mooringAnchor" },
+        "b": { "$ref": "#/$defs/mooringAnchor" }
+      }
+    },
+    "mooringAnchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "local"],
+      "properties": {
+        "scope": { "type": "string", "enum": ["home", "island"] },
+        "islandId": { "type": ["string", "null"] },
+        "local": { "$ref": "#/$defs/vector3" }
+      }
+    },
+    "vector3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": { "type": "number", "minimum": -2048, "maximum": 2048 },
+        "y": { "type": "number", "minimum": -2048, "maximum": 2048 },
+        "z": { "type": "number", "minimum": -2048, "maximum": 2048 }
       }
     },
     "buildingType": {

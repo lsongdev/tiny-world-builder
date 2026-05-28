@@ -65,7 +65,13 @@ Use this together with:
 
 - Animate only transforms and opacity.
 - Respect the existing `userData.landing` pattern for placed cell objects.
-- For propellers: wrap or find the named prop mesh, spin around its local blade axis every frame, and add a translucent disc for high-RPM readability.
+- For propellers: wrap or find the named prop mesh, spin around its local blade axis every frame, and add a translucent disc for high-RPM readability. For TinyWorld-built lift engines, keep the fan plane centred on the lower shaft mount, prefer a shared dark shader blur/strobe disc, and hide physical blade groups once the spin ramp reaches speed.
+- For rocket/jet flames: prefer chunky pixel/block shader sheets or capped
+  particle pools over many animated micro-meshes. Preserve the toy-like
+  silhouette with a plume that narrows toward the bottom, hard flicker bands,
+  and warm core/outer colours rather than realistic volumetric fire. When
+  replacing an object style, keep the older object factory as an inactive
+  legacy helper instead of deleting it.
 - For aircraft: use shallow easing, pitch with climb/descent slope, and bank during turns. Do not teleport or dive straight down into the board.
 - Particle effects should be capped and use cheap cloned `MeshBasicMaterial`; dispose particle materials when particles die.
 
