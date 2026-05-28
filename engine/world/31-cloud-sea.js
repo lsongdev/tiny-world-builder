@@ -203,10 +203,12 @@
     const soft = renderCloudStyle === 'soft';
     if (soft) buildSkyClouds();
     skyCloudsGroup.visible = soft;
-    // Hide/show only the overhead voxel clouds (module 23). updateClouds keeps
-    // ticking but the group is simply not drawn while soft mode is active.
-    // The under-island cloud layer is left untouched (per design decision).
+    // Hide/show the voxel clouds (module 23). updateClouds keeps ticking but
+    // the groups are simply not drawn while soft mode is active. Hide both the
+    // overhead clouds AND the under-island clouds so soft mode fully replaces
+    // the blocky cloud look.
     if (typeof cloudGroup !== 'undefined' && cloudGroup) cloudGroup.visible = !soft;
+    if (typeof underIslandCloudGroup !== 'undefined' && underIslandCloudGroup) underIslandCloudGroup.visible = !soft;
   }
 
   // Rebuild soft clouds when their driving settings change (called from the
