@@ -1179,6 +1179,59 @@
     image-rendering: -webkit-optimize-contrast;
     filter: contrast(1.45) brightness(0.78) saturate(1.28);
   }
+
+  /* Flat tool glyphs (game-icons.net, CC BY 3.0) — replace the WebGL 3D
+     thumbnails. Solid fill in ink, so they override the stroke icon rules. */
+  .tool .tool-glyph {
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink);
+    pointer-events: none;
+  }
+  .tool .tool-glyph svg {
+    width: 26px;
+    height: 26px;
+    display: block;
+    fill: currentColor;
+    stroke: none;
+  }
+  .flyout-tool .tool-glyph { width: 42px; height: 42px; }
+  .flyout-tool .tool-glyph svg { width: 34px; height: 34px; }
+  .tool .tool-glyph.tool-glyph-empty {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    background: var(--glyph-color, #9b9a8f);
+  }
+
+  /* Positional-type background tint: terrain (ground) / primary (the object
+     that owns a tile) / tertiary (overlays that stack onto a primary, e.g.
+     fences). Placed after .tool:hover/.active so the type colour wins. */
+  .tool[data-pos-type="terrain"]  { background: rgba(122, 170, 72, 0.16); }
+  .tool[data-pos-type="primary"]  { background: rgba(58, 114, 200, 0.13); }
+  .tool[data-pos-type="tertiary"] { background: rgba(214, 142, 54, 0.18); }
+  .tool[data-pos-type="terrain"]:hover  { background: rgba(122, 170, 72, 0.30); color: var(--ink); }
+  .tool[data-pos-type="primary"]:hover  { background: rgba(58, 114, 200, 0.24); color: var(--ink); }
+  .tool[data-pos-type="tertiary"]:hover { background: rgba(214, 142, 54, 0.32); color: var(--ink); }
+  .tool[data-pos-type="terrain"].active  { background: rgba(122, 170, 72, 0.36); border-color: rgba(122, 170, 72, 0.62); }
+  .tool[data-pos-type="primary"].active  { background: rgba(58, 114, 200, 0.30); border-color: rgba(58, 114, 200, 0.58); }
+  .tool[data-pos-type="tertiary"].active { background: rgba(214, 142, 54, 0.40); border-color: rgba(214, 142, 54, 0.66); }
+
+  /* Selected-tool indicator: the active group button shows the selected tool's
+     own glyph (filled) plus a ring tinted by its positional type. */
+  .group-icon.group-icon-glyph svg {
+    width: 32px;
+    height: 32px;
+    fill: currentColor;
+    stroke: none;
+  }
+  .toolbar .tool-group-btn[data-pos-type="terrain"].active  { box-shadow: 0 0 0 2px rgba(122, 170, 72, 0.66) inset, 0 1px 2px rgba(20,30,50,0.06); }
+  .toolbar .tool-group-btn[data-pos-type="primary"].active  { box-shadow: 0 0 0 2px rgba(58, 114, 200, 0.6) inset, 0 1px 2px rgba(20,30,50,0.06); }
+  .toolbar .tool-group-btn[data-pos-type="tertiary"].active { box-shadow: 0 0 0 2px rgba(214, 142, 54, 0.66) inset, 0 1px 2px rgba(20,30,50,0.06); }
+
   .tool .swatch.eraser {
     background: repeating-linear-gradient(45deg, #e8e3d6, #e8e3d6 3px, #d6cdb8 3px, #d6cdb8 6px) !important;
     box-shadow: inset 0 0 0 1px #c4ba9e;
@@ -1254,8 +1307,8 @@
   .toolbar .tool-group-btn::before { content: none; }
   .toolbar .tool-group-btn .group-icon,
   .toolbar .tool .tool-icon {
-    width: 26px;
-    height: 26px;
+    width: 34px;
+    height: 34px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1263,12 +1316,12 @@
   }
   .toolbar .tool-group-btn .group-icon svg,
   .toolbar .tool .tool-icon svg {
-    width: 25px;
-    height: 25px;
+    width: 32px;
+    height: 32px;
     display: block;
     fill: none;
     stroke: currentColor;
-    stroke-width: 2.2;
+    stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
@@ -3632,6 +3685,19 @@
     align-items: center;
     padding: 6px 2px 2px;
   }
+  .settings-section-title.credits-title {
+    margin-top: 22px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    color: var(--muted, #6b6b6b);
+  }
+  .settings-credits {
+    margin: 6px 2px 2px;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--muted, #6b6b6b);
+  }
+  .settings-credits a { color: inherit; text-decoration: underline; }
   .sponsor-logo {
     display: inline-flex;
     align-items: center;
