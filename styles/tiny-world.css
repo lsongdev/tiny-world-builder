@@ -4145,12 +4145,17 @@
     right: 24px;
     top: 92px;
     z-index: 47;
-    width: min(360px, calc(100vw - 28px));
-    max-height: min(680px, calc(100vh - 118px));
+    width: min(300px, calc(100vw - 28px));
+    height: 480px;
+    min-width: 220px;
+    min-height: 220px;
+    max-width: calc(100vw - 28px);
+    max-height: calc(100vh - 118px);
+    resize: both;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 13px;
+    gap: 6px;
+    padding: 4px 8px 8px;
     border: 1px solid rgba(255, 255, 255, 0.55);
     border-radius: var(--radius-xl);
     background: rgba(255, 255, 255, 0.6);
@@ -4182,50 +4187,84 @@
     position: relative;
     z-index: 1;
   }
+  /* Drag bar — grab cue centred, like the blocks panel; close on the right. */
   .layers-panel-head {
+    position: relative;
+    flex: 0 0 auto;
     display: flex;
-    align-items: flex-start;
-    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 4px 3px;
     cursor: grab;
+    user-select: none;
   }
-  .layers-panel-title {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    flex: 1;
-    min-width: 0;
-  }
-  .layers-panel-title strong {
-    font-family: 'Fraunces', Georgia, serif;
-    font-size: 18px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-  }
-  .layers-panel-title span {
-    font-size: 11px;
-    color: var(--muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .layers-panel-close,
-  .layers-panel-refresh {
-    width: 30px;
-    height: 30px;
-    border: 1px solid rgba(120, 110, 90, 0.14);
+  .layers-panel.dragging .layers-panel-head { cursor: grabbing; }
+  .layers-panel-head::after {
+    content: '';
+    width: 28px;
+    height: 4px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.56);
+    background: rgba(120, 130, 150, 0.35);
+  }
+  .layers-panel-close {
+    position: absolute;
+    right: -2px;
+    top: 0;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
     color: var(--muted);
     cursor: pointer;
-    font-size: 18px;
+    font-size: 16px;
     line-height: 1;
   }
-  .layers-panel-refresh {
-    font-size: 14px;
-    font-weight: 700;
+  .layers-panel-close:hover { background: rgba(0, 0, 0, 0.06); color: var(--ink); }
+  /* Tabbed bar in the block-button style. */
+  .layers-tabs {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+    padding: 0 1px;
   }
-  .layers-panel-close:hover,
-  .layers-panel-refresh:hover { background: rgba(255, 255, 255, 0.82); color: var(--ink); }
+  .layers-tab {
+    appearance: none;
+    border: 1.5px solid rgba(255, 255, 255, 0.55);
+    border-radius: 12px;
+    background: rgba(120, 116, 108, 0.14);
+    box-shadow:
+      inset 0 0 0 1.5px rgba(255, 255, 255, 0.9),
+      0 1px 2px -1px rgba(20, 30, 50, 0.2);
+    color: var(--ink);
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: 800;
+    padding: 6px 8px;
+    cursor: pointer;
+    transition: background 0.12s, box-shadow 0.12s, color 0.12s;
+  }
+  .layers-tab:hover { background: rgba(255, 255, 255, 0.5); }
+  .layers-tab.is-active {
+    border-color: #304878;
+    background: rgba(23, 107, 235, 0.14);
+    color: #1f4ea8;
+    box-shadow:
+      inset 0 0 0 1.5px rgba(255, 255, 255, 0.92),
+      inset 0 -3px 0 rgba(30, 66, 138, 0.22),
+      0 2px 3px -1px rgba(20, 30, 50, 0.22);
+  }
+  .layers-tabpanel {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .layers-tabpanel[hidden] { display: none; }
+  .layers-props { flex: 1 1 auto; overflow: auto; }
+  .layers-props-empty { font-size: 11.5px; color: var(--muted); margin: 6px 2px; }
   .layers-search input {
     width: 100%;
     border: 1px solid rgba(120, 110, 90, 0.18);
@@ -4248,23 +4287,25 @@
     scrollbar-color: rgba(70, 55, 35, 0.24) transparent;
   }
   .layers-tree details {
-    margin: 3px 0;
+    margin: 2px 0;
     border: 1px solid rgba(120, 110, 90, 0.10);
-    border-radius: var(--radius-lg);
-    background: rgba(255, 255, 255, 0.46);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.42);
   }
   .layers-tree details details {
     margin-left: 8px;
-    margin-right: 6px;
-    background: rgba(255, 255, 255, 0.34);
+    margin-right: 0;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.30);
   }
   .layers-tree summary {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
+    gap: 6px;
+    padding: 4px 7px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 700;
     color: var(--ink);
     list-style: none;
@@ -4289,18 +4330,18 @@
   .layers-branch {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 0 6px 8px 22px;
+    gap: 1px;
+    padding: 0 4px 4px 14px;
   }
   .layers-row {
     width: 100%;
     display: grid;
-    grid-template-columns: 24px 1fr auto;
+    grid-template-columns: 18px 1fr auto;
     align-items: center;
     gap: 8px;
     border: 1px solid transparent;
-    border-radius: 12px;
-    padding: 7px 8px;
+    border-radius: 9px;
+    padding: 3px 6px;
     background: transparent;
     color: var(--ink);
     cursor: pointer;
@@ -4320,11 +4361,11 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.62);
-    font-size: 13px;
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.55);
+    font-size: 11px;
   }
   .layers-row-main {
     min-width: 0;

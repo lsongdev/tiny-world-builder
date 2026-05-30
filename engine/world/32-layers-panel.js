@@ -9,6 +9,53 @@
     const searchEl = document.getElementById('layers-search');
     if (!panel || !toggleBtn || !treeEl) return;
 
+    // --- Layers / Properties tabs (Properties relocates the shared selection
+    // properties panel into this dialog) ---
+    const layersTabBtns = Array.from(panel.querySelectorAll('.layers-tab'));
+    const layersPanelLayers = document.getElementById('layers-panel-layers');
+    const layersPanelProps = document.getElementById('layers-panel-properties');
+    const layersPropsHost = document.getElementById('layers-props-host');
+    const layersPropsEmpty = document.getElementById('layers-props-empty');
+    let layersActiveTab = 'layers';
+    let selPropsHome = null;
+    function selPropsEl() { return document.getElementById('agent-selection-properties'); }
+    function captureSelPropsHome() {
+      const el = selPropsEl();
+      if (el && !selPropsHome) selPropsHome = { parent: el.parentNode, next: el.nextSibling };
+    }
+    function moveSelPropsIntoLayers() {
+      const el = selPropsEl();
+      if (!el || !layersPropsHost) return;
+      captureSelPropsHome();
+      if (el.parentNode !== layersPropsHost) layersPropsHost.appendChild(el);
+      el.hidden = false;
+      if (layersPropsEmpty) layersPropsEmpty.hidden = el.childNodes.length > 0;
+    }
+    function restoreSelProps() {
+      const el = selPropsEl();
+      if (!el || !selPropsHome || !selPropsHome.parent) return;
+      if (el.parentNode === layersPropsHost) {
+        if (selPropsHome.next && selPropsHome.next.parentNode === selPropsHome.parent) {
+          selPropsHome.parent.insertBefore(el, selPropsHome.next);
+        } else {
+          selPropsHome.parent.appendChild(el);
+        }
+      }
+    }
+    function setLayersTab(name) {
+      layersActiveTab = (name === 'properties') ? 'properties' : 'layers';
+      layersTabBtns.forEach(b => {
+        const on = b.getAttribute('data-layers-tab') === layersActiveTab;
+        b.classList.toggle('is-active', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      if (layersPanelLayers) layersPanelLayers.hidden = layersActiveTab !== 'layers';
+      if (layersPanelProps) layersPanelProps.hidden = layersActiveTab !== 'properties';
+      if (layersActiveTab === 'properties') moveSelPropsIntoLayers();
+      else restoreSelProps();
+    }
+    layersTabBtns.forEach(b => b.addEventListener('click', () => setLayersTab(b.getAttribute('data-layers-tab'))));
+
     const OPEN_KEY = 'tinyworld:layers-panel-open.v1';
     const POS_KEY = 'tinyworld:layers-panel-pos.v1';
     let activeLayerId = null;
@@ -89,11 +136,23 @@
     // Build one entry per occupied cell. The cell's terrain is the parent node;
     // its object (kind) and any extras are stacked as children, matching the
     // "Grass > Fence / Cottage" hierarchy requested for the layers tree.
-    function collectCells() {
+    function islandBoards() {
+      const list = [{ id: 'home', label: 'Home Island', icon: '\u2302', boardX: 0, boardZ: 0 }];
+      if (typeof editableIslands !== 'undefined' && Array.isArray(editableIslands)) {
+        editableIslands.forEach((isl, i) => {
+          if (!isl) return;
+          list.push({ id: isl.id, label: 'Island ' + (i + 1), icon: '\u25C7', boardX: isl.boardX || 0, boardZ: isl.boardZ || 0 });
+        });
+      }
+      return list;
+    }
+    function collectIslandCells(board) {
       const cells = [];
       const size = Number.isFinite(GRID) ? GRID : 0;
-      for (let x = 0; x < size; x++) {
-        for (let z = 0; z < size; z++) {
+      for (let lx = 0; lx < size; lx++) {
+        for (let lz = 0; lz < size; lz++) {
+          const x = (board.boardX || 0) * size + lx;
+          const z = (board.boardZ || 0) * size + lz;
           const cell = getWorldCell(x, z);
           if (!cell) continue;
           const terrain = cell.terrain || 'grass';
@@ -141,7 +200,10 @@
           });
         }
       }
-      return { cells, size };
+      return cells;
+    }
+    function collectIslands() {
+      return islandBoards().map(b => ({ board: b, cells: collectIslandCells(b) }));
     }
 
     function filterRows(rows, query) {
@@ -205,24 +267,32 @@
     }
 
     function renderLayersPanel() {
-      const data = collectCells();
+      const islands = collectIslands();
       const query = searchEl ? searchEl.value.trim() : '';
       const selectedCoords = selectedWorldCoordSet();
-      const cells = filterRows(data.cells, query);
-      const total = data.cells.length;
-      const shown = cells.length;
-      if (summaryEl) summaryEl.textContent = data.size + '×' + data.size + ' board · ' + total + ' tile' + (total === 1 ? '' : 's');
-      // Preserve scroll position across the full innerHTML rebuild (refresh fires on every selection change).
       const prevScroll = treeEl.scrollTop;
-      const body = total
-        ? (cells.length ? cells.map(c => renderCell(c, selectedCoords)).join('') : '<p class="layers-empty">No matching layers.</p>')
-        : '<p class="layers-empty">This world only has default grass tiles. Place terrain or objects and they will appear here.</p>';
-      treeEl.innerHTML = '<details class="layers-root" open>'
-        + '<summary><span>Home Board</span><span class="layers-count">' + shown + (query ? '/' + total : '') + '</span></summary>'
-        + '<div class="layers-branch layers-cell-list">' + body + '</div>'
-        + '</details>';
-      // Re-bind toggle tracking on the freshly built cell nodes (toggle does not bubble,
-      // and setting `open` via innerHTML does not fire it — so no feedback loop).
+      let anyContent = false;
+      const html = islands.map(group => {
+        const filtered = filterRows(group.cells, query);
+        const total = group.cells.length;
+        if (query && !filtered.length) return ''; // hide empty islands while searching
+        anyContent = anyContent || total > 0;
+        const open = cellOpen.has('island:' + group.board.id) ? cellOpen.get('island:' + group.board.id) : true;
+        const body = total
+          ? (filtered.length ? filtered.map(c => renderCell(c, selectedCoords)).join('') : '<p class="layers-empty">No matching layers.</p>')
+          : '<p class="layers-empty">Default grass — place terrain or objects.</p>';
+        return '<details class="layers-root layers-island"' + (open ? ' open' : '') + ' data-island-id="' + esc(group.board.id) + '">'
+          + '<summary><span class="layers-row-icon" aria-hidden="true">' + esc(group.board.icon) + '</span>'
+          + '<span class="layers-cell-main"><strong>' + esc(group.board.label) + '</strong></span>'
+          + '<span class="layers-count">' + filtered.length + (query ? '/' + total : '') + '</span></summary>'
+          + '<div class="layers-branch layers-cell-list">' + body + '</div>'
+          + '</details>';
+      }).join('');
+      treeEl.innerHTML = html || '<p class="layers-empty">No islands yet.</p>';
+      // Re-bind toggle tracking on island + cell nodes.
+      treeEl.querySelectorAll('details.layers-island').forEach(d => {
+        d.addEventListener('toggle', () => cellOpen.set('island:' + d.getAttribute('data-island-id'), d.open));
+      });
       treeEl.querySelectorAll('details.layers-cell').forEach(d => {
         d.addEventListener('toggle', () => cellOpen.set(d.getAttribute('data-cell-id'), d.open));
       });
@@ -246,6 +316,9 @@
       if (open) {
         applySavedLayersPanelPosition();
         renderLayersPanel();
+        setLayersTab(layersActiveTab);
+      } else {
+        restoreSelProps();
       }
     }
 
@@ -334,6 +407,7 @@
           if (Number.isFinite(x) && Number.isFinite(z)) {
             activeLayerId = details.getAttribute('data-cell-id') || null;
             selectLayerCell(x, z);
+            setLayersTab('properties');
             // Debounced (not synchronous): the same click also fires the native toggle,
             // whose `toggle` event runs async — a sync rebuild would read stale open state
             // and undo the user's expand/collapse. The 80ms refresh lands after the toggle.
@@ -350,6 +424,7 @@
       activeLayerId = row.getAttribute('data-layer-id') || null;
       selectLayerCell(x, z);
       renderLayersPanel();
+      setLayersTab('properties');
     });
 
     window.addEventListener('tinyworld:selection-changed', scheduleLayersRefresh);

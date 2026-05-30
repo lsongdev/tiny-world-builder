@@ -92,3 +92,17 @@ Validation:
 
 - Run the inline script syntax check, `npm test`, and `npm run build`.
 - Browser-check Stamps category plus search, selected bulk placement, draw wall/boundary behavior, copy/paste/templates, duplicate, `1`/`E`, `R`/`F`, clear, perspective toggle, and console errors.
+
+
+## Layers dialog (redesigned)
+
+`32-layers-panel.js` + `#layers-panel`. Styled like the blocks panel: a grab-cue
+**drag bar** (no title), a block-style **Layers / Properties** tab bar, glass +
+`resize: both`. The tree is island-grouped — `collectIslands()` builds a top-level
+`<details>` per board (**Home Island** + each `editableIslands` entry) whose
+children are that board's terrain cells -> objects/extras (world coords as the
+cell id). Clicking a tree item selects its cell and switches to the **Properties**
+tab, which **relocates the shared `#agent-selection-properties` node** (rendered
+by module 28) into `#layers-props-host`; switching back to Layers / closing the
+panel restores that node to the agent panel (`selPropsHome`). Keep the tree dense
+(small summary padding, 14px branch indent, 1px gaps).

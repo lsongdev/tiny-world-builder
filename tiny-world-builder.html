@@ -389,20 +389,26 @@
     </button>
   </div>
 
-  <section id="layers-panel" class="layers-panel" role="dialog" aria-modal="false" aria-labelledby="layers-title" hidden>
-    <div class="layers-panel-head">
-      <div class="layers-panel-title">
-        <strong id="layers-title">Layers</strong>
-        <span id="layers-summary">World hierarchy</span>
-      </div>
-      <button class="layers-panel-refresh" id="layers-refresh" type="button" title="Refresh layers" aria-label="Refresh layers">↻</button>
+  <section id="layers-panel" class="layers-panel" role="dialog" aria-modal="false" hidden>
+    <div class="layers-panel-head" id="layers-panel-head" aria-label="Drag to move layers panel">
       <button class="layers-panel-close" id="layers-close" type="button" title="Close" aria-label="Close layers">×</button>
     </div>
-    <label class="layers-search">
-      <span class="sr-only">Search layers</span>
-      <input id="layers-search" type="search" placeholder="Search objects, terrain, or coordinates…" autocomplete="off" />
-    </label>
-    <div class="layers-tree" id="layers-tree" role="tree" aria-label="World hierarchy"></div>
+    <div class="layers-tabs" role="tablist" aria-label="Layers / Properties">
+      <button class="layers-tab is-active" id="layers-tab-layers" type="button" role="tab" aria-selected="true" data-layers-tab="layers">Layers</button>
+      <button class="layers-tab" id="layers-tab-properties" type="button" role="tab" aria-selected="false" data-layers-tab="properties">Properties</button>
+    </div>
+    <div class="layers-tabpanel" id="layers-panel-layers" role="tabpanel" data-layers-panel="layers">
+      <label class="layers-search">
+        <span class="sr-only">Search layers</span>
+        <input id="layers-search" type="search" placeholder="Search…" autocomplete="off" />
+      </label>
+      <div class="layers-tree" id="layers-tree" role="tree" aria-label="World hierarchy"></div>
+    </div>
+    <div class="layers-tabpanel" id="layers-panel-properties" role="tabpanel" data-layers-panel="properties" hidden>
+      <div class="layers-props" id="layers-props-host"></div>
+      <p class="layers-props-empty" id="layers-props-empty">Select an item in Layers to see its properties.</p>
+    </div>
+    <span id="layers-summary" hidden></span>
   </section>
 
   <button class="showcase-exit" id="showcase-exit" type="button" aria-label="Exit showcase mode">
