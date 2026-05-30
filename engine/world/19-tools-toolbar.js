@@ -13,7 +13,6 @@
     { id: 'new-island', label: 'Island', island: true, color: '#73a853', group: 'build' },
     { id: 'house',  label: 'House',  kind: 'house', color: '#3a72c8', shortcut: '5', group: 'build',
       variants: [
-        { id: 'auto',       label: 'Auto',      buildingType: null,         hint: 'cluster + auto-promo' },
         { id: 'cottage',    label: 'Cottage',   buildingType: 'cottage',    hint: 'force cottage style' },
         { id: 'manor',      label: 'Manor',     buildingType: 'manor',      hint: 'brick + portico' },
         { id: 'tower',      label: 'Tower',     buildingType: 'tower',      hint: 'stone tower w/ conical roof' },
@@ -22,19 +21,7 @@
       ],
     },
     { id: 'tree',   label: 'Tree',   kind: 'tree',  color: '#6fb442', shortcut: '6', group: 'nature' },
-    { id: 'fence',  label: 'Fence',  kind: 'fence', color: '#8a5a3b', shortcut: '7', group: 'build',
-      variants: [
-        { id: 'edge',    label: 'Edge',      fenceSide: 'auto',     hint: 'nearest clicked edge' },
-        { id: 'wall',    label: 'Wall',      fenceSide: 'auto', floors: 4, hint: 'stone wall on nearest clicked edge' },
-        { id: 'boundary', label: 'Boundary', fenceSide: 'auto', floors: 5, hint: 'steel boundary on nearest clicked edge' },
-        { id: 'north',   label: 'North',     fenceSide: 'n',        hint: 'north tile edge' },
-        { id: 'east',    label: 'East',      fenceSide: 'e',        hint: 'east tile edge' },
-        { id: 'south',   label: 'South',     fenceSide: 's',        hint: 'south tile edge' },
-        { id: 'west',    label: 'West',      fenceSide: 'w',        hint: 'west tile edge' },
-        { id: 'center-x', label: 'Center X', fenceSide: 'center-x', hint: 'center rail east-west' },
-        { id: 'center-z', label: 'Center Z', fenceSide: 'center-z', hint: 'center rail north-south' },
-      ],
-    },
+    { id: 'fence',  label: 'Fence',  kind: 'fence', color: '#8a5a3b', shortcut: '7', group: 'build' },
     { id: 'rock',   label: 'Rock',   kind: 'rock',  color: '#9b9a8f', shortcut: '8', group: 'nature' },
     { id: 'bridge', label: 'Bridge', kind: 'bridge', terrainOverride: 'water', color: '#8b5a32', shortcut: '9', group: 'build' },
     { id: 'mooring', label: 'Connect', mooring: true, color: '#171b20', shortcut: 'm', group: 'infra' },
@@ -1493,6 +1480,7 @@
     // Island tool: snap the hologram to a default free 8-grid slot immediately,
     // so "add island" shows it in place rather than waiting for a click.
     if (t && t.island && typeof onIslandToolSelected === 'function') onIslandToolSelected();
+    else if (typeof clearIslandPlacementHolos === 'function') clearIslandPlacementHolos();
     twPerfMark('selectTool:end:' + (t && t.id ? t.id : 'unknown'));
   }
 

@@ -7,6 +7,16 @@
   }
 
   function applyToolToCell(cell, opts = {}) {
+    // Island tool: clicking a hovered placement hologram places there directly,
+    // regardless of whatever island sits under the click ray.
+    if (selectedTool && selectedTool.island && typeof islandPlacementHoloHoveredSlot === 'function') {
+      const holoSlot = islandPlacementHoloHoveredSlot();
+      if (holoSlot) {
+        createEditableIsland({ positionX: holoSlot.positionX, positionY: holoSlot.positionY, positionZ: holoSlot.positionZ, select: false });
+        onIslandToolSelected();
+        return;
+      }
+    }
     const hitIsland = cell && cell.editableIslandId
       ? editableIslandById.get(cell.editableIslandId)
       : (cell ? editableIslandForBoard(cell.boardX || 0, cell.boardZ || 0) : null);
@@ -487,6 +497,7 @@
   // (or right after placing, to anchor the next one).
   function onIslandToolSelected() {
     if (!islandToolActive()) return;
+    if (typeof refreshIslandPlacementHolos === 'function') { refreshIslandPlacementHolos(); return; }
     const slot = defaultIslandSlot(islandPlacementAnchor());
     if (slot) setHoverFromCell(islandSlotHoverCell(slot));
   }
@@ -527,6 +538,11 @@
   }
 
   function updateHoverAt(x, y) {
+    if (selectedTool && selectedTool.island && typeof updateIslandPlacementHolos === 'function') {
+      updateIslandPlacementHolos(x, y);
+      return;
+    }
+    if (typeof clearIslandPlacementHolos === 'function') clearIslandPlacementHolos();
     setHoverFromCell(pickTile(x, y));
   }
 
@@ -927,10 +943,23 @@
           lastSelectionAnchor = hit;
         }
       } else if (selectedTool && selectedTool.select) {
-        // Plain click with the Select tool → select the single cell (replace),
-        // which raises the transform gizmo + radial menu. Empty space clears.
-        if (hit) { setRectangleSelection(hit, hit, 'replace'); lastSelectionAnchor = hit; }
-        else { clearSelection(); lastSelectionAnchor = null; }
+        // Plain click with the Select tool. Resolve by the CLOSEST surface:
+        // a top tile selects that cell; the island's side/base selects the
+        // WHOLE island (outline + move gizmo). Empty space clears.
+        const res = (typeof resolveIslandClick === 'function' && pointerDown)
+          ? resolveIslandClick(pointerDown.x, pointerDown.y)
+          : (hit ? { kind: 'cell', cell: hit } : null);
+        if (res && res.kind === 'island') {
+          clearSelection();
+          selectEditableIsland(res.island);
+          lastSelectionAnchor = null;
+        } else if (res && res.kind === 'cell') {
+          setRectangleSelection(res.cell, res.cell, 'replace'); lastSelectionAnchor = res.cell;
+          if (typeof setIslandSelectionOutline === 'function') setIslandSelectionOutline(null);
+        } else {
+          clearSelection(); lastSelectionAnchor = null;
+          if (typeof setIslandSelectionOutline === 'function') setIslandSelectionOutline(null);
+        }
       } else if (currentHover) {
         // Plain click with any other tool → place/erase as before.
         applyToolToCell(currentHover);
@@ -1501,6 +1530,14 @@
       if (selTool) { selectTool(selTool); e.preventDefault(); return; }
     }
     if (e.key === 'Backspace' || e.key === 'Delete') {
+      const selApi = window.__tinyworldSelection;
+      const hasCells = !!(selApi && selApi.cells && selApi.cells.size);
+      const selIsland = (typeof selectedEditableIsland === 'function') ? selectedEditableIsland() : null;
+      if (!hasCells && selIsland && !selIsland.__home && typeof removeEditableIsland === 'function') {
+        removeEditableIsland(selIsland);  // undoable via the world-history snapshot
+        e.preventDefault();
+        return;
+      }
       deleteActiveCellIntent();
       e.preventDefault();
       return;
@@ -1596,6 +1633,7 @@
       islands: serializeEditableIslands(),
       moorings: serializeMooringCables(),
       cells,
+      voxelBuildStamps: (typeof referencedVoxelBuildStamps === 'function') ? referencedVoxelBuildStamps(cells) : undefined,
       cameraMode,
       toolId: selectedTool && selectedTool.id,
       useLandscapeEngine,

@@ -1053,7 +1053,10 @@
   }
 
   function renderCullTopContentOpacity(surfaceWorldY) {
-    return renderCullSmoothstep(-0.85, 0.45, camera.position.y - surfaceWorldY);
+    // Gradual fade: top content stays fully visible until the camera dips just
+    // below the surface, then eases out over ~3.4 world units of further dip
+    // before it stops rendering (opacity ~0). Wider window = slower, smoother.
+    return renderCullSmoothstep(-2.85, 0.55, camera.position.y - surfaceWorldY);
   }
 
   function renderCullTopContentVisible(surfaceWorldY) {
@@ -1081,10 +1084,10 @@
       }
     }
     underOcclusionWipeLastPhase = nextPhase;
-    underOcclusionWipeActive = Math.max(0, underOcclusionWipeActive - dt * 2.4);
+    underOcclusionWipeActive = Math.max(0, underOcclusionWipeActive - dt * 1.15);
     const progress = 1 - underOcclusionWipeActive;
     const envelope = underOcclusionWipeActive > 0 ? Math.sin(progress * Math.PI) : 0;
-    const target = Math.max(0, Math.min(0.22, envelope * Math.max(0.35, strength) * 0.22));
+    const target = Math.max(0, Math.min(0.72, envelope * Math.max(0.55, strength) * 0.72));
     underOcclusionWipeOpacity += (target - underOcclusionWipeOpacity) * 0.55;
     if (underOcclusionWipeOpacity < 0.01 && underOcclusionWipeActive <= 0) {
       underOcclusionWipeOpacity = 0;

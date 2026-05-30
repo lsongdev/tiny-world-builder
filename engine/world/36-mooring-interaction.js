@@ -87,10 +87,33 @@
 
     // ---- radial style picker ----
     let radialEl = null;
+    let radialBackdrop = null;
     function radialOpen() { return !!(radialEl && !radialEl.hidden); }
+
+    function ensureRadialBackdrop() {
+      if (radialBackdrop) return radialBackdrop;
+      const bd = document.createElement('div');
+      bd.className = 'mooring-radial-backdrop';
+      bd.hidden = true;
+      // Fixed full-screen, just under the radial buttons. Captures every pointer
+      // event so the canvas pan/orbit can't fire while picking a connection type.
+      bd.style.cssText = 'position:fixed;inset:0;z-index:45;background:transparent;touch-action:none;';
+      // Swallow the gesture entirely (don't let it reach the canvas) and close.
+      ['pointerdown', 'pointerup', 'pointermove', 'wheel', 'mousedown', 'contextmenu'].forEach(type => {
+        bd.addEventListener(type, ev => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (type === 'pointerdown') closeRadial();
+        }, { passive: false });
+      });
+      document.body.appendChild(bd);
+      radialBackdrop = bd;
+      return bd;
+    }
 
     function closeRadial() {
       if (radialEl) radialEl.hidden = true;
+      if (radialBackdrop) radialBackdrop.hidden = true;
     }
 
     function openMooringRadial(cableId, cx, cy) {
@@ -102,6 +125,7 @@
       }
       radialEl.innerHTML = '';
       radialEl.style.transform = 'translate3d(' + cx + 'px,' + cy + 'px,0)';
+      ensureRadialBackdrop().hidden = false;
       radialEl.hidden = false;
 
       const styles = (typeof MOORING_STYLES !== 'undefined') ? MOORING_STYLES : [];
@@ -145,10 +169,7 @@
       });
     }
 
-    // Dismiss on outside click or Escape.
-    document.addEventListener('pointerdown', e => {
-      if (radialOpen() && radialEl && !radialEl.contains(e.target)) closeRadial();
-    }, true);
+    // Dismiss on Escape (outside clicks are handled by the backdrop).
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape' && radialOpen()) closeRadial();
     });

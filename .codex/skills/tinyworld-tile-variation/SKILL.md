@@ -62,3 +62,19 @@ The Generate Modal includes a "Terrain style" selector that maps these options t
 When `useLandscapeEngine` is true (the world data is generated from or compatible with the LandscapeEngine seed), the engine can render in two visual modes, toggleable via the "Continuous landscape mesh" setting:
 1. **Continuous Mesh (`landscapeMeshMode = true`)**: The normal tile grid is hidden, and the high-fidelity continuous terrain mesh is rendered. Ray picking, objects, vehicles, and crowd sprites sit on the mesh using `landscapeHeightAtCell(globalX, globalZ)`.
 2. **Chunky/Voxel Tiles (`landscapeMeshMode = false`)**: The terrain is rendered as standard discrete tiles (low-poly panels or voxel columns). To match the continuous mesh, vertical heights are scaled up: `terrainRiseForLevel(level)` returns `(level - 1) * 1.12` units per floor (matching the mesa levels of the LandscapeEngine) instead of the standard `0.20`. Object placement is not flattened (flattening guards are skipped when `useLandscapeEngine` is true), allowing all trees, houses, fences, and roads to render at their correct three-dimensional canyon elevations.
+
+
+## Castle/turret auto-promotion (disabled)
+
+Fences and houses must **not** change automatically based on neighbours.
+`CASTLE_AUTO_PROMOTION = false` in `16-drop-anim-adjacency.js` gates
+`isTurretHouse()` and `isCastleFence()` (both early-return `false`), so:
+
+- A plain house never auto-becomes a turret at a fence corner.
+- A fence never auto-becomes a connected castle-wall segment when a
+  turret-house is nearby; it always renders via `makeFence(side, level)`.
+
+Unaffected: the explicit **Castle** house variant (`buildingType: 'turret'`
+-> `makeTurret`) and fence **levels** (1-2 wood, 3 wire, 4 stone wall,
+5+ steel boundary) which come from `makeFence`, not the castle path. To
+re-enable the old auto-castle behaviour, flip the flag to `true`.

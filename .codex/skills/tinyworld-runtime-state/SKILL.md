@@ -171,3 +171,17 @@ After any persistence change:
 - Letting a hard-coded camera default drift from `DEFAULT_AZIMUTH`/
   `DEFAULT_POLAR`/`DEFAULT_TARGET` — keep restored state clamped to those
   ranges.
+
+
+## Export ↔ saveState parity (full portability)
+
+The JSON **file export** (`#export` handler in `20-input-place-erase.js`) must
+serialize the *same* payload as `saveState()` (`29-persistence-api.js`) so an
+imported world is fully self-contained. Both include: `islands`
+(`serializeEditableIslands`), `moorings` (`serializeMooringCables`, carries each
+cable's `style`), `cells`, **`voxelBuildStamps`** (`referencedVoxelBuildStamps(cells)`
+— inlines custom block `voxels`/`customParts`/`footprint`), camera, landscape,
+and `planetLandscape`. `applyState()` restores `voxelBuildStamps` on import.
+Model stamps are bundled manifest assets referenced by `appearance.modelStampId`
+(no binary to embed). When adding any new persisted world concept, add it to
+**both** `saveState` and the export object, and handle it in `applyState`.

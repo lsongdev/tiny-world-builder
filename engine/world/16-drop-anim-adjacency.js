@@ -348,7 +348,13 @@
   // predictable as the player paints; cluster shapes update through the
   // existing setCell adjacency refresh, extended below to include the whole
   // fence component on changes.
+  // Castle/turret AUTO-promotion. Disabled: placed fences and houses must not
+  // morph into castle walls / turrets based on what's placed next to them.
+  // The explicit Castle house variant (buildingType 'turret' -> makeTurret) and
+  // fence wall/boundary levels (makeFence) are unaffected by this flag.
+  const CASTLE_AUTO_PROMOTION = false;
   function isTurretHouse(x, z) {
+    if (!CASTLE_AUTO_PROMOTION) return false;
     if (getWorldCell(x, z).kind !== 'house') return false;
     const n = getWorldCell(x, z - 1);
     const s = getWorldCell(x, z + 1);
@@ -362,6 +368,7 @@
   }
 
   function isCastleFence(x, z) {
+    if (!CASTLE_AUTO_PROMOTION) return false;
     if (getWorldCell(x, z).kind !== 'fence') return false;
     const seen = new Set();
     const stack = [[x, z]];

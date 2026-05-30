@@ -199,3 +199,22 @@ Validation:
 - Confirm `renderer.getPixelRatio()` is at or below the cap.
 - Confirm there are no `postTarget` / `postMaterial` / `postProcessingEnabled` references in `tiny-world-builder.html`.
 - Confirm no console errors after reload.
+
+
+## Under-occlusion top-content fade + cloud wipe
+
+When the camera dips below an island surface, top content (cells/objects) fades
+out then stops rendering, masked by a sweeping cloud. Tuning lives in
+`01-render-core.js`:
+
+- **Fade window**: `renderCullTopContentOpacity` =
+  `renderCullSmoothstep(-2.85, 0.55, camera.y - surfaceWorldY)`. Wider window =
+  more gradual fade before the cull (opacity ~0 → `setRenderCullVisible(false)`).
+  Keep the upper edge just above the surface and the lower edge a few units down.
+- **Cloud wipe** (`updateUnderOcclusionCloudWipe`, element
+  `#under-occlusion-cloud-wipe`): triggers on a one-shot phase crossing
+  (`prevPhase<0.42 && nextPhase>=0.42` down / `>0.58 -> <=0.58` up). Opacity cap
+  ~`0.72`, decay `dt * 1.15` (lower = lingers longer, to cover the longer fade).
+  The CSS band is ~80vh tall so it covers most of the viewport as it sweeps.
+  Verify the time-based envelope with real frame dt — a synthetic instant loop
+  can't ramp `underOcclusionWipeActive`.

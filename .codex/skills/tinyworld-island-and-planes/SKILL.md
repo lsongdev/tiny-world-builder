@@ -37,6 +37,16 @@ Anything you add that should live on the island should be appended inside
 `buildHomeBorder()` so it rebuilds correctly when the user changes
 `#render-home-grid` (the home board size selector).
 
+Some of the round underside pipes emit a faint output from their outer
+(side-facing) end — clear **water**, **murky** brown water, or **steam** — via
+the pipe-emitter system in `23-particles-clouds.js` (`registerPipeEmitter` /
+`updatePipeEmitters`, ticked next to `updateSmoke`). `addIslandUtilityUnderside`
+(`13-distant-dressing-ghost.js`) registers ~32% of pipe runs (split
+water/murky/steam) at their end; `buildHomeBorder` calls `clearPipeEmitters`
+first. Emitter coords are local to `homeBorderGroup`; particles live in
+`xrWorldRoot`, are capped at 140, and only spawn when `camera.position.y < 4`
+(underside in view). Water/murky fall under gravity; steam rises and expands.
+
 The home island underside (slab + `voxelInvertedSteppedRoof`), the island
 **edges** (`addIslandSideBacking`), and the underside **greebles**
 (`addIslandUtilityUnderside` trays/clamps) now honour the **Voxel bevel**
@@ -46,6 +56,56 @@ is shared, so editable islands and the new-island stamp underside bevel too.
 Cost note: at max bevel (0.06) the merged homeBorder geometry grows ~13× (the
 many tiny greebles each round), so keep bevel modest. The **distant ghost-island
 dressing** (tiny far preview islands) intentionally stays `noBevel` for perf.
+
+## Editable-island LOD + whole-island select/delete
+
+- Two gates decide an editable island's LOD: a **distance** gate
+  (`editableIslandBaseDesiredLod`, full within `max(40, span*5.2)`) and a **count
+  budget** (`editableIslandFullLodBudget`, now +8: all full up to 14 islands,
+  then 12/11/10). Both were widened so a placed cluster of ~8 islands keeps its
+  real base + per-cell surface instead of dropping to the flat `proxyGroup`
+  (which is what "island without a base / different surface" was).
+- **Click an island's side** (no cell/object there) with the Select tool to
+  select the WHOLE island: `pickEditableIslandBody` (`18-scene-pick-xr.js`) walks
+  up to `userData.editableIslandId` (excludes home). It outlines the island
+  (`setIslandSelectionOutline`, a box-edges `LineSegments` child of `island.group`
+  so it follows move/rotate) and raises the move gizmo.
+- **Delete/Backspace** on a selected island (no cell selection) calls
+  `removeEditableIsland` — undoable, because the world-history snapshot includes
+  `serializeEditableIslands()`. It clears the island's board cells, moorings
+  anchored to it, registries, and selection.
+
+## Island placement: 4-side holograms
+
+With the Island tool active, hovering an island shows a blank-island hologram on
+each of its **4 free cardinal sides at once** (`37-island-placement-holos.js`,
+reuses `islandPlacementSlots(anchor).slice(0,4)` + `makeBlankIsland` +
+`makeGhostHoloMaterial`). Occupied sides and the home origin are filtered out
+("minus blocked by anything"). Hovering a hologram highlights it (`uBase`
+0.10->0.36, brighter blue, slight scale-up) via a per-frame raycast in
+`updateIslandPlacementHolos(x,y)`; clicking a hologram places there. GOTCHA: hover-test the holos **first** and keep the anchor **sticky** — `pickTile` ignores the holos, so recomputing the anchor while hovering a hologram flips it to whatever (home/other island) sits behind it and rebuilds the holos out from under the cursor (they "disappear" on click). Only re-anchor when hovering a *different* island; keep holos over empty space
+(`applyToolToCell` checks `islandPlacementHoloHoveredSlot()` first, before any
+island-select). `selectTool` clears the holos when switching away; the holo
+shader `uTime` ticks via `tickIslandPlacementHolos`. The single snap-to-slot
+hologram path is bypassed for the Island tool. GOTCHA: when cloning the
+ghost-outline hull, collect mesh nodes *before* `o.add(hull)` — adding during
+`traverse` recurses into the new hull forever (stack overflow).
+
+The **home island is not movable**: its editable surface lives in the shared
+world grid (`worldGroup`, picked by logical gx/gz), while only `homeBorderGroup`
+(the base) is its transform group — so dragging it would shift the base away from
+the locked surface. `updateTransformGizmo` (`12-selection-tool.js`) refuses to
+bind the move gizmo when `selectedEditableIsland().__home` is set (selecting a
+home *engine* sets `selectedEditableIslandId = 'home'`, which previously let the
+gizmo grab it). Sky/editable islands stay movable. Making the home island truly
+relocatable as one piece would require re-parenting the home cells into a movable
+group and routing their picking through that transform (as editable islands do).
+
+Island engines (home + editable, `userData.editableIslandEngineId`) can only be
+selected **from underneath**: `pickEditableIslandEngine` (`18-scene-pick-xr.js`)
+early-returns `null` when `camera.position.y >= 0`. Otherwise a pick ray from
+above passes through the board and grabs the engine hanging behind it. Mirrors
+`pickTile`'s "refuse picks from below the surface" convention, inverted.
 
 Home-island rocket engines keep their chunky voxel casing, but the animated
 jet plume is a small set of static or simply X-flipped shader sheets. Do not
@@ -180,5 +240,10 @@ After island/plane changes:
   runs its **own** raycast against `mooringGroup` (only while the Select tool is
   active): hover swaps the cable's meshes to `mooringHoverMaterial` (blue);
   a click opens a radial (`.radial-menu.mooring-radial`, reuses radial CSS) to
-  pick the style. Verify pickability with 3D math (project tube vertices →
+  pick the style. While that radial is open a full-screen
+  `.mooring-radial-backdrop` (z 45, below the buttons at z 46) `preventDefault`+
+  `stopPropagation`s every pointer/wheel event and closes on outside click, so
+  canvas pan/orbit cannot fire and the type buttons stay clickable. (The menu
+  container is `pointer-events:none`, so without the backdrop a miss between
+  buttons falls through to the canvas and pans.) Verify pickability with 3D math (project tube vertices →
   raycast `mooringGroup`), not screenshots.

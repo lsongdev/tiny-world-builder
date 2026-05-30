@@ -27,6 +27,7 @@
     let tickStart = repaintProfileBegin();
     if (dropAnims.length) tickDropAnims(dt);
     if (typeof tickGhostHolo === 'function') tickGhostHolo(t);
+    if (typeof tickIslandPlacementHolos === 'function') tickIslandPlacementHolos(t);
     if (typeof tickRadialMenu === 'function') tickRadialMenu();
     if (homeTween) tickHomeTween(dt);
     tickOpacityTransitions(dt);
@@ -145,6 +146,7 @@
       }
     }
     updateSmoke(dt);
+    if (typeof updatePipeEmitters === 'function') updatePipeEmitters(dt);
     updateXRFrame(xrFrame);
     repaintProfileEnd('tick.runtime', tickStart);
 

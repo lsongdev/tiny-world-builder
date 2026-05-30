@@ -721,7 +721,57 @@
     return editableIslandEngineTarget(n.userData.editableIslandId, n.userData.editableIslandEngineId);
   }
 
+  // Resolve the whole sky-island under the cursor (its base/side or surface),
+  // walking up to the group that carries editableIslandId. Excludes the home
+  // island. Used to select an island by clicking its side.
+  function resolveRaycastEditableIslandBody(h) {
+    let n = h && h.object;
+    while (n) {
+      if (n.userData && n.userData.editableIslandId && typeof editableIslandById !== 'undefined') {
+        const isl = editableIslandById.get(n.userData.editableIslandId);
+        if (isl && !isl.__home) return isl;
+        return null;
+      }
+      n = n.parent;
+    }
+    return null;
+  }
+  // Resolve a Select-tool click by the CLOSEST surface: a top tile -> { kind:
+  // 'cell' } (single-cell select); the island's side/base/underside -> { kind:
+  // 'island' } (whole-island select). pickTile alone can't tell these apart
+  // because the ray sees through the side and hits the top tile behind it.
+  function resolveIslandClick(clientX, clientY) {
+    ndc.x = (clientX / window.innerWidth) * 2 - 1;
+    ndc.y = -(clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(ndc, camera);
+    const hits = raycaster.intersectObjects(getPickRaycastRoots(), true);
+    for (const h of hits) {
+      const cell = resolveRaycastCell(h);
+      if (cell) return { kind: 'cell', cell };
+      const isl = resolveRaycastEditableIslandBody(h);
+      if (isl) return { kind: 'island', island: isl };
+    }
+    return null;
+  }
+
+  function pickEditableIslandBody(clientX, clientY) {
+    ndc.x = (clientX / window.innerWidth) * 2 - 1;
+    ndc.y = -(clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(ndc, camera);
+    const hits = raycaster.intersectObjects(getPickRaycastRoots(), true);
+    for (const h of hits) {
+      const isl = resolveRaycastEditableIslandBody(h);
+      if (isl) return isl;
+    }
+    return null;
+  }
+
   function pickEditableIslandEngine(clientX, clientY) {
+    // Engines hang under the island, so they can only be selected from
+    // underneath: refuse engine picks unless the camera is below the playable
+    // surface (looking up at the underside). Otherwise a ray from above passes
+    // through the board and grabs the engine behind it.
+    if (camera.position.y >= 0) return null;
     ndc.x = (clientX / window.innerWidth) * 2 - 1;
     ndc.y = -(clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(ndc, camera);

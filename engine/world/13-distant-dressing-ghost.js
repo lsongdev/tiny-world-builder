@@ -264,6 +264,15 @@
       const radius = 0.022 + cellRand(i, GRID, 8880) * 0.030;
       const mat = cellRand(i, GRID, 8890) < 0.58 ? M.utilityPipe : M.utilityPipeD;
       addRun(i + 500, alongX, band, length, x, y, z, radius, mat, 8);
+      // Some pipes spit a faint output from their outer (side-facing) end.
+      if (typeof registerPipeEmitter === 'function' && cellRand(i, GRID, 8895) < 0.32) {
+        const sign = alongX ? (x >= 0 ? 1 : -1) : (z >= 0 ? 1 : -1);
+        const endX = alongX ? x + sign * length * 0.5 : x;
+        const endZ = alongX ? z : z + sign * length * 0.5;
+        const pick = cellRand(i, GRID, 8896);
+        const type = pick < 0.42 ? 'water' : (pick < 0.74 ? 'murky' : 'steam');
+        registerPipeEmitter(endX, y, endZ, alongX ? sign : 0, alongX ? 0 : sign, type);
+      }
     }
 
     for (let i = 0; i < trayCount; i++) {
@@ -359,6 +368,7 @@
     islandRocketFlames = new Set();
     islandRocketEngines = new Set();
     islandRocketSmokeTimer = 0;
+    if (typeof clearPipeEmitters === 'function') clearPipeEmitters();
     while (homeBorderGroup.children.length) {
       const c = homeBorderGroup.children.pop();
       disposeGroup(c);

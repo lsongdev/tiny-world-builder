@@ -236,12 +236,13 @@
   }
 
   function editableIslandFullLodBudget() {
+    // +8 full-LOD islands across every tier so a handful of sky islands all
+    // render with their real base + per-cell surface instead of a flat proxy.
     const count = editableIslands.length;
-    if (count <= 6) return count;
-    if (count <= 12) return 5;
-    if (count <= 24) return 4;
-    if (count <= 40) return 3;
-    return 2;
+    if (count <= 14) return count;
+    if (count <= 24) return 12;
+    if (count <= 40) return 11;
+    return 10;
   }
 
   function editableIslandBaseDesiredLod(island) {
@@ -249,8 +250,10 @@
     if (selectedEditableIslandId && island.id === selectedEditableIslandId) return 'full';
     const span = GRID * TILE;
     const d = editableIslandFocusDistance(island);
-    const fullDistance = Math.max(18, span * 2.8);
-    const proxyDistance = Math.max(54, span * 8.5);
+    // Widened so a cluster of ~8 placed islands around the camera all keep their
+    // real base + per-cell surface (paired with the +8 full-LOD count budget).
+    const fullDistance = Math.max(40, span * 5.2);
+    const proxyDistance = Math.max(72, span * 10.0);
     if (d <= fullDistance) return 'full';
     if (d <= proxyDistance) return 'proxy';
     return 'hidden';
@@ -375,12 +378,89 @@
     }
   }
 
+  // --- whole-island selection outline (box edges, child of the island group so
+  // it follows move/rotate) ---
+  let islandSelectionOutlineMesh = null;
+  const islandSelectionOutlineMat = new THREE.LineBasicMaterial({
+    color: 0x39c0ff, transparent: true, opacity: 0.95, depthTest: false,
+  });
+  function setIslandSelectionOutline(island) {
+    if (islandSelectionOutlineMesh) {
+      if (islandSelectionOutlineMesh.parent) islandSelectionOutlineMesh.parent.remove(islandSelectionOutlineMesh);
+      if (islandSelectionOutlineMesh.geometry) islandSelectionOutlineMesh.geometry.dispose();
+      islandSelectionOutlineMesh = null;
+    }
+    if (!island || island.__home || !island.group) return;
+    const half = GRID * TILE * 0.5 + 0.08;
+    const top = TOP_H + 0.2;
+    const bottom = -(DIRT_H + 3.4);
+    const geo = new THREE.EdgesGeometry(new THREE.BoxGeometry(half * 2, top - bottom, half * 2));
+    const mesh = new THREE.LineSegments(geo, islandSelectionOutlineMat);
+    mesh.position.y = (top + bottom) * 0.5;
+    mesh.renderOrder = 999;
+    mesh.frustumCulled = false;
+    island.group.add(mesh);
+    islandSelectionOutlineMesh = mesh;
+  }
+
   function selectEditableIsland(island) {
     selectedEditableIslandId = island ? island.id : null;
     selectedEditableIslandEngineRef = null;
     updateTransformGizmo(null);
     updateEditableIslandLods(true);
+    setIslandSelectionOutline(island && !island.__home ? island : null);
   }
+
+  // Delete a single sky island (with undo: the history snapshot captures islands).
+  function removeEditableIsland(island) {
+    if (!island || island.__home) return false;
+    if (typeof pushWorldHistorySnapshot === 'function') pushWorldHistorySnapshot();
+    setIslandSelectionOutline(null);
+    // Drop moorings anchored to this island.
+    if (Array.isArray(mooringCables) && mooringCables.length) {
+      let changed = false;
+      for (let i = mooringCables.length - 1; i >= 0; i--) {
+        const c = mooringCables[i];
+        if ((c.a && c.a.scope === 'island' && c.a.islandId === island.id) ||
+            (c.b && c.b.scope === 'island' && c.b.islandId === island.id)) {
+          mooringCables.splice(i, 1); changed = true;
+        }
+      }
+      if (changed && typeof rebuildMooringCables === 'function') rebuildMooringCables();
+    }
+    if (Array.isArray(island.engines)) {
+      island.engines.forEach(eng => { if (eng && eng.propeller) editableIslandEnginePropellers.delete(eng.propeller); });
+    }
+    if (island.group && island.group.parent) island.group.parent.remove(island.group);
+    disposeGroup(island.group);
+    const startX = island.boardX * GRID, startZ = island.boardZ * GRID;
+    for (let x = startX; x < startX + GRID; x++) {
+      if (!world[x]) continue;
+      for (let z = startZ; z < startZ + GRID; z++) {
+        delete world[x][z];
+        const key = x + ',' + z;
+        const entry = cellMeshes[key];
+        if (entry) {
+          if (entry.tile) disposeGroup(entry.tile);
+          if (entry.object) disposeGroup(entry.object);
+          if (entry.extras) for (const m of entry.extras) disposeGroup(m);
+          delete cellMeshes[key];
+        }
+      }
+    }
+    const idx = editableIslands.indexOf(island);
+    if (idx >= 0) editableIslands.splice(idx, 1);
+    editableIslandById.delete(island.id);
+    editableIslandByBoardKey.delete(editableIslandBoardKey(island.boardX, island.boardZ));
+    if (selectedEditableIslandId === island.id) selectedEditableIslandId = null;
+    if (typeof selectedTransformGizmoIsland !== 'undefined' && selectedTransformGizmoIsland === island) selectedTransformGizmoIsland = null;
+    if (typeof updateTransformGizmo === 'function') updateTransformGizmo(null);
+    updateEditableIslandLods(true);
+    if (typeof saveState === 'function') saveState();
+    return true;
+  }
+  window.removeEditableIsland = removeEditableIsland;
+  window.setIslandSelectionOutline = setIslandSelectionOutline;
 
   function nextEditableIslandBoard() {
     let boardX = 20 + editableIslandSerial;

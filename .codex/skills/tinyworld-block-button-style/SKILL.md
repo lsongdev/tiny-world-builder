@@ -23,9 +23,9 @@ off on this as the house style — reuse it for any new icon square/tile.
 
 | posType   | background tint            | dark outline (border + glyph stroke) |
 |-----------|----------------------------|--------------------------------------|
-| terrain   | `rgba(122,170,72,0.16)`    | `#3a571f`                            |
-| primary   | `rgba(58,114,200,0.13)`    | `#304878`                            |
-| tertiary  | `rgba(214,142,54,0.18)`    | `#8a5416`                            |
+| terrain   | `rgba(123,194,48,0.16)`    | `#3a6511`                            |
+| primary   | `rgba(23,107,235,0.13)`    | `#1e428a`                            |
+| tertiary  | `rgba(254,146,14,0.18)`    | `#a05600`                            |
 | neutral   | (none)                     | `#2f3b57` (default `--glyph-outline`)|
 
 The dark outline = the category tint darkened ~50–60%. For a new category,
@@ -55,10 +55,10 @@ Raised, outlined square (per posType; same pattern for `.tool` and
 
 ```css
 .tool[data-pos-type="primary"] {
-  border: 1.5px solid #304878;                 /* dark category outline */
+  border: 1.5px solid #1e428a;                 /* dark category outline */
   box-shadow:
     inset 0 0 0 1.5px rgba(255,255,255,0.92),   /* inner white line */
-    inset 0 -3px 0 rgba(48,72,120,0.22),        /* bottom bevel */
+    inset 0 -3px 0 rgba(30,66,138,0.22),        /* bottom bevel */
     0 2px 3px -1px rgba(20,30,50,0.22);         /* raised drop shadow */
 }
 ```
@@ -84,4 +84,4 @@ Raised, outlined square (per posType; same pattern for `.tool` and
   tied specificity; if a styled button mispositions, raise selector specificity
   (e.g. `button.foo`).
 - Verify in a real browser, not synthetic events: sample the rendered pixels
-  (a primary block reads dark border `48,72,120` → white line `~250` → tint).
+  (a primary block reads dark border `30,66,138` → white line `~250` → tint).

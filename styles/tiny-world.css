@@ -346,13 +346,11 @@
     right: 24px;
     z-index: 14;
     font-size: 12px;
-    padding: 4px 10px;
-    background: rgba(255,255,255,0.7);
-    border: 1px solid rgba(255,255,255,0.6);
-    border-radius: 999px;
+    padding: 0;
+    background: none;
+    border: none;
+    box-shadow: none;
     color: #3a3a3a;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     white-space: nowrap;
   }
   .token-pill .ticker { font-weight: 600; color: #2a2722; }
@@ -1426,9 +1424,9 @@
     stroke-linejoin: round;
     stroke-linecap: round;
   }
-  .tool[data-pos-type="terrain"]  .tool-glyph { --glyph-outline: #3a571f; }
-  .tool[data-pos-type="primary"]  .tool-glyph { --glyph-outline: #304878; }
-  .tool[data-pos-type="tertiary"] .tool-glyph { --glyph-outline: #8a5416; }
+  .tool[data-pos-type="terrain"]  .tool-glyph { --glyph-outline: #3a6511; }
+  .tool[data-pos-type="primary"]  .tool-glyph { --glyph-outline: #1e428a; }
+  .tool[data-pos-type="tertiary"] .tool-glyph { --glyph-outline: #a05600; }
   .flyout-tool .tool-glyph { width: 42px; height: 42px; }
   .flyout-tool .tool-glyph svg { width: 34px; height: 34px; }
   .tool .tool-glyph.tool-glyph-empty {
@@ -1441,15 +1439,15 @@
   /* Positional-type background tint: terrain (ground) / primary (the object
      that owns a tile) / tertiary (overlays that stack onto a primary, e.g.
      fences). Placed after .tool:hover/.active so the type colour wins. */
-  .tool[data-pos-type="terrain"]  { background: rgba(122, 170, 72, 0.16); }
-  .tool[data-pos-type="primary"]  { background: rgba(58, 114, 200, 0.13); }
-  .tool[data-pos-type="tertiary"] { background: rgba(214, 142, 54, 0.18); }
-  .tool[data-pos-type="terrain"]:hover  { background: rgba(122, 170, 72, 0.30); color: var(--ink); }
-  .tool[data-pos-type="primary"]:hover  { background: rgba(58, 114, 200, 0.24); color: var(--ink); }
-  .tool[data-pos-type="tertiary"]:hover { background: rgba(214, 142, 54, 0.32); color: var(--ink); }
-  .tool[data-pos-type="terrain"].active  { background: rgba(122, 170, 72, 0.36); border-color: rgba(122, 170, 72, 0.62); }
-  .tool[data-pos-type="primary"].active  { background: rgba(58, 114, 200, 0.30); border-color: rgba(58, 114, 200, 0.58); }
-  .tool[data-pos-type="tertiary"].active { background: rgba(214, 142, 54, 0.40); border-color: rgba(214, 142, 54, 0.66); }
+  .tool[data-pos-type="terrain"]  { background: rgba(123, 194, 48, 0.16); }
+  .tool[data-pos-type="primary"]  { background: rgba(23, 107, 235, 0.13); }
+  .tool[data-pos-type="tertiary"] { background: rgba(254, 146, 14, 0.18); }
+  .tool[data-pos-type="terrain"]:hover  { background: rgba(123, 194, 48, 0.30); color: var(--ink); }
+  .tool[data-pos-type="primary"]:hover  { background: rgba(23, 107, 235, 0.24); color: var(--ink); }
+  .tool[data-pos-type="tertiary"]:hover { background: rgba(254, 146, 14, 0.32); color: var(--ink); }
+  .tool[data-pos-type="terrain"].active  { background: rgba(123, 194, 48, 0.36); border-color: rgba(123, 194, 48, 0.62); }
+  .tool[data-pos-type="primary"].active  { background: rgba(23, 107, 235, 0.30); border-color: rgba(23, 107, 235, 0.58); }
+  .tool[data-pos-type="tertiary"].active { background: rgba(254, 146, 14, 0.40); border-color: rgba(254, 146, 14, 0.66); }
 
   /* Selected-tool indicator: the active group button shows the selected tool's
      own glyph (filled) plus a ring tinted by its positional type. */
@@ -1472,12 +1470,12 @@
     stroke-linejoin: round;
     stroke-linecap: round;
   }
-  .tool-group-btn[data-pos-type="terrain"]  .group-icon-glyph { --glyph-outline: #3a571f; }
-  .tool-group-btn[data-pos-type="primary"]  .group-icon-glyph { --glyph-outline: #304878; }
-  .tool-group-btn[data-pos-type="tertiary"] .group-icon-glyph { --glyph-outline: #8a5416; }
-  .toolbar .tool-group-btn[data-pos-type="terrain"].active  { box-shadow: 0 0 0 2px rgba(122, 170, 72, 0.66) inset, 0 1px 2px rgba(20,30,50,0.06); }
-  .toolbar .tool-group-btn[data-pos-type="primary"].active  { box-shadow: 0 0 0 2px rgba(58, 114, 200, 0.6) inset, 0 1px 2px rgba(20,30,50,0.06); }
-  .toolbar .tool-group-btn[data-pos-type="tertiary"].active { box-shadow: 0 0 0 2px rgba(214, 142, 54, 0.66) inset, 0 1px 2px rgba(20,30,50,0.06); }
+  .tool-group-btn[data-pos-type="terrain"]  .group-icon-glyph { --glyph-outline: #3a6511; }
+  .tool-group-btn[data-pos-type="primary"]  .group-icon-glyph { --glyph-outline: #1e428a; }
+  .tool-group-btn[data-pos-type="tertiary"] .group-icon-glyph { --glyph-outline: #a05600; }
+  .toolbar .tool-group-btn[data-pos-type="terrain"].active  { box-shadow: 0 0 0 2px rgba(123, 194, 48, 0.66) inset, 0 1px 2px rgba(20,30,50,0.06); }
+  .toolbar .tool-group-btn[data-pos-type="primary"].active  { box-shadow: 0 0 0 2px rgba(23, 107, 235, 0.6) inset, 0 1px 2px rgba(20,30,50,0.06); }
+  .toolbar .tool-group-btn[data-pos-type="tertiary"].active { box-shadow: 0 0 0 2px rgba(254, 146, 14, 0.66) inset, 0 1px 2px rgba(20,30,50,0.06); }
 
   .tool .swatch.eraser {
     background: repeating-linear-gradient(45deg, #e8e3d6, #e8e3d6 3px, #d6cdb8 3px, #d6cdb8 6px) !important;
@@ -1876,26 +1874,26 @@
      icon's darkened category colour + an inner white line. */
   .tool.flyout-tool[data-pos-type="terrain"],
   .tool[data-pos-type="terrain"] {
-    border: 1.5px solid #3a571f;
+    border: 1.5px solid #3a6511;
     box-shadow:
       inset 0 0 0 1.5px rgba(255, 255, 255, 0.92),
-      inset 0 -3px 0 rgba(58, 87, 31, 0.22),
+      inset 0 -3px 0 rgba(58, 101, 17, 0.22),
       0 2px 3px -1px rgba(20, 30, 50, 0.22);
   }
   .tool.flyout-tool[data-pos-type="primary"],
   .tool[data-pos-type="primary"] {
-    border: 1.5px solid #304878;
+    border: 1.5px solid #1e428a;
     box-shadow:
       inset 0 0 0 1.5px rgba(255, 255, 255, 0.92),
-      inset 0 -3px 0 rgba(48, 72, 120, 0.22),
+      inset 0 -3px 0 rgba(30, 66, 138, 0.22),
       0 2px 3px -1px rgba(20, 30, 50, 0.22);
   }
   .tool.flyout-tool[data-pos-type="tertiary"],
   .tool[data-pos-type="tertiary"] {
-    border: 1.5px solid #8a5416;
+    border: 1.5px solid #a05600;
     box-shadow:
       inset 0 0 0 1.5px rgba(255, 255, 255, 0.92),
-      inset 0 -3px 0 rgba(138, 84, 22, 0.22),
+      inset 0 -3px 0 rgba(160, 86, 0, 0.22),
       0 2px 3px -1px rgba(20, 30, 50, 0.22);
   }
   /* The tool-group bottom dock also gets a subtle press feel matching
@@ -5234,9 +5232,9 @@
   #under-occlusion-cloud-wipe {
     position: fixed;
     left: -30vw;
-    top: 22vh;
+    top: 6vh;
     width: 160vw;
-    height: 42vh;
+    height: 80vh;
     z-index: 6;
     pointer-events: none;
     opacity: 0;

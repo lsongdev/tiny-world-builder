@@ -1103,3 +1103,95 @@
 
   enqueueDeferredVisualStartup('sky-clouds', syncCloudPopulation);
 
+
+  // -------- underside pipe emitters (water / murky / steam) --------
+  // Some of the round underside pipes spit a faint output from their outer end:
+  // clear water, murky brown water, or steam. Registered by
+  // addIslandUtilityUnderside; positions are local to homeBorderGroup.
+  const MAX_PIPE_PARTICLES = 140;
+  const pipeEmitters = [];
+  const pipeParticles = [];
+  const pipeDropGeo = new THREE.SphereGeometry(0.034, 5, 5);
+  const pipeWaterMat = new THREE.MeshBasicMaterial({ color: 0x8fc4e6, transparent: true, opacity: 0.7, depthWrite: false });
+  const pipeMurkyMat = new THREE.MeshBasicMaterial({ color: 0x7a5f37, transparent: true, opacity: 0.8, depthWrite: false });
+  const pipeSteamMat = new THREE.MeshBasicMaterial({ color: 0xeceeec, transparent: true, opacity: 0.5, depthWrite: false });
+  const _pipeVec = new THREE.Vector3();
+
+  function clearPipeEmitters() { pipeEmitters.length = 0; }
+  function registerPipeEmitter(x, y, z, dx, dz, type) {
+    if (pipeEmitters.length > 48) return;
+    pipeEmitters.push({ x, y, z, dx, dz, type, acc: Math.random() * 0.4 });
+  }
+  function pipeMatFor(type) {
+    return type === 'murky' ? pipeMurkyMat : (type === 'steam' ? pipeSteamMat : pipeWaterMat);
+  }
+
+  function spawnPipeParticle(em) {
+    if (pipeParticles.length >= MAX_PIPE_PARTICLES) return;
+    if (typeof homeBorderGroup === 'undefined' || !homeBorderGroup) return;
+    _pipeVec.set(em.x, em.y, em.z);
+    homeBorderGroup.localToWorld(_pipeVec);
+    xrWorldRoot.worldToLocal(_pipeVec);
+    const steam = em.type === 'steam';
+    const baseMat = pipeMatFor(em.type);
+    const op = (steam ? 0.32 : 0.6) + Math.random() * 0.12;
+    const p = new THREE.Mesh(pipeDropGeo, getCachedParticleMaterial(baseMat, op));
+    p.frustumCulled = true;
+    p.castShadow = false;
+    p.receiveShadow = false;
+    if (typeof UNDER_ISLAND_EFFECT_RENDER_ORDER !== 'undefined') p.renderOrder = UNDER_ISLAND_EFFECT_RENDER_ORDER;
+    const j = 0.03;
+    p.position.set(
+      _pipeVec.x + em.dx * 0.06 + (Math.random() - 0.5) * j,
+      _pipeVec.y + (Math.random() - 0.5) * j,
+      _pipeVec.z + em.dz * 0.06 + (Math.random() - 0.5) * j,
+    );
+    p.userData = {
+      pipeBaseMat: baseMat,
+      maxOpacity: op,
+      life: 0,
+      maxLife: steam ? (1.5 + Math.random() * 0.8) : (1.1 + Math.random() * 0.5),
+      vx: em.dx * (0.16 + Math.random() * 0.12) + (Math.random() - 0.5) * 0.04,
+      vz: em.dz * (0.16 + Math.random() * 0.12) + (Math.random() - 0.5) * 0.04,
+      vy: steam ? (0.22 + Math.random() * 0.14) : (-0.10 - Math.random() * 0.10),
+      steam,
+    };
+    const sc = steam ? (0.9 + Math.random() * 0.6) : (0.65 + Math.random() * 0.4);
+    p.scale.setScalar(sc);
+    setCachedParticleMaterial(p, baseMat, op);
+    xrWorldRoot.add(p);
+    pipeParticles.push(p);
+  }
+
+  function updatePipeEmitters(dt) {
+    // Only emit when the underside can be seen (camera not high above), but keep
+    // updating live particles so they fade out cleanly when the view changes.
+    const emit = typeof camera === 'undefined' || camera.position.y < 4;
+    if (emit) {
+      for (const em of pipeEmitters) {
+        em.acc += dt;
+        const interval = em.type === 'steam' ? 0.16 : 0.12; // faint stream
+        while (em.acc >= interval) {
+          em.acc -= interval;
+          if (Math.random() < 0.82) spawnPipeParticle(em);
+        }
+      }
+    }
+    for (let i = pipeParticles.length - 1; i >= 0; i--) {
+      const p = pipeParticles[i];
+      const u = p.userData;
+      u.life += dt;
+      const t = u.life / u.maxLife;
+      if (u.steam) { u.vx *= 0.985; u.vz *= 0.985; }
+      else u.vy -= 0.95 * dt; // gravity for water/murky
+      p.position.x += u.vx * dt;
+      p.position.y += u.vy * dt;
+      p.position.z += u.vz * dt;
+      setCachedParticleMaterial(p, u.pipeBaseMat, u.maxOpacity * (1 - t));
+      if (u.steam) p.scale.setScalar(0.9 + t * 1.4);
+      if (t >= 1) {
+        if (p.parent) p.parent.remove(p);
+        pipeParticles.splice(i, 1);
+      }
+    }
+  }

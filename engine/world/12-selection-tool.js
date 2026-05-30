@@ -135,7 +135,11 @@
     }
     if (!selectedTransformGizmoTarget) {
       const island = typeof selectedEditableIsland === 'function' ? selectedEditableIsland() : null;
-      if (!island) {
+      // The home island is never moved: its editable surface lives in the
+      // shared world grid (not the island's group), so dragging it would only
+      // shift the base away from the locked surface. Don't bind the gizmo to it.
+      if (!island || island.__home) {
+        selectedTransformGizmoIsland = null;
         transformGizmoGroup.visible = false;
         return;
       }
