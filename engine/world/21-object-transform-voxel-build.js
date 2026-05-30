@@ -1087,21 +1087,24 @@
         });
       }
     }
-    let seedId = 'machiya-house';
+    // Neutral, non-themed seeds — never default to Japanese (machiya / sakura /
+    // torii / bamboo) styling. The AI enhances FROM these, so the seed sets the
+    // look; keep it culturally neutral unless the user explicitly asks otherwise.
+    let seedId = 'watchtower';
     if (cell.kind === 'house') {
       if (cell.buildingType === 'tower' || cell.buildingType === 'skyscraper') seedId = 'watchtower';
       else if (cell.buildingType === 'turret') seedId = 'watchtower';
-      else seedId = 'machiya-house';
+      else seedId = 'watchtower';
     } else if (cell.kind === 'tree' || cell.kind === 'flower' || cell.kind === 'bush') {
-      seedId = 'cherry-tree-build';
+      seedId = 'oak-grove-build';
     } else if (cell.kind === 'rock') {
       seedId = 'rock-outcrop-build';
     } else if (cell.kind === 'fence' || cell.kind === 'bridge') {
-      seedId = 'temple-gate';
+      seedId = 'fence-build';
     } else if (CROP_KINDS.has(cell.kind) || cell.kind === 'tuft') {
-      seedId = 'bamboo-garden';
+      seedId = 'crop-patch-build';
     }
-    const base = getVoxelBuildStamp(seedId) || getVoxelBuildStamp('machiya-house');
+    const base = getVoxelBuildStamp(seedId) || getVoxelBuildStamp('oak-grove-build') || getVoxelBuildStamp('watchtower');
     if (!base) return null;
     return Object.assign({}, base, {
       id: 'selected-' + cell.kind + '-' + Date.now().toString(36),
@@ -1253,7 +1256,8 @@
   }
 
   function shouldEnhanceSelectedObjectPrompt(text) {
-    return /\b(ai\s*)?(enhance|reinterpret|upscale|detail|detailed|refine|upgrade|rebuild|voxel|stamp|make it|turn it|change it|convert it)\b/i.test(String(text || ''));
+    return /\b(ai\s*)?(enhance|reinterpret|upscale|detail|detailed|refine|upgrade|rebuild|remake|redesign|voxel|stamp|create|build|make|design|generate|turn|convert|transform|change)\b.*\b(it|this|into|to|a|an|as)\b/i.test(String(text || '')) ||
+           /\b(enhance|reinterpret|upscale|detail|refine|upgrade|rebuild|voxel|stamp|make it|turn it|change it|convert it)\b/i.test(String(text || ''));
   }
 
   function voxelBuildBounds(voxels) {
@@ -1379,7 +1383,7 @@
         'Do not add roofs, windows, doors, lanterns, fences, garden gates, petals, trees, or building trim.',
       );
     } else if (kind === 'tree' || kind === 'bush' || kind === 'flower') {
-      base.seedId = 'cherry-tree-build';
+      base.seedId = 'oak-grove-build';
       base.style = 'Organic low-poly voxel foliage prop, clustered leaves, branch structure, readable chunky blocks';
       base.requirements.push(
         'This is foliage. Keep the clustered leaf canopy and trunk/branch relationship.',
@@ -1490,11 +1494,12 @@
       if (!ai.key) throw new Error('AI key missing');
       const schema = customPartsEnhanceSchema(allowedMaterials);
       const system = [
-        'You generate geometry for a Three.js voxel stamp builder.',
+        'You generate geometry for a Three.js voxel stamp builder. You CAN create brand-new 3D objects from scratch, not just re-arrange existing parts.',
         'Return ONLY valid JSON, no markdown.',
         'The JSON shape must be {"customParts":[...], "notes":"short optional note"}.',
         'Use customParts with box/cylinder/cone, material, size [x,y,z], pos [x,y,z], scale [1,1,1].',
-        'Preserve the selected building type and keep it compact in the original tile footprint.',
+        'If the user asks for a new or different object, build THAT object freely — invent its shape, parts, and silhouette (you may change type entirely). If they only ask to enhance, preserve the selected building type.',
+        'Keep the result roughly within the original tile footprint.',
         'Do not introduce Japanese, pagoda, temple, shrine, torii, sakura, or garden styling unless the selected object or user instruction explicitly asks for it.',
         'Do not add detached floating rings, detached columns, orbiting blocks, or broad terrain patches.',
         'Keep all returned parts inside allowedBounds when provided.',
@@ -1728,13 +1733,13 @@
     }
     if (!ai.key) throw new Error('AI key missing');
     const system = [
-      'You enhance selected voxel stamps for Tiny World Builder.',
-      'Input voxels are integer x/y/z cubes with hex colors.',
-      'Return JSON only. Keep the selected object category recognisable, preserve its rough footprint, and add higher-resolution voxel detail.',
-      'Follow selectedKind, sourceCell, style, and requirements over generic visual assumptions.',
+      'You build and enhance voxel objects for Tiny World Builder. You CAN create brand-new 3D objects, not just rearrange existing parts.',
+      'Input voxels are integer x/y/z cubes with hex colors — a starting seed you may keep, extend, or completely replace.',
+      'If the user instruction asks for a different or new object (e.g. "make it a windmill", "turn this into a spaceship/robot/lighthouse"), CREATE that new object from scratch: invent its shape, silhouette, and colors freely — you are NOT limited to the seed\'s original category.',
+      'If the instruction only asks to enhance/refine/detail, keep the selected object category recognisable, preserve its rough footprint, and add higher-resolution voxel detail.',
       'Use many small voxels on the supplied coordinate grid. Do not collapse the object into a few broad blocks or fill a solid rectangular mass.',
       'Keep all returned voxels inside allowedBounds when it is present. Do not create detached floating decoration.',
-      'Only add details that fit the selected object type. Rocks stay rocks, trees stay trees, buildings stay buildings.',
+      'Build a readable, characterful low-poly object that matches what the user asked for.',
       'Do not return prose. Do not include markdown.',
       '',
       'Schema:',

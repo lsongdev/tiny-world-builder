@@ -131,8 +131,40 @@
   // restore and JSON file import. Accepts schema v1/v2 cells where `floors`
   // was overloaded, v3 cells with separate terrainFloors, and v4 fence sides. Walks the FULL
   // grid so every cell gets a tile mesh, then layers in the saved overrides.
+  // AI world-gen may author bespoke objects inline via cell.customParts. Turn
+  // each into a registered voxel-build stamp and rewrite the cell to reference
+  // it, BEFORE normalization/validation (which only know native fields). Runs
+  // only for fresh AI output; saved worlds already carry voxelBuildId + no parts.
+  function materializeCustomPartCells(data) {
+    if (!data || !Array.isArray(data.cells)) return;
+    if (typeof normalizeVoxelBuildStamp !== 'function') return;
+    for (const c of data.cells) {
+      if (!c || Array.isArray(c) || typeof c !== 'object') continue;
+      const parts = c.customParts;
+      if (!Array.isArray(parts) || !parts.length) { if (c) { delete c.customParts; delete c.customName; } continue; }
+      const name = (typeof c.customName === 'string' && c.customName.trim()) ? c.customName.trim() : 'Custom Object';
+      delete c.customParts;
+      delete c.customName;
+      let stamp = null;
+      try { stamp = normalizeVoxelBuildStamp({ name, customParts: parts, custom: true, footprint: 2.0 }, 'Custom Object'); } catch (_) {}
+      if (!stamp) continue;
+      if (typeof VOXEL_BUILD_STAMPS !== 'undefined' && typeof getVoxelBuildStamp === 'function' && !getVoxelBuildStamp(stamp.id)) {
+        VOXEL_BUILD_STAMPS.push(stamp);
+      }
+      c.kind = 'voxel-build';
+      c.floors = 1;
+      c.buildingType = null;
+      c.fenceSide = null;
+      const ap = (c.appearance && typeof c.appearance === 'object') ? Object.assign({}, c.appearance) : {};
+      ap.voxelBuildId = stamp.id;
+      c.appearance = ap;
+    }
+    if (typeof saveCustomVoxelBuildStamps === 'function') { try { saveCustomVoxelBuildStamps(); } catch (_) {} }
+  }
+
   function applyState(data, opts = {}) {
     if (!data || !Array.isArray(data.cells)) return false;
+    materializeCustomPartCells(data);
     normalizeWorldCells(data);
     const err = validateWorld(data);
     if (err) {
@@ -580,6 +612,7 @@
 
   function applyStatePatch(data) {
     if (!data || !Array.isArray(data.cells)) return false;
+    materializeCustomPartCells(data);
     normalizeWorldCells(data);
     const err = validateWorld(data);
     if (err) {
@@ -846,12 +879,68 @@
   // can drive even an unattended browser.
   setTimeout(connectSseRelay, 0);
 
+  // Raw ?world= value (query string, falling back to hash). Lifted from fork
+  // yuxiaoli (60d6e89/b8c3364) and reshaped for our async-safe boot.
+  function getWorldUrlParam() {
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      let world = params.get('world');
+      if (!world) {
+        const hash = String(window.location.hash || '').replace(/^#\??/, '');
+        if (hash && hash.includes('=')) world = new URLSearchParams(hash).get('world');
+      }
+      return world;
+    } catch (_) { return null; }
+  }
+
+  // True when ?world= holds inline JSON rather than a URL to fetch.
+  function isInlineWorldParam(raw) {
+    return typeof raw === 'string' && /^\s*[\[{]/.test(raw);
+  }
+
+  // Restrict remote ?world= fetches to same-origin so an attacker can't use the
+  // param to pull (or, with credentials, exfiltrate to) an arbitrary host.
+  // Relative paths like ?world=data/snowy.json are the intended use case.
+  function sanitizeWorldUrl(raw) {
+    if (!raw || isInlineWorldParam(raw)) return null;
+    try {
+      const u = new URL(raw, window.location.href);
+      if (u.origin !== window.location.origin) { console.warn('Ignoring cross-origin ?world= URL:', raw); return null; }
+      return u.href;
+    } catch (_) { return null; }
+  }
+
+  // Async remote load for ?world=<same-origin-url>. Returns Promise<boolean>.
+  // Boot shows a placeholder scene first, so this only needs to report success.
+  async function loadWorldFromUrl(rawUrl) {
+    const safe = sanitizeWorldUrl(rawUrl);
+    if (!safe) return false;
+    try {
+      const r = await fetch(safe, { credentials: 'omit' });
+      if (!r.ok) return false;
+      const json = await r.json();
+      const ok = applyState(json, { keepCamera: false });
+      if (ok) resetCameraDefaults();
+      return ok;
+    } catch (err) {
+      console.error('Failed to load world from URL:', err);
+      return false;
+    }
+  }
+
   function loadState() {
     let data;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return false;
-      data = JSON.parse(raw);
+      // ?world={...} inline JSON loads synchronously here; remote ?world=<url>
+      // is handled asynchronously by loadWorldFromUrl() in the boot path.
+      const worldParam = getWorldUrlParam();
+      if (isInlineWorldParam(worldParam)) {
+        data = JSON.parse(worldParam);
+      } else {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return false;
+        data = JSON.parse(raw);
+      }
     } catch (_) { return false; }
     const ok = applyState(data, { keepCamera: true });
     if (ok) resetCameraDefaults();

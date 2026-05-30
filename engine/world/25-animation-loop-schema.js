@@ -27,6 +27,7 @@
     let tickStart = repaintProfileBegin();
     if (dropAnims.length) tickDropAnims(dt);
     if (typeof tickGhostHolo === 'function') tickGhostHolo(t);
+    if (typeof tickRadialMenu === 'function') tickRadialMenu();
     if (homeTween) tickHomeTween(dt);
     tickOpacityTransitions(dt);
     tickSquashAnims(dt);
@@ -780,7 +781,35 @@
           },
           "appearance": {
             "$ref": "#/$defs/appearance"
+          },
+          "customName": {
+            "type": "string",
+            "description": "Optional short name for a bespoke custom object authored via customParts."
+          },
+          "customParts": {
+            "$ref": "#/$defs/customParts"
           }
+        }
+      },
+      "customParts": {
+        "type": "array",
+        "description": "Optional bespoke custom 3D object authored inline as low-poly primitive parts. When present this cell becomes a unique voxel object (it overrides kind). Use ONLY for hero/landmark things with no native kind: windmill, statue, fountain, vehicle, robot, lighthouse, ship, sign, etc. Keep parts connected and roughly within the tile.",
+        "maxItems": 80,
+        "items": {
+          "$ref": "#/$defs/customPart"
+        }
+      },
+      "customPart": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "material", "size", "pos"],
+        "description": "One low-poly primitive of a custom object. Coordinates are voxel units centered on the tile (x left-right, y up, z front-back).",
+        "properties": {
+          "kind": { "type": "string", "enum": ["box", "cylinder", "cone"] },
+          "material": { "type": "string", "description": "Color/material name, e.g. wood, stone, roof, leaf, water, metal, white, red, gold, dirt." },
+          "size": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+          "pos": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+          "scale": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } }
         }
       },
       "cellTuple": {

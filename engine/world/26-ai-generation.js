@@ -127,8 +127,9 @@
   }
 
   const PRIMITIVE_ASSEMBLY_PROMPT = [
-    'Primitive assembly rules:',
-    '- You cannot invent new object kinds, meshes, labels, or custom geometry in JSON. Build every requested thing by arranging the available Tiny World primitives: terrain cells, raised terrainFloors, houses/buildingType variants, trees, fences/fenceSide, rocks, bridges, crop kinds, and tufts.',
+    'Scene composition rules:',
+    '- Compose the scene from the available Tiny World primitives (terrain cells, raised terrainFloors, houses/buildingType variants, trees, fences/fenceSide, rocks, bridges, crop kinds, tufts). For a thing with no native primitive, build the most ambitious, readable approximation from these parts — never refuse or flatten an idea to a cliche.',
+    '- This is a real 3D voxel builder, not a fixed clip-art set: any landmark object you lay down can afterwards be turned into a bespoke custom voxel model (a windmill, statue, spaceship, fountain, etc.) by selecting it and asking the object AI. So place clear, selectable hero/landmark objects worth customizing, and lean into novel concepts rather than only stock houses and trees.',
     '- Translate real-world objects into readable low-poly tile assemblies. Example: skate park = path/dirt plaza + raised terrain ramps + rocks as boulders/ramps + fences as rails/edges + tufts/trees as landscaping.',
     '- Use terrain as the base primitive: grass=open space, path=paved/concrete, dirt=earth/fields, water=canals/ponds. Use terrainFloors for platforms, terraces, steps, banks, ramps, plinths, hills, mountains, and cliffs.',
     '- Use fences as line primitives: rails, walls, borders, pens, queue barriers, garden edging, pier rails, road gates, and castle-wall components. Set fenceSide deliberately.',
@@ -143,7 +144,7 @@
     const size = coerceGridSize(gridSize, GRID);
     const maxCoord = size - 1;
     return [
-      'You are a level designer and low-poly primitive assembler for the Tiny World Builder, a ' + size + 'x' + size + ' isometric voxel scene.',
+      'You are a creative level designer and builder for the Tiny World Builder, a ' + size + 'x' + size + ' isometric voxel scene. You build ambitious scenes from primitives, and individual objects can become bespoke custom 3D voxel models afterwards.',
       'Output a JSON object that strictly matches the provided JSON Schema. Do not include prose, markdown fences, or explanations — only the JSON object.',
       'Required home board edge length: include "gridSize": ' + size + ' in the JSON object.',
       'Grid coordinates: x in 0..' + maxCoord + ' (left-right), z in 0..' + maxCoord + ' (front-back). Default cell is grass with no object.',
@@ -163,6 +164,7 @@
       'Use floors/intensity deliberately: terrain stacks into height, repeated objects gain size/detail, and fences vary from wood to wire/stone/steel wall styles.',
       'Avoid noise and full-grid filling. Aim for a coherent, readable scene — vary heights, leave breathing room, group related elements.',
       PRIMITIVE_ASSEMBLY_PROMPT,
+      'Custom 3D objects: for a hero/landmark thing with no native kind (windmill, statue, fountain, vehicle, robot, lighthouse, ship, market stall, sign), you CAN author it directly by setting "customParts" on that cell — an array of low-poly primitives ({kind:box|cylinder|cone, material color name, size [x,y,z], pos [x,y,z] in voxel units centered on the tile, optional scale}). That cell then renders as your unique object. Build it from connected parts, keep it roughly within the tile footprint, and use a neutral/global low-poly style — do NOT default to Japanese (pagoda/torii/sakura/machiya) or any single regional theme unless the user explicitly asks. Use customParts sparingly for a few standout objects; keep ordinary scenery as native primitives.',
       '',
       'JSON Schema:',
       JSON.stringify(WORLD_SCHEMA, null, 2),
@@ -180,7 +182,7 @@
       'Use floors/intensity as variation: repeated fences can become taller wood, wire, stone wall, or steel wall; repeated rocks, trees, bridges, crops, and tufts gain size/detail.',
       'Return varied suggestions, ordered best first: include structural options, terrain/path options, nature/detail options, and intensify/repeat options when useful.',
       'Suggestions must be reusable across several placements, so avoid relying on a single exact coordinate.',
-      'If the player asks for a thing with no native kind (skate park, playground, market, airport, quarry, garden, plaza), decompose it into the closest existing primitive action rather than inventing a new kind.',
+      'If the player asks for a thing with no native kind (skate park, playground, market, airport, quarry, garden, plaza), build it ambitiously from the closest existing primitive actions — do not refuse. Landmark objects can later be turned into bespoke custom 3D voxel models via the object AI, so suggest strong hero objects worth customizing.',
       'Return a JSON object that strictly matches the schema. Do not include prose, markdown fences, or explanations.',
       '',
       'JSON Schema:',
@@ -350,6 +352,21 @@
         if (!validMooringAnchorShape(cable.a) || !validMooringAnchorShape(cable.b)) return 'moorings[' + i + '] anchors invalid';
       }
     }
+    // Optional landscape-engine fields (lifted from fork yuxiaoli@cfa5165; biome/
+    // style sets mirror PLANET_LANDSCAPE_BIOMES/STYLES in 27-landscape-engine.js).
+    if (data.useLandscapeEngine !== undefined && typeof data.useLandscapeEngine !== 'boolean') return 'useLandscapeEngine must be a boolean';
+    if (data.landscapeMeshMode !== undefined && typeof data.landscapeMeshMode !== 'boolean') return 'landscapeMeshMode must be a boolean';
+    if (data.landscapeMeshBiome !== undefined && !['grassland','desert','snow'].includes(data.landscapeMeshBiome)) return 'landscapeMeshBiome invalid: ' + data.landscapeMeshBiome;
+    if (data.landscapeMeshStyle !== undefined && !['lowpoly','realistic'].includes(data.landscapeMeshStyle)) return 'landscapeMeshStyle invalid: ' + data.landscapeMeshStyle;
+    if (data.landscapeEngineSeed !== undefined && typeof data.landscapeEngineSeed !== 'number' && typeof data.landscapeEngineSeed !== 'string' && data.landscapeEngineSeed !== null) return 'landscapeEngineSeed invalid';
+    if (data.landscapeEngineBiome !== undefined && !['grassland','desert','snow',null].includes(data.landscapeEngineBiome)) return 'landscapeEngineBiome invalid: ' + data.landscapeEngineBiome;
+    if (data.planetLandscape !== undefined && data.planetLandscape !== null) {
+      if (typeof data.planetLandscape !== 'object') return 'planetLandscape invalid';
+      if (data.planetLandscape.enabled !== undefined && typeof data.planetLandscape.enabled !== 'boolean') return 'planetLandscape.enabled invalid';
+      if (data.planetLandscape.biome !== undefined && !['grassland','desert','snow'].includes(data.planetLandscape.biome)) return 'planetLandscape.biome invalid';
+      if (data.planetLandscape.styleMode !== undefined && !['lowpoly','realistic'].includes(data.planetLandscape.styleMode)) return 'planetLandscape.styleMode invalid';
+      if (data.planetLandscape.drop !== undefined && (typeof data.planetLandscape.drop !== 'number' || data.planetLandscape.drop < 20 || data.planetLandscape.drop > 300)) return 'planetLandscape.drop invalid';
+    }
     const okTerrain = new Set(['grass','path','dirt','water','stone','lava','sand','snow']);
     const okKind = new Set([null,'house','tree','fence','rock','bridge','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep','chimney','ripple','shrub','stone','pebble','bridge-rail','voxel-build','model-stamp','blank-island']);
     const okBT = new Set([null,'cottage','manor','tower','turret','skyscraper']);
@@ -357,12 +374,12 @@
     const seen = new Set();
     for (let i = 0; i < data.cells.length; i++) {
       const c = data.cells[i];
-      let x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, appearance;
+      let x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, extras, transform, appearance;
       if (Array.isArray(c)) {
         if (c.length < 4) return 'cells[' + i + '] tuple too short';
-        [x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, , , appearance] = c;
+        [x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, extras, transform, appearance] = c;
       } else if (c && typeof c === 'object') {
-        ({ x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, appearance } = c);
+        ({ x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, extras, transform, appearance } = c);
       } else {
         return 'cells[' + i + '] not object';
       }
@@ -384,6 +401,27 @@
       const fs = fenceSide === undefined ? null : fenceSide;
       if (!okFenceSide.has(fs)) return 'cells[' + i + '].fenceSide invalid: ' + fenceSide;
       if (fs && k !== 'fence') return 'cells[' + i + '].fenceSide only allowed on fence';
+      // extras/transform match the loader's accepted shapes in 29-persistence-api.js
+      // (extras filtered to fence/tuft; transform = [rotationY,offsetX,offsetZ,offsetY?]
+      // or {rotationY,offsetX,...}). Lifted from fork yuxiaoli@cfa5165.
+      if (extras !== undefined && extras !== null) {
+        if (!Array.isArray(extras)) return 'cells[' + i + '].extras must be an array';
+        for (const extra of extras) {
+          if (!extra || typeof extra !== 'object') return 'cells[' + i + '].extras item not object';
+          const extraKind = extra.kind || extra.k;
+          if (extraKind !== undefined && !['fence','tuft'].includes(extraKind)) return 'cells[' + i + '].extras item kind invalid: ' + extraKind;
+        }
+      }
+      if (transform !== undefined && transform !== null) {
+        if (Array.isArray(transform)) {
+          if (transform.length < 3 || transform.length > 4) return 'cells[' + i + '].transform array invalid length';
+        } else if (typeof transform === 'object') {
+          if (transform.rotationY !== undefined && typeof transform.rotationY !== 'number') return 'cells[' + i + '].transform.rotationY invalid';
+          if (transform.offsetX !== undefined && typeof transform.offsetX !== 'number') return 'cells[' + i + '].transform.offsetX invalid';
+        } else {
+          return 'cells[' + i + '].transform invalid type';
+        }
+      }
       if (appearance !== undefined && appearance !== null && !normalizeAppearance(appearance)) return 'cells[' + i + '].appearance invalid';
     }
     return null;
