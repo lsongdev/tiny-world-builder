@@ -2282,8 +2282,11 @@
       updateSelectionPreview(selectedObject);
       updateTransformGizmo(selectedObject);
       if (panelTitle) panelTitle.textContent = 'Selection';
-      // Slide the panel in (expanded) and pin so the user can chat about it.
-      setPanelCollapsed(false, { pin: true });
+      // Only auto-open the properties panel for a multi-cell selection. A plain
+      // single-click raises the radial menu (gizmo above) but leaves the panel
+      // closed so it doesn't pop up on every pick — open it explicitly via the
+      // radial More/Style/Move actions when editing a single object.
+      if (summary.cellCount > 1) setPanelCollapsed(false, { pin: true });
     }
     window.addEventListener('tinyworld:selection-changed', renderSelection);
     window.addEventListener('tinyworld:history-changed', () => {
