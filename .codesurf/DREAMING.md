@@ -1,12 +1,14 @@
+The file structure is confirmed. The recent sessions are all trivial test/diagnostic Codex sessions (PONG, confirmed, count to 50, /tmp write test) with no tinyworld-specific activity. The module count and skills are unchanged from the previous cycle. I'll write the updated DREAMING.md now, preserving all durable facts and keeping open threads current.
+
 # CodeSurf Workspace Memory — tinyworld
 
-Generated: 2026-05-31
+Generated: 2026-06-01
 
 ---
 
 ## Overview
 
-Tiny World Builder is a vanilla ES6, no-bundler 3D world editor built on Three.js r128. The app shell lives in `tiny-world-builder.html` (~1.4k lines); business logic is split across 39 numbered modules under `engine/world/` (00–37 + 99-late-boot.js), plus `engine/landscape/`. Total JS is approximately 40k+ lines. Deployed via Vercel and Netlify from `dist/` produced by `publish.sh`.
+Tiny World Builder is a vanilla ES6, no-bundler 3D world editor built on Three.js r128. The app shell lives in `tiny-world-builder.html` (~1.4k lines); business logic is split across 44 ordered modules under `engine/world/` (00–41 + 09b + 99-late-boot.js), plus `engine/landscape/`. Total JS is approximately 40k+ lines. Deployed via Vercel and Netlify from `dist/` produced by `publish.sh`.
 
 ---
 
@@ -14,134 +16,74 @@ Tiny World Builder is a vanilla ES6, no-bundler 3D world editor built on Three.j
 
 **Architecture**
 - Primary file: `tiny-world-builder.html` — HTML shell, boot config, and ordered `<script src>` tags only
-- Engine modules: `engine/world/00-prelude.js` through `engine/world/99-late-boot.js` — 39 modules total (00–37 + 99-late-boot.js), numbered by load order
-  - Newest modules: `34-flight-sim.js`, `35-tool-palette.js`, `36-mooring-interaction.js`, `37-island-placement-holos.js`
-- Skills: 20 `.codex/skills/tinyworld-*` SKILL.md files; all routing entries in AGENTS.md are current
-- `tinyworld-ghost-world-gen` and `threejs-primitive-reconstructor` present on disk but absent from AGENTS.md routing table (stable gap — unresolved across multiple dreaming cycles)
-- Three.js pinned to r128; bumping is risky (shadow and material color-space changes in newer releases)
-- All modules share one global scope (classic `<script>` tags, not ES modules) — load order matters; duplicate top-level identifiers throw `SyntaxError` and silently kill the declaring module
+- Engine modules: `engine/world/00-prelude.js` through `engine/world/99-late-boot.js` — 44 files total (00–41 + 09b + 99-late-boot.js), loaded in strict numeric order
+  - `38-multiplayer-partykit.js` — PartyKit real-time shared building; activated via `?party=`/`?room=`/`?collab=` URL params; chunked snapshot reassembly; `applyingRemote`/`applyingRemoteEnv` flags prevent re-broadcast loops
+  - `39-atmosphere-effects.js` — Atmosphere effects extracted into own module; PointLight/SpotLight predicate fixed; cache invalidates on placeable-light registration/removal
+  - `40-shield-system.js` — Voxel blast shield port; scene-level overlay; PointLight cap 12; configurable panel geometry
+  - `41-flight-combat.js` + `engine/world/flight-combat-math.mjs` — Guns, targeting HUD, missiles for flight sim; reads `window.__flightJet`; uniform target adapter interface; health system (MAX_HEALTH=100); muzzle flash deferred
+  - `flight-combat-math.mjs` is an ES module (not a classic script) — import semantics differ from the rest of the engine
+- Skills on disk: 20 `.codex/skills/` directories — 19 `tinyworld-*` plus `threejs-primitive-reconstructor`; all 19 tinyworld-* skills are routed in AGENTS.md; `threejs-primitive-reconstructor` and `tinyworld-ghost-world-gen` are on disk but absent from AGENTS.md routing
+- Three.js pinned to r128; bumping is risky (shadows and material color spaces changed in newer releases)
+- All engine modules share one global scope — load order matters; duplicate top-level identifiers throw `SyntaxError` and silently kill the declaring module while others keep loading; prefix module-local scratch globals (e.g. `_fl…`)
 
 **Data layer contract (never break these)**
 - `world[x][z]` — intent: `{ terrain, terrainFloors, kind, floors }`
 - `cellMeshes['x,z']` — render: `{ tile: Group, object: Group|null }`
-- All mutations go through `setCell(x, z, opts)` — direct writes to `world[x][z]` desync intent from rendering
-- Materials in `M.*` are shared; never mutate in place, clone first
-- `userData.landing` guards drop-in animations; never remove these checks
+- All mutations go through `setCell(x, z, opts)`
+- Materials in `M.*` are shared across many meshes — never mutate in place, clone first
+- `userData.landing` guards drop-in animations — never remove these checks
+- `disposeGroup(group)` disposes geometries but not shared materials; per-particle smoke clones its material and disposes on death — follow that pattern for any unique-per-instance material
 
-**Build / test**
-- `npm test` — static checks
-- `npm run build` — generates `dist/`
-- `npm run icons` — re-bakes PNG tool icons (run after adding new tool kinds)
-- `publish.sh` — copies `styles/`, `icons/`, `data/` into `dist/`
+**Build and deploy**
+- No bundler, no npm runtime deps; `npm test` for static checks, `npm run build` for dist generation
+- `publish.sh` copies `engine/`, `styles/`, `vendor/` into `dist/`; Vercel (`vercel.json`) and Netlify (`netlify.toml`) serve from `dist/`
+- Edits auto-commit; main auto-pushes to GitHub → Netlify prod — branches do not guarantee isolation
 
-**Persistence**
-- Runtime state in localStorage; `twSafeSetItem` wraps all writes (surfaces quota errors)
-- World save/load via `29-persistence-api.js`; custom voxel stamps embedded in world save payload
-- Defaults pipeline: `tinyworld-defaults.json` + `/api/save-defaults`
-- URL param `?world=<same-origin-url>` loads a remote world at boot
-
-**House style**
-- Semicolons used throughout — follow existing file
-- 2-space indent, trailing commas, single quotes
-- Section headers: `// -------- name --------`
-- No npm packages, no bundler — single-file constraint is intentional
+**Module load gotchas**
+- Home grid starts at 8×8; settings can expose up to 48×48; avoid synchronous broad rebuilds at larger sizes
+- `orthoCam`, `softCam`, `persCam` exist; `camera` is a reference swapped by `togglePerspective()` / `setCameraMode()`
+- Stunt-plane flight uses the existing `stunt-plane` model-stamp via the Stamps system — not a bespoke tool/kind
 
 ---
 
 ## Active Subsystems
 
-**Flight sim** (`34-flight-sim.js`, skill: `tinyworld-flight-sim`)
-- Flyable plane via existing `stunt-plane` model-stamp (`models/stunt_plane.glb`) placed through the Stamps system — not a bespoke tool
-- Plain click on placed stamp opens Enter/Fly menu; flight uses rear chase-cam + ported ships physics (sim-space → scene similarity transform); Escape exits
-
-**Editable Islands** (`14-editable-islands-moorings.js`, `36-mooring-interaction.js`, `37-island-placement-holos.js`)
-- Islands render terrain per-cell, matching home island parity (`ensureEditableIslandCellTiles`)
-- 8-slot placement workflow with hologram snapping; hover/placement wired through `20-input-place-erase.js`
-- Mooring cable routing avoids engine hazards (`MOORING_HAZARD_CLEARANCE`, `avoidMooringHazards`)
-- Island side-backing clone now inherits the voxel seam shader from `M.boardSide` (`03-geometry-materials.js`); grid is fine-scale horizontal/vertical lines — not oversized blocks
-
-**AI Generation** (`26-ai-generation.js`)
-- Primitive approximation bias removed; primitives are "components, not a ceiling"
-- Material vocabulary expanded
-- Bespoke/custom part requests go through `customParts` as first-class low-poly models; seed type no longer over-preserved on custom requests
-
-**Crowd / vehicle pathfinding** (`11-vehicle-crowd.js`)
-- BFS grid pathfinder with segment/check/simplify utilities
-- Path-biased wander routes: crowds favor road cells, avoid obstacles
-- Spawn logic prefers path cells; walkable terrain set expanded
-
-**Radial menu** (`33-radial-menu.js`)
-- Context-sensitive ring rebuilt on selection type change
-- Island selections restricted to move/rotate only
-
-**Engine model system**
-- Shared lift-engine system (`buildHomeIslandEngines`) — home and island engines unified
-- Engine types: propeller (tinted), rocket (heavy variant), standard
-- Selected engines reveal the agent panel (`28-generate-panel-agent.js`)
-
-**Lamp / local lights** (`engine/world/` — atmosphere module)
-- Three r128 PointLight/SpotLight type predicate now used for the local-light toggle (old predicate was too narrow and missed dynamically placed lamps)
-- Atmosphere updater's time/settings bucket cache is invalidated whenever placeable light roots are registered or removed; placement at night turns the real light on immediately
-
-**Storage / asset utilities** (`00-prelude.js`)
-- `twToast`, `twSafeSetItem`, `twDownloadJSON`, `twPickJSONFile`
-- Asset library export/import: `exportAssetLibrary`, `importAssetLibrary`
-- Custom voxel-build stamps: `referencedVoxelBuildStamps`, `registerEmbeddedVoxelBuildStamps`
-
-**Known fixes (2026-05-31)**
-- Startup race: texture load callbacks could call `renderScene()` before `worldGroup` exists, producing `ReferenceError: worldGroup is not defined`. Guard added; early texture callbacks no-op until scene graph is initialized (`04-textures.js`, `initCloudSystem`)
-- Island seam scale: side-backing clone was rendering plain oversized slabs. Fixed by explicitly copying the seam shader hook from `M.boardSide` into cloned island-shell materials (`03-geometry-materials.js`, `04-textures.js`)
-- Lamp light predicate: local lights placed at night now activate immediately; atmosphere updater cache invalidated on registration/removal
-
----
-
-## Skill Routing Reference
-
-| Subsystem | Skill |
-|---|---|
-| Repo workflow / single-file constraints | `tinyworld-single-file` |
-| Auto palette inference / cache | `tinyworld-auto-batching` |
-| Ghost boards, panning, opacity torch | `tinyworld-opacity-torch` |
-| Repeat-click levels, terrain variation | `tinyworld-tile-variation` |
-| Selection, freehand draw, clipboard, Stamps nav | `tinyworld-asset-editing` |
-| Browser checks, visual QA | `tinyworld-visual-qa` |
-| Renderer, shadows, clouds, GPU budget | `tinyworld-render-performance` |
-| Settings modal, tabs, accessibility | `tinyworld-settings` |
-| WebXR AR/VR | `tinyworld-webxr` |
-| 2.5D crowd sprites | `tinyworld-crowd-layer` |
-| Low-poly world prompting | `tinyworld-lowpoly-world-prompt` |
-| Low-poly asset design / import | `tinyworld-lowpoly-stylized-3d` |
-| API, webhook, SSE, MCP, plugin | `tinyworld-integrations` |
-| localStorage, defaults, audio, camera | `tinyworld-runtime-state` |
-| Home island, sponsor banner, planes | `tinyworld-island-and-planes` |
-| Tool icons (SVG glyphs), mode indicator | `tinyworld-tool-icons-and-modes` |
-| Block button aesthetic (raised square, dark outline) | `tinyworld-block-button-style` |
-| Flyable plane via stunt-plane stamp | `tinyworld-flight-sim` |
-
-Skills on disk but absent from AGENTS.md routing table (unresolved across multiple dreaming cycles):
-- `tinyworld-ghost-world-gen`
-- `threejs-primitive-reconstructor`
+| Module | Status | Notes |
+|--------|--------|-------|
+| `38-multiplayer-partykit.js` | Shipped, unrouted | No skill, no AGENTS.md entry |
+| `39-atmosphere-effects.js` | Shipped, unrouted | No skill, no AGENTS.md entry |
+| `40-shield-system.js` | Shipped, unrouted | No skill, no AGENTS.md entry |
+| `41-flight-combat.js` | Shipped, unrouted | No skill, no AGENTS.md entry |
+| `34-flight-sim.js` | Shipped, routed | Skill: `tinyworld-flight-sim` |
+| All other engine modules (00–37, 09b, 99) | Shipped, routed | See AGENTS.md skill routing table |
 
 ---
 
 ## Open Threads
 
-- **Blast door concept** (side task, no implementation yet): low-poly dark reinforced metal with battle damage; doors "roll" from island sides in a physically impossible way to form barriers around engines and land edges. User said they would mock up a visual. No code yet — waiting on mockup before implementation begins.
-- `tinyworld-ghost-world-gen` and `threejs-primitive-reconstructor` skills exist in `.codex/skills/` but are not in the AGENTS.md routing table — either wire them or explicitly remove.
-- `fork-improvements-report.md` at repo root (added 2026-05-30) — eight improvement areas (module naming/loading, state management, Three.js upgrade path, asset pipeline, testing, build system, documentation, architecture); review/action status unknown.
-- OpenClaw cron jobs (VibeClaw Article Generator, Wallpaper Generator, Skills Scout, Tom Doerr Tweet Tracker) all producing repeated assistant-turn failures — platform-level instability in OpenClaw cron execution; no action taken in tinyworld repo.
-- Tom Doerr tweet tracker additionally blocked by X.com login wall; Nitter fallback unavailable.
-- `split-god-file.js` workflow in `.claude/workflows/` — purpose/status not confirmed in recent sessions.
+- **Three unrouted subsystems need skills and AGENTS.md routing entries**: multiplayer (38), shield system (40), flight combat (41)
+- **`tinyworld-ghost-world-gen`** skill on disk but absent from AGENTS.md routing — wire or remove
+- **`threejs-primitive-reconstructor`** skill on disk but absent from AGENTS.md routing — wire or remove
+- **`fork-improvements-report.md`** at repo root (present on disk) — eight improvement areas; review/action status unknown
+- **`.claude/workflows/split-god-file.js`** — purpose/status unconfirmed; investigate before acting
+- **Blast door concept** — mentioned in prior sessions; waiting on user mockup; no code yet
 
 ---
 
-## Memory Notes
+## Hard Constraints (non-negotiable)
 
-- No emoji anywhere — user strictly prohibits emoji in UI, code, and output
+- No emoji anywhere — strictly prohibited in UI, code, and output
+- No PNG icons for tools — tinyworld main uses SVG glyphs only; never reintroduce the PNG baked-icon system
 - Do not rebuild existing components; reuse as-is
-- Verify UI/interaction behavior via 3D math (positions/bbox/ray-math), not browser screenshots or synthetic clicks
-- tinyworld main uses SVG glyphs for tool icons — never reintroduce the PNG baked-icon system
+- Verify UI/interaction via 3D math (positions, bbox, ray-math), not browser screenshots or synthetic clicks
+- Never mutate `world[x][z]` directly outside of init; always use `setCell`
+- Never rename `world`, `cellMeshes`, or `setCell`
+- Never remove `userData.landing` checks
+- Do not touch `tiny-world-builder BACKUP.html` if it exists locally
+- `npm test` must pass before declaring any change done
 
 ---
 
-_This file is auto-generated by the CodeSurf dreaming process. Do not edit manually — changes will be overwritten on the next dreaming cycle. For permanent instructions, edit AGENTS.md or .claude/CLAUDE.md._
+## Recent Session Notes
+
+No tinyworld code changes in the most recent session batch. Sessions were diagnostic Codex ping/test runs (PONG, confirmed, echo, count to 50, /tmp write test) with no workspace modifications.
