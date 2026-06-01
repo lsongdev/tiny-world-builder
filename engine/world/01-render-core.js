@@ -1046,6 +1046,9 @@
   const renderCullMin = new THREE.Vector3();
   const renderCullMax = new THREE.Vector3();
   const renderCullWorldPos = new THREE.Vector3();
+  // Per-frame ephemeral scratch for the cull loop's home-cell display point.
+  // Read immediately into renderCullBoxVisible args; never retained.
+  const renderCullCellScratch = new THREE.Vector3();
   const renderCullStats = { roots: 0, cells: 0, islands: 0, ghosts: 0, topHidden: 0 };
   const underOcclusionCloudWipe = document.getElementById('under-occlusion-cloud-wipe');
   let underOcclusionWipeOpacity = 0;
@@ -1186,8 +1189,8 @@
     applyElementOpacity(root, root.userData.currentOpacity === undefined ? 1 : root.userData.currentOpacity);
   }
 
-  function renderCullCellVisible(x, z) {
-    const display = cellDisplayPointForCell(x, z);
+  function renderCullCellVisible(x, z, island) {
+    const display = cellDisplayPointForCell(x, z, island, renderCullCellScratch);
     const cell = getWorldCell(x, z);
     const floors = Math.max(cell.floors || 1, cell.terrainFloors || 1);
     const radius = 0.92 + Math.max(0, floors - 1) * 0.10;
@@ -1241,7 +1244,7 @@
         wipePhase = 1 - topOpacity;
       }
       if (topOpacity < 0.999) renderCullStats.topHidden++;
-      const visible = renderCullCellVisible(x, z);
+      const visible = renderCullCellVisible(x, z, island);
       if (!visible) renderCullStats.cells++;
       setRenderCullVisible(entry.tile, visible);
       // The plane currently being flown leaves its home cell's footprint; the

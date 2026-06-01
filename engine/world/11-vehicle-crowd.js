@@ -605,6 +605,12 @@
     return new THREE.Vector3(x - GRID / 2 + 0.5, 0, z - GRID / 2 + 0.5);
   }
 
+  // Write the same coordinates as tilePos() into a caller-supplied vector and
+  // return it. Lets hot paths reuse a scratch Vector3 instead of allocating.
+  function tilePosInto(out, x, z) {
+    return out.set(x - GRID / 2 + 0.5, 0, z - GRID / 2 + 0.5);
+  }
+
   // -------- crowd layer --------
   let crowdLayer = null;
   let crowdLoadStarted = false;
@@ -722,7 +728,7 @@
       loadModelStampAsset(asset, () => {
         if (crowdEnabled && crowdLayer) {
           crowdModelActiveAssetId = null;
-          renderScene();
+          renderSceneIfReady();
         }
       }, err => {
         console.warn('[crowd-model] failed to load character model', asset.label || asset.id, err);

@@ -350,13 +350,16 @@
     return tilePos(x, z);
   }
 
-  function cellDisplayPointForCell(x, z) {
-    const island = editableIslandForWorldCell(x, z);
+  // island/out are optional hot-path hints. Pass a precomputed island (null is
+  // a valid "no island" value; omit to recompute) and a scratch Vector3 in out
+  // to avoid the per-cell editableIslandForWorldCell lookup and tilePos alloc.
+  function cellDisplayPointForCell(x, z, island, out) {
+    if (island === undefined) island = editableIslandForWorldCell(x, z);
     if (island) {
       const c = localCoordForWorldCell(x, z);
       return editableIslandCellDisplayPoint(island, c.x, c.z);
     }
-    return tilePos(x, z);
+    return out ? tilePosInto(out, x, z) : tilePos(x, z);
   }
 
   function stampCellUserData(root, x, z) {

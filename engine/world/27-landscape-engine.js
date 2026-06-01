@@ -460,7 +460,7 @@
       planetLandscapeWarmupTimer = 0;
       if (!planetLandscapeEngine) return;
       tickPlanetLandscapeStream(PLANET_LANDSCAPE_STREAM_INTERVAL);
-      if (typeof renderScene === 'function') renderScene();
+      if (typeof renderSceneIfReady === 'function') renderSceneIfReady();
       schedulePlanetLandscapeWarmup();
     }, PLANET_LANDSCAPE_WARMUP_INTERVAL_MS);
   }
