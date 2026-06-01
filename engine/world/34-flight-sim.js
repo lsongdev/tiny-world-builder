@@ -87,6 +87,7 @@
   const flightSceneOrigin = new THREE.Vector3();
   const flightYawQuat = new THREE.Quaternion();
   const flightKeys = {};
+  window.__flightKeys = flightKeys; // read by 41-flight-combat for gun fire
 
   // sim-space -> scene-space similarity transform
   const _flf0 = new THREE.Vector3();
@@ -734,6 +735,7 @@
     KeyW: 1, KeyS: 1, KeyX: 1, KeyA: 1, KeyD: 1, KeyQ: 1, KeyE: 1, KeyB: 1,
     ShiftLeft: 1, ShiftRight: 1, ControlLeft: 1, ControlRight: 1,
     ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1,
+    Space: 1,
   };
   window.addEventListener('keydown', e => {
     if (!flightActive) return;
@@ -752,6 +754,16 @@
       e.stopImmediatePropagation();
     }
   }, true);
+  // Mouse fire-intent: left button while flying. 41-flight-combat reads
+  // window.__flightFireHeld. Gated on flightActive so it only arms in flight.
+  window.__flightFireHeld = false;
+  window.addEventListener('pointerdown', e => {
+    if (flightActive && e.button === 0) { window.__flightFireHeld = true; }
+  }, true);
+  window.addEventListener('pointerup', e => {
+    if (e.button === 0) window.__flightFireHeld = false;
+  }, true);
+
   window.addEventListener('resize', () => {
     if (flightCam) { flightCam.aspect = window.innerWidth / window.innerHeight; flightCam.updateProjectionMatrix(); }
   });
