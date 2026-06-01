@@ -238,7 +238,9 @@
         k.addRuneStrip(this, height, depth, 0, seed);
         k.addEnergySeams(this, width, height, depth);
         k.glowCube(this, 0, height + 0.42, depth / 2 + 0.04, 0.34, 0.16, 0.34, false, 2.8);
-        k.addPointGlow(this, 0, height + 0.42, depth / 2 + 0.04, 1.25, 6);
+        // Dimmer, shorter-range point light: a rim accent on the shield edge, not
+        // a flood that lights the interior.
+        k.addPointGlow(this, 0, height + 0.42, depth / 2 + 0.04, 0.5, 3.5);
       }
     }
 
@@ -295,7 +297,9 @@
         this.add(sideRuneFace);
 
         k.glowCube(this, 0, height + 0.42, 0, 0.38, 0.16, 0.38, false, 2.8);
-        k.addPointGlow(this, 0, height + 0.44, 0, 2.2, 8);
+        // Dimmer, shorter-range point light so the keystone rims the shield edge
+        // instead of flooding the interior.
+        k.addPointGlow(this, 0, height + 0.44, 0, 0.85, 4.5);
       }
     }
 
@@ -571,7 +575,10 @@
           }
           keystone.visible = progress > 0.001;
 
-          const keystonePower = shieldSmoothstep((progress - 0.78) / 0.18);
+          // Glow stays OFF while the shield extends; it powers on only over the
+          // final lock-in (progress 0.92 -> 1.0), so the lights flicker on once
+          // the shield is fully in place rather than lighting up as it deploys.
+          const keystonePower = shieldSmoothstep((progress - 0.92) / 0.08);
           const flicker = fullyLocked ? 1 : shieldFlickerSignal(time, index + 9);
           setModuleGlow(keystone, keystonePower, flicker);
           keystone.userData.lightPower = keystonePower * flicker;
@@ -606,7 +613,10 @@
           const almostConnected = shieldSmoothstep((local - 0.62) / 0.38);
           const rowStart = order / Math.max(1, this.panelsPerCornerSide - 1);
           const sideLockSpark = shieldSmoothstep((progress - (0.62 + rowStart * 0.08)) / 0.16);
-          const power = shieldClamp01(almostConnected * sideLockSpark);
+          // Keep panels dark as they slide out; gate the glow to the final lock-in
+          // window so the lights flicker on only when the shield is fully in place.
+          const lockGate = shieldSmoothstep((progress - 0.92) / 0.08);
+          const power = shieldClamp01(almostConnected * sideLockSpark * lockGate);
           const flicker = fullyLocked ? 1 : shieldFlickerSignal(time, panel.userData.lightSeed);
 
           setModuleGlow(panel, power, flicker);
