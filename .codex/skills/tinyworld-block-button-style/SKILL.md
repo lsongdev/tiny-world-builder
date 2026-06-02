@@ -69,6 +69,19 @@ Raised, outlined square (per posType; same pattern for `.tool` and
 - Give the tile a `data-pos-type` (terrain/primary/tertiary) — the existing
   rules then paint it automatically. `posTypeForTool()` in
   `19-tools-toolbar.js` maps a tool to its posType.
+- Bottom-toolbar buttons must all carry a stable `data-pos-type`: Select uses
+  `primary`, Erase uses `neutral`, and inactive group buttons use
+  `posTypeForToolGroup(group)` so their borders do not disappear until a group
+  becomes active. The late `Unified block buttons` CSS block applies the same
+  raised border/inner-line treatment to `.toolbar .tool`,
+  `.toolbar .tool-group-btn`, `.flyout .tool.flyout-tool`, and the floating
+  `.tool-palette`; keep that block after generic flyout sizing rules.
+- Selection radial buttons stay circular, but they still use the same category
+  contract. `33-radial-menu.js` passes `data-pos-type` through `makeBtn()`
+  (root actions = `primary`, close/back = `neutral`, reset swatch = `neutral`),
+  and the mooring style radial in `36-mooring-interaction.js` uses
+  `tertiary`. Style them via `.radial-btn[data-pos-type]`, not by returning to
+  pale generic circles.
 - Build the icon with `buildToolButton(tool, { flyout: true })` so it reuses the
   `.tool-glyph` / `.tool-icon` machinery and the outline rules.
 - Bottom-toolbar utility buttons use `buildToolbarUtilityButton(...)` and the
@@ -82,6 +95,10 @@ Raised, outlined square (per posType; same pattern for `.tool` and
   buttons. Because the theme blocks use `body.ui-theme-dark ... !important`,
   add matching `body.ui-theme-dark` active selectors after the generic selected
   block; a lower-specificity late rule is not enough.
+- Light-mode selected option chips/tabs in the selection and Layers properties
+  panels are part of the same glass language. Keep their old translucent fills
+  (`rgba(60,130,247,0.15)` for active chips, `rgba(23,107,235,0.14)` for active
+  Layers tabs) plus backdrop blur; do not replace them with solid white fills.
 - Mono/utility icons (select, erase) use `.tool-icon` and render as
   `fill:none; stroke:currentColor` outlines (the rule is shared between
   `.toolbar`, `.flyout`, and `.tool-palette`). Keep them line-art, not filled.

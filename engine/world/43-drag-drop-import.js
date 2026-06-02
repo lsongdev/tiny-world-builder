@@ -62,6 +62,76 @@
       return register(files);
     }
 
+    function cleanModelLoadMessage(message) {
+      let text = '';
+      if (message && typeof message === 'object') {
+        const target = message.target || message.currentTarget || null;
+        const url = target && (target.responseURL || target._url || target.src);
+        const status = target && target.status;
+        text = message.message || (status ? 'HTTP ' + status : '') || (url ? 'Could not read ' + url : '') || '';
+        if (!text && message.type) text = 'file load failed (' + message.type + ')';
+      } else {
+        text = String(message || '');
+      }
+      return String(text || 'loader failed')
+        .replace(/^THREE\.(?:GLTFLoader|DRACOLoader):\s*/i, '')
+        .replace(/^THREE\.\w+:\s*/i, '')
+        .slice(0, 150);
+    }
+
+    function preloadDroppedModel(asset, opts = {}) {
+      if (!asset || typeof window.__tinyworldPreloadModelStamp !== 'function') return null;
+      const label = asset.label || stripExt(asset.path);
+      const cache = window.__tinyworldPreloadModelStamp(asset.id, {
+        ready() {
+          if (opts.readyText) showDropStatus(opts.readyText);
+        },
+        error(message) {
+          showDropStatus('Could not render ' + label + ': ' + cleanModelLoadMessage(message), 'error');
+        },
+      });
+      if (cache && cache.state === 'ready' && opts.readyText) showDropStatus(opts.readyText);
+      else if (cache && cache.state === 'error') {
+        showDropStatus('Could not render ' + label + ': ' + cleanModelLoadMessage(cache.errorMessage), 'error');
+      } else if (cache && cache.state === 'loading' && opts.loadingText) {
+        showDropStatus(opts.loadingText, 'busy');
+      }
+      return cache;
+    }
+
+    function waitForDroppedModel(asset, opts = {}) {
+      if (!asset) return Promise.resolve(false);
+      if (typeof window.__tinyworldPreloadModelStamp !== 'function') return Promise.resolve(true);
+      const label = asset.label || stripExt(asset.path);
+      return new Promise(resolve => {
+        let done = false;
+        const finish = ok => {
+          if (done) return;
+          done = true;
+          resolve(ok);
+        };
+        const cache = window.__tinyworldPreloadModelStamp(asset.id, {
+          ready() {
+            if (opts.readyText) showDropStatus(opts.readyText);
+            finish(true);
+          },
+          error(message) {
+            showDropStatus('Could not render ' + label + ': ' + cleanModelLoadMessage(message), 'error');
+            finish(false);
+          },
+        });
+        if (cache && cache.state === 'ready') {
+          if (opts.readyText) showDropStatus(opts.readyText);
+          finish(true);
+        } else if (cache && cache.state === 'error') {
+          showDropStatus('Could not render ' + label + ': ' + cleanModelLoadMessage(cache.errorMessage), 'error');
+          finish(false);
+        } else {
+          showDropStatus(opts.loadingText || ('Loading ' + label + '…'), 'busy');
+        }
+      });
+    }
+
     function selectedModelTool(asset) {
       if (!asset) return null;
       return {
@@ -98,11 +168,11 @@
       return { x: hit.x + bx * GRID, z: hit.z + bz * GRID, cell: getWorldCell(hit.x + bx * GRID, hit.z + bz * GRID), userEdited: !!(bx || bz) };
     }
 
-    function placeDroppedModel(asset, evt) {
+    function placeDroppedModel(asset, evt, targetOverride = null) {
       if (!asset || asset.supported === false || typeof setCell !== 'function') return false;
       if (window.__flightActive) return false;
       if (typeof mpEditAllowed === 'function' && !mpEditAllowed()) return false;
-      const target = modelPlacementTarget(evt);
+      const target = targetOverride || modelPlacementTarget(evt);
       if (!target) return false;
       const mp = window.__tinyworldMultiplayer;
       if (mp && typeof mp.canEdit === 'function' && !mp.canEdit(target.x, target.z)) return false;
@@ -160,6 +230,7 @@
     async function attachFilesToAgent(files) {
       const models = registerDroppedModels(modelFiles(files));
       models.forEach(asset => {
+        preloadDroppedModel(asset);
         agentAttachments.push({
           id: 'model:' + asset.id,
           type: 'model',
@@ -224,7 +295,14 @@
             return;
           }
           selectDroppedModel(assets[0]);
-          showDropStatus('Imported ' + assets.length + ' model stamp' + (assets.length === 1 ? '' : 's'));
+          preloadDroppedModel(assets[0], {
+            loadingText: 'Importing ' + (assets[0].label || 'model') + '…',
+            readyText: 'Imported ' + (assets[0].label || 'model'),
+          });
+          if (assets.length > 1) {
+            showDropStatus('Importing ' + assets.length + ' model stamps…', 'busy');
+            assets.slice(1).forEach(asset => preloadDroppedModel(asset));
+          }
         },
       });
     }
@@ -234,13 +312,23 @@
       setupDropTarget(canvas, {
         kind: 'model',
         effect: 'copy',
-        onDrop(files, evt) {
+        async onDrop(files, evt) {
           const assets = registerDroppedModels(modelFiles(files));
           if (!assets.length) {
             showDropStatus('Drop a GLB, GLTF, or OBJ model on the world', 'error');
             return;
           }
-          const placed = placeDroppedModel(assets[0], evt);
+          const target = modelPlacementTarget(evt);
+          if (!target) {
+            showDropStatus('Pick an editable tile before dropping a model', 'error');
+            return;
+          }
+          const ready = await waitForDroppedModel(assets[0], {
+            loadingText: 'Loading ' + (assets[0].label || 'model') + '…',
+            readyText: 'Rendered ' + (assets[0].label || 'model'),
+          });
+          if (!ready) return;
+          const placed = placeDroppedModel(assets[0], evt, target);
           showDropStatus(placed ? 'Placed ' + (assets[0].label || 'model') : 'Pick an editable tile before dropping a model', placed ? 'ok' : 'error');
         },
       });
@@ -260,7 +348,7 @@
         const lines = ['\n\nAttached file context:'];
         attachments.forEach(item => {
           if (item.type === 'model') {
-            lines.push('- Model "' + item.name + '" is already imported as modelStampId "' + item.modelStampId + '". To use it in generated world JSON, place a cell with kind:"model-stamp", floors:1, buildingType:null, fenceSide:null, and appearance:{ "modelStampId":"' + item.modelStampId + '", "objectScale":1 }.');
+            lines.push('- Model "' + item.name + '" is already imported. If the user asks to place or use this model, you MUST use this exact modelStampId "' + item.modelStampId + '" in every generated cell representing it: kind:"model-stamp", floors:1, buildingType:null, fenceSide:null, appearance:{ "modelStampId":"' + item.modelStampId + '", "objectScale":1 }. Do not omit appearance.modelStampId, do not invent another model id, and do not substitute a built-in object for this attached model.');
           } else if (item.type === 'image') {
             lines.push('- Image "' + item.name + '" is attached as visual reference. Match its subject, palette, or composition when relevant.');
           }

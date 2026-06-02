@@ -114,6 +114,32 @@
       return out;
     }
 
+    function coordKeyFor(x, z) {
+      return Math.round(x) + ',' + Math.round(z);
+    }
+
+    function layerIdCoordKey(layerId) {
+      const parts = String(layerId || '').split(':');
+      if (parts.length < 3) return '';
+      const x = Number(parts[1]);
+      const z = Number(parts[2]);
+      if (!Number.isFinite(x) || !Number.isFinite(z)) return '';
+      return coordKeyFor(x, z);
+    }
+
+    function syncActiveLayerIdWithSelection(selectedCoords) {
+      if (!activeLayerId) return;
+      if (!selectedCoords || !selectedCoords.size) {
+        activeLayerId = null;
+        return;
+      }
+      if (!selectedCoords.has(layerIdCoordKey(activeLayerId))) activeLayerId = null;
+    }
+
+    function rowIsSelected(x, z, selectedCoords) {
+      return !!(selectedCoords && selectedCoords.has(coordKeyFor(x, z)));
+    }
+
     function cellLayerId(type, x, z, extraIndex) {
       return type + ':' + x + ':' + z + (Number.isFinite(extraIndex) ? ':' + extraIndex : '');
     }
@@ -151,7 +177,7 @@
       }
       return list;
     }
-    function collectIslandCells(board) {
+    function collectIslandCells(board, selectedCoords) {
       const cells = [];
       const size = Number.isFinite(GRID) ? GRID : 0;
       for (let lx = 0; lx < size; lx++) {
@@ -192,7 +218,8 @@
               });
             });
           }
-          if (!children.length && !terrainOverride) continue;
+          const selected = rowIsSelected(x, z, selectedCoords);
+          if (!children.length && !terrainOverride && !selected) continue;
           const tDetail = terrainDetail(cell);
           cells.push({
             id: cellLayerId('cell', x, z),
@@ -207,21 +234,22 @@
       }
       return cells;
     }
-    function collectIslands() {
-      return islandBoards().map(b => ({ board: b, cells: collectIslandCells(b) }));
+    function collectIslands(selectedCoords) {
+      return islandBoards().map(b => ({ board: b, cells: collectIslandCells(b, selectedCoords) }));
     }
 
-    function filterRows(rows, query) {
+    function filterRows(rows, query, selectedCoords) {
       if (!query) return rows;
       const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
       return rows.filter(row => {
+        if (rowIsSelected(row.x, row.z, selectedCoords)) return true;
         const hay = String(row.search || '').toLowerCase();
         return terms.every(term => hay.includes(term));
       });
     }
 
-    function renderChildRow(child, x, z) {
-      const isSelected = activeLayerId === child.id;
+    function renderChildRow(child, x, z, selectedCoords) {
+      const isSelected = activeLayerId === child.id || rowIsSelected(x, z, selectedCoords);
       return '<button type="button" class="layers-row' + (isSelected ? ' is-selected' : '') + '" role="treeitem" data-layer-id="' + esc(child.id) + '" data-layer-type="' + esc(child.type) + '" data-x="' + x + '" data-z="' + z + '">'
         + '<span class="layers-row-icon" aria-hidden="true">' + esc(child.icon) + '</span>'
         + '<span class="layers-row-main"><strong>' + esc(child.label) + '</strong><em>' + esc(child.detail) + '</em></span>'
@@ -229,7 +257,7 @@
     }
 
     function renderCell(cell, selectedCoords) {
-      const coordKey = cell.x + ',' + cell.z;
+      const coordKey = coordKeyFor(cell.x, cell.z);
       const isSelected = activeLayerId === cell.id || selectedCoords.has(coordKey);
       const coordPill = '<span class="layers-row-coord">' + coordKey + '</span>';
       if (!cell.children.length) {
@@ -240,7 +268,7 @@
           + coordPill
           + '</button>';
       }
-      const open = cellOpen.has(cell.id) ? cellOpen.get(cell.id) : true;
+      const open = isSelected || (cellOpen.has(cell.id) ? cellOpen.get(cell.id) : true);
       return '<details class="layers-cell' + (isSelected ? ' is-selected' : '') + '"' + (open ? ' open' : '') + ' data-cell-id="' + esc(cell.id) + '" data-x="' + cell.x + '" data-z="' + cell.z + '">'
         + '<summary>'
         + '<span class="layers-row-icon" aria-hidden="true">' + esc(cell.terrainIcon) + '</span>'
@@ -248,8 +276,25 @@
         + coordPill
         + '<span class="layers-count">' + cell.children.length + '</span>'
         + '</summary>'
-        + '<div class="layers-branch">' + cell.children.map(c => renderChildRow(c, cell.x, cell.z)).join('') + '</div>'
+        + '<div class="layers-branch">' + cell.children.map(c => renderChildRow(c, cell.x, cell.z, selectedCoords)).join('') + '</div>'
         + '</details>';
+    }
+
+    function islandHasSelectedCell(group, selectedCoords) {
+      if (!selectedCoords || !selectedCoords.size) return false;
+      return group.cells.some(cell => selectedCoords.has(coordKeyFor(cell.x, cell.z)));
+    }
+
+    function scrollSelectedLayerIntoView() {
+      const selected = treeEl.querySelector('.layers-row.is-selected, .layers-cell.is-selected > summary');
+      if (!selected) return;
+      try {
+        const treeRect = treeEl.getBoundingClientRect();
+        const rowRect = selected.getBoundingClientRect();
+        if (rowRect.top < treeRect.top || rowRect.bottom > treeRect.bottom) {
+          selected.scrollIntoView({ block: 'nearest' });
+        }
+      } catch (_) {}
     }
 
     function clampLayersPanel(left, top) {
@@ -272,17 +317,19 @@
     }
 
     function renderLayersPanel() {
-      const islands = collectIslands();
       const query = searchEl ? searchEl.value.trim() : '';
       const selectedCoords = selectedWorldCoordSet();
+      syncActiveLayerIdWithSelection(selectedCoords);
+      const islands = collectIslands(selectedCoords);
       const prevScroll = treeEl.scrollTop;
       let anyContent = false;
       const html = islands.map(group => {
-        const filtered = filterRows(group.cells, query);
+        const filtered = filterRows(group.cells, query, selectedCoords);
         const total = group.cells.length;
         if (query && !filtered.length) return ''; // hide empty islands while searching
         anyContent = anyContent || total > 0;
-        const open = cellOpen.has('island:' + group.board.id) ? cellOpen.get('island:' + group.board.id) : true;
+        const groupSelected = islandHasSelectedCell(group, selectedCoords);
+        const open = groupSelected || (cellOpen.has('island:' + group.board.id) ? cellOpen.get('island:' + group.board.id) : true);
         const body = total
           ? (filtered.length ? filtered.map(c => renderCell(c, selectedCoords)).join('') : '<p class="layers-empty">No matching layers.</p>')
           : '<p class="layers-empty">Default grass — place terrain or objects.</p>';
@@ -302,6 +349,7 @@
         d.addEventListener('toggle', () => cellOpen.set(d.getAttribute('data-cell-id'), d.open));
       });
       treeEl.scrollTop = prevScroll;
+      if (selectedCoords.size) scrollSelectedLayerIntoView();
     }
 
     function scheduleLayersRefresh() {

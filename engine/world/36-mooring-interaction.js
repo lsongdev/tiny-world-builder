@@ -136,6 +136,7 @@
       const close = document.createElement('button');
       close.type = 'button';
       close.className = 'radial-btn radial-top';
+      close.dataset.posType = 'neutral';
       close.style.left = '0px';
       close.style.top = '0px';
       close.innerHTML = '<span class="radial-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>';
@@ -153,6 +154,7 @@
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'radial-btn' + (st.id === current ? ' pulse' : '');
+        btn.dataset.posType = 'tertiary';
         btn.style.left = x + 'px';
         btn.style.top = y + 'px';
         btn.style.setProperty('--d', (i * 0.03) + 's');

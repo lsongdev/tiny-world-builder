@@ -20,13 +20,13 @@
     // Root ring — angles in screen degrees (0=right, 90=down, 270=up). The top
     // slot (270) is reserved for Close / Back.
     const ROOT = [
-      { id: 'color',     label: window.t('radial.color'),     icon: 'palette',  angle: 225, submenu: 'color' },
-      { id: 'style',     label: window.t('radial.style'),     icon: 'sparkles', angle: 315, action: 'style' },
-      { id: 'size',      label: window.t('radial.size'),      icon: 'size',     angle: 0,   action: 'size' },
-      { id: 'rotate',    label: window.t('radial.rotate'),    icon: 'rotate',   angle: 45,  action: 'rotate' },
-      { id: 'more',      label: window.t('radial.more'),      icon: 'more',     angle: 90,  action: 'more' },
-      { id: 'move',      label: window.t('radial.move'),      icon: 'move',     angle: 135, action: 'move' },
-      { id: 'duplicate', label: window.t('radial.duplicate'), icon: 'copy',     angle: 180, action: 'duplicate' },
+      { id: 'color',     label: window.t('radial.color'),     icon: 'palette',  angle: 225, submenu: 'color', posType: 'primary' },
+      { id: 'style',     label: window.t('radial.style'),     icon: 'sparkles', angle: 315, action: 'style', posType: 'primary' },
+      { id: 'size',      label: window.t('radial.size'),      icon: 'size',     angle: 0,   action: 'size', posType: 'primary' },
+      { id: 'rotate',    label: window.t('radial.rotate'),    icon: 'rotate',   angle: 45,  action: 'rotate', posType: 'primary' },
+      { id: 'more',      label: window.t('radial.more'),      icon: 'more',     angle: 90,  action: 'more', posType: 'primary' },
+      { id: 'move',      label: window.t('radial.move'),      icon: 'move',     angle: 135, action: 'move', posType: 'primary' },
+      { id: 'duplicate', label: window.t('radial.duplicate'), icon: 'copy',     angle: 180, action: 'duplicate', posType: 'primary' },
     ];
     const COLORS = [
       { label: window.t('radial.color.default'), hex: null },
@@ -69,11 +69,12 @@
       return out;
     }
 
-    function makeBtn(cls, html, angle, idx) {
+    function makeBtn(cls, html, angle, idx, posType = 'primary') {
       const a = angle * Math.PI / 180;
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'radial-btn ' + cls;
+      if (posType) btn.dataset.posType = posType;
       btn.style.left = (Math.cos(a) * RADIUS) + 'px';
       btn.style.top = (Math.sin(a) * RADIUS) + 'px';
       btn.style.setProperty('--d', (idx * 0.035) + 's');
@@ -90,7 +91,7 @@
       currentLevel = level;
       root.innerHTML = '';
       // Top Close (root) / Back (submenu).
-      const top = makeBtn('radial-top', iconHtml(level === 'root' ? 'close' : 'back'), TOP_ANGLE, 0);
+      const top = makeBtn('radial-top', iconHtml(level === 'root' ? 'close' : 'back'), TOP_ANGLE, 0, 'neutral');
       top.title = level === 'root' ? window.t('radial.close') : window.t('radial.back');
       top.addEventListener('click', e => {
         e.stopPropagation();
@@ -103,7 +104,7 @@
         const island = selectedRadialIsland();
         const items = island ? ROOT.filter(b => ISLAND_ACTIONS.has(b.id)) : ROOT;
         items.forEach((b, i) => {
-          const btn = makeBtn('', iconHtml(b.icon) + '<span class="radial-label">' + b.label + '</span>', b.angle, i + 1);
+          const btn = makeBtn('', iconHtml(b.icon) + '<span class="radial-label">' + b.label + '</span>', b.angle, i + 1, b.posType || 'primary');
           btn.title = b.label;
           btn.addEventListener('click', e => {
             e.stopPropagation();
@@ -119,7 +120,7 @@
           const dot = c.hex
             ? '<span class="radial-swatch" style="background:' + c.hex + '"></span>'
             : '<span class="radial-swatch radial-swatch-reset"></span>';
-          const btn = makeBtn('', dot + '<span class="radial-label">' + c.label + '</span>', angles[i], i + 1);
+          const btn = makeBtn('', dot + '<span class="radial-label">' + c.label + '</span>', angles[i], i + 1, c.hex ? 'primary' : 'neutral');
           btn.title = c.label;
           btn.addEventListener('click', e => {
             e.stopPropagation();

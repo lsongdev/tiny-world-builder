@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { requireAuthUser } from './lib/auth.mjs';
-import { getSql, isDatabaseUnavailable } from './lib/db.mjs';
+import { getSql, isDatabaseUnavailable, isMissingRelations } from './lib/db.mjs';
 import { corsResponse, errorResponse, jsonResponse, readJson, sameOriginWriteGuard } from './lib/http.mjs';
 import { ensureProfile, profileDto } from './lib/profiles.mjs';
 
@@ -19,12 +19,16 @@ function partyId() {
   return randomBytes(9).toString('base64url');
 }
 
+const PLAYER_SCHEMA_RELATIONS = [
+  'player_presence',
+  'player_chat_requests',
+  'player_parties',
+  'player_party_members',
+  'wallet_accounts',
+];
+
 function isMissingPlayerSchema(err) {
-  return !!(err && (
-    err.code === '42P01'
-    || /relation "player_(presence|chat_requests|parties|party_members)" does not exist/i.test(String(err.message || ''))
-    || /relation "wallet_accounts" does not exist/i.test(String(err.message || ''))
-  ));
+  return isMissingRelations(err, PLAYER_SCHEMA_RELATIONS);
 }
 
 function roomIdForParty(id) {

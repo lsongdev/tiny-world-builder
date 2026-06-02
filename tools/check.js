@@ -4,11 +4,13 @@ const path = require('path');
 
 const root = path.resolve(__dirname, '..');
 const htmlPath = path.join(root, 'tiny-world-builder.html');
+const cssPath = path.join(root, 'styles', 'tiny-world.css');
 const schemaPath = path.join(root, 'world.schema.json');
 const vercelPath = path.join(root, 'vercel.json');
 const netlifyPath = path.join(root, 'netlify.toml');
 const partykitPath = path.join(root, 'partykit.json');
 const htmlRaw = fs.readFileSync(htmlPath, 'utf8');
+const cssRaw = fs.readFileSync(cssPath, 'utf8');
 const defaultsPath = path.join(root, 'tinyworld-defaults.json');
 
 // The app was split out of the old single-file HTML into external <script src>
@@ -170,6 +172,18 @@ const modelStampScanBody = sourceFunctionBody(html, 'modelStampScanApiEnabled');
 if (!/modelApi'\)\s*===\s*'1'/.test(modelStampScanBody) || !/return false;/.test(modelStampScanBody) || /return stored !== '0'/.test(modelStampScanBody)) {
   fail('model-stamp scan API must stay local or explicitly opted in');
 }
+if (!/DRACOLoader\.r128\.js/.test(htmlRaw) || !/meshopt_decoder\.r128\.js/.test(htmlRaw) || !/KTX2Loader\.bootstrap\.r128\.js/.test(htmlRaw) || !/setDRACOLoader\(modelStampDracoLoader\)/.test(html) || !/setMeshoptDecoder\(MeshoptDecoder\)/.test(html) || !/setKTX2Loader\(modelStampKtx2Loader\)/.test(html)) {
+  fail('model-stamp GLB imports must wire r128 Draco, Meshopt, and KTX2 decoder support');
+}
+if (!/window\.__tinyworldPreloadModelStamp/.test(html) || !/window\.__tinyworldModelStampLoadState/.test(html) || !/Could not render/.test(html) || !/function waitForDroppedModel/.test(html)) {
+  fail('dropped model imports must expose load state and show loader failures');
+}
+if (!/await waitForDroppedModel\(assets\[0\]/.test(html) || !/placeDroppedModel\(assets\[0\], evt, target\)/.test(html)) {
+  fail('canvas model drops must wait for the actual dropped GLB to load before placing');
+}
+if (!/MUST use this exact modelStampId/.test(html) || !/function coerceAttachedModelStampsForGeneratedWorld/.test(html) || !/coerceAttachedModelStampsForGeneratedWorld\(data, dropAttachments\)/.test(html)) {
+  fail('chat model attachments must enforce the exact dropped modelStampId before rendering');
+}
 
 if (/\(1\s*\+\s*2\s*\*\s*maxPreloadRadius\)\s*\*\s*g/.test(html)) {
   fail('Autoexpand preview window must not use full preload-ring diameter');
@@ -293,6 +307,18 @@ if (!/40-shield-system\.js/.test(htmlRaw) || !/class ShieldRing extends THREE\.G
 }
 if (!/toolbar-shield-toggle/.test(html) || !/buildToolbarUtilityButton\('toolbar-home'/.test(html) || !/buildToolbarUtilityButton\('toolbar-shield-toggle'/.test(html) || !/window\.VoxelShield\.toggle\(\)/.test(html) || !/toolbar-shield-toggle', 'Raise shield', 'shield'/.test(html)) {
   fail('bottom toolbar must expose Home and VoxelShield toggle utility buttons next to each other');
+}
+if (!/function buttonPosTypeForTool/.test(html) || !/if \(t\.select\) return 'primary';/.test(html) || !/if \(t\.erase \|\| t\.eraser\) return 'neutral';/.test(html) || !/function posTypeForToolGroup/.test(html)) {
+  fail('toolbar buttons must assign stable category data-pos-type values, including select and erase');
+}
+if (!/Unified block buttons/.test(cssRaw) || !/\.toolbar \.tool-group-btn\[data-pos-type\]/.test(cssRaw) || !/\.flyout \.tool\.flyout-tool\[data-pos-type\]/.test(cssRaw) || !/body\.ui-theme-dark \.toolbar \.tool\[data-pos-type\]:not\(\.active\):not\(\[aria-pressed="true"\]\)/.test(cssRaw)) {
+  fail('bottom toolbar and flyout buttons must share the category block-button border treatment');
+}
+if (!/btn\.dataset\.posType = posType/.test(html) || !/close\.dataset\.posType = 'neutral'/.test(html) || !/btn\.dataset\.posType = 'tertiary'/.test(html)) {
+  fail('radial action buttons must carry toolbar-compatible data-pos-type values');
+}
+if (!/\.radial-btn\[data-pos-type\]/.test(cssRaw) || !/border:\s*1\.5px solid var\(--radial-outline\)/.test(cssRaw) || !/body\.ui-theme-dark \.radial-btn\[data-pos-type\]/.test(cssRaw)) {
+  fail('radial action buttons must keep circular toolbar-style category borders');
 }
 if (!/fenceStyle/.test(html) || !/Garden/.test(html) || !/makeVoxelFenceSpan\(span\.side, span\.level, span\.length, span\.style\)/.test(html)) {
   fail('garden fences must preserve style through placement/rendering while keeping span batching');
@@ -421,6 +447,23 @@ if (!/function makeSelectionPreviewObject/.test(html) || /makeVoxelBuild\(target
 const updateSelectionPreviewBody = sourceFunctionBody(html, 'updateSelectionPreview');
 if (!/previewBox\.hidden \|\| previewBox\.classList\.contains\('selection-staging'\)/.test(updateSelectionPreviewBody)) {
   fail('hidden selection staging must not start the preview WebGL render loop');
+}
+const collectIslandCellsBody = sourceFunctionBody(html, 'collectIslandCells');
+const renderChildRowBody = sourceFunctionBody(html, 'renderChildRow');
+const renderLayersPanelBody = sourceFunctionBody(html, 'renderLayersPanel');
+if (!/rowIsSelected\(x, z, selectedCoords\)/.test(collectIslandCellsBody) || /if \(!children\.length && !terrainOverride\) continue;/.test(collectIslandCellsBody)) {
+  fail('Layers tree must include selected default cells instead of dropping them as empty grass');
+}
+if (!/activeLayerId === child\.id \|\| rowIsSelected\(x, z, selectedCoords\)/.test(renderChildRowBody)) {
+  fail('Layers child rows must highlight when their world cell is selected from the canvas');
+}
+if (!/syncActiveLayerIdWithSelection\(selectedCoords\)/.test(renderLayersPanelBody) || !/scrollSelectedLayerIntoView\(\)/.test(renderLayersPanelBody)) {
+  fail('Layers tree must sync stale active rows and keep selected rows visible');
+}
+const createWindowLightEffectsBody = sourceFunctionBody(html, 'createWindowLightEffects');
+if (!/halo\.scale\.set\(windowW \* 2\.2, windowH \* 2\.0, 1\)/.test(createWindowLightEffectsBody)
+    || /windowWallGlow/.test(createWindowLightEffectsBody)) {
+  fail('house window lights must keep the visible halo bloom without reintroducing wall glow bleed');
 }
 if (/const useShaderAA = renderShaderAntialias > 0\.001 && !xrPresenting && !usePixelation/.test(html) || !/antialiasColor\(vUv, texel, col, edgeHint\)/.test(html)) {
   fail('shader antialiasing must work in pixel mode and be limited by edge detection');
@@ -580,6 +623,12 @@ if (!/params\.get\('share'\)/.test(html) || !/\/api\/share\?id=/.test(html)) {
 }
 if (!/ws: wss:/.test(netlifyText)) {
   fail('Netlify CSP must permit PartyKit websocket connections');
+}
+if (!/script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'/.test(netlifyText) || !/worker-src 'self' blob:/.test(netlifyText) || !/connect-src 'self' blob: data: https: http: ws: wss:/.test(netlifyText)) {
+  fail('Netlify CSP must permit GLB blob URLs, Draco workers, and WASM decoders');
+}
+if (!/wasm-unsafe-eval/.test(JSON.stringify(headers)) || !/worker-src 'self' blob:/.test(JSON.stringify(headers)) || !/connect-src 'self' blob: data: https: http: ws: wss:/.test(JSON.stringify(headers))) {
+  fail('Vercel CSP must permit GLB blob URLs, Draco workers, and WASM decoders');
 }
 if (!/function twCloudSyncLocalWorldsToCloud/.test(html) || !/function twCloudSyncAssetsBothWays/.test(html) || !/\/api\/assets/.test(html)) {
   fail('local worlds and asset libraries must sync to the authenticated DB APIs');

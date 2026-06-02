@@ -97,6 +97,16 @@ Stamps panel:
   object URLs, while chat attachments expose `window.__tinyworldAgentDropAttachments`
   for image/model prompt context. Canvas model drops must still place via `setCell()`
   and keep selection sync through `window.__tinyworldSelection`.
+- Chat-attached model imports must keep the exact dropped `modelStampId`: the
+  prompt context should use MUST-level wording, and generated `model-stamp`
+  cells should be repaired to the attached id before `applyState()` /
+  `applyStatePatch()` when there is exactly one attached model.
+- Dropped model loader failures must surface through the drop status and
+  `window.__tinyworldModelStampLoadState`; do not leave the generic
+  model-stamp placeholder as the only feedback.
+- Canvas model drops should wait for the dropped model to reach loader `ready`
+  before calling `setCell()`. If the GLB/GLTF fails, show the loader error and
+  do not stamp the placeholder into the world.
 
 Validation:
 
@@ -122,3 +132,9 @@ More/Style/Move and multi-cell selection should open `window.openLayersPropertie
 Because that staging element is hidden, `updateSelectionPreview(target)` must
 clear the preview and avoid starting the preview WebGL `requestAnimationFrame`
 loop unless the preview UI is genuinely visible again.
+Canvas selection and Layers selection must stay visually synced. The tree should
+derive selected rows from `window.__tinyworldSelection.worldCoords()`, include a
+selected default grass tile even when it would otherwise be omitted as an empty
+cell, highlight matching child object rows as well as the terrain parent, force
+the selected branch open, and scroll the selected row into view when the panel is
+open.

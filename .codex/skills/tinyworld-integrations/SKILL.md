@@ -47,6 +47,11 @@ backend:
   Translate 503 `Netlify Database is not available...` responses into a friendly
   account/cloud status or `warn` toast, never a red production-style error toast,
   raw database message, or visible `Local DB offline` wording.
+- Wallet/player social functions rely on
+  `netlify/database/migrations/20260602120000_wallet_players_social.sql`.
+  If those tables are missing in local Netlify dev, classify Postgres `42P01`
+  with `isMissingRelations(...)` and return a setup-oriented 503 instead of
+  logging raw missing-relation errors as generic 500s.
 - Phantom wallet linking must stay challenge/response based: the browser asks
   Phantom to sign the server-issued message and the function verifies the
   Ed25519 signature against the Solana public key before linking. Do not accept

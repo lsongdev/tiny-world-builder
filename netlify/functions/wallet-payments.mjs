@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { requireAuthUser } from './lib/auth.mjs';
-import { getSql, isDatabaseUnavailable } from './lib/db.mjs';
+import { getSql, isDatabaseUnavailable, isMissingRelations } from './lib/db.mjs';
 import { corsResponse, errorResponse, jsonResponse, readJson, sameOriginWriteGuard } from './lib/http.mjs';
 import { ensureProfile } from './lib/profiles.mjs';
 import { bytesToBase58, isSolanaPublicKey, solanaEnv, solanaPayUrl } from './lib/solana.mjs';
@@ -8,6 +8,11 @@ import { bytesToBase58, isSolanaPublicKey, solanaEnv, solanaPayUrl } from './lib
 export const config = { path: '/api/wallet/payments' };
 
 const AMOUNT_RE = /^(?:0|[1-9]\d*)(?:\.\d{1,9})?$/;
+const WALLET_PAYMENT_SCHEMA_RELATIONS = ['wallet_accounts', 'wallet_payment_intents'];
+
+function isMissingWalletPaymentSchema(err) {
+  return isMissingRelations(err, WALLET_PAYMENT_SCHEMA_RELATIONS);
+}
 
 function paymentDto(row) {
   return {
@@ -130,6 +135,9 @@ export default async function walletPaymentsFunction(request) {
   } catch (err) {
     if (isDatabaseUnavailable(err)) {
       return errorResponse('Netlify Database is not available in this local session.', 503, origin);
+    }
+    if (isMissingWalletPaymentSchema(err)) {
+      return errorResponse('Wallet payment database tables are missing. Run the Netlify database migrations for wallet/social features.', 503, origin);
     }
     console.error('[wallet-payments]', err);
     return errorResponse('Payment request failed', 500, origin);

@@ -1301,6 +1301,20 @@
     return 'primary';
   }
 
+  function buttonPosTypeForTool(t) {
+    if (!t) return null;
+    if (t.select) return 'primary';
+    if (t.erase || t.eraser) return 'neutral';
+    return posTypeForTool(t);
+  }
+
+  function posTypeForToolGroup(group) {
+    if (!group) return null;
+    const iconTool = TOOLS.find(t => t.id === group.iconTool);
+    const firstTool = TOOLS.find(t => group.toolIds.includes(t.id));
+    return posTypeForTool(iconTool || firstTool) || 'primary';
+  }
+
   function buildToolButton(t, opts) {
     const btn = document.createElement('button');
     btn.className = 'tool' + ((opts && opts.flyout) ? ' flyout-tool' : '') + ((t.eraser || t.select || t.mooring) ? ' icon-only' : '');
@@ -1309,7 +1323,7 @@
     const toolTip = t.label + (t.shortcut ? ' (' + t.shortcut.toUpperCase() + ')' : '');
     btn.title = toolTip;
     btn.setAttribute('data-tooltip', toolTip);
-    const posType = posTypeForTool(t);
+    const posType = buttonPosTypeForTool(t);
     if (posType) btn.dataset.posType = posType;
 
     if (t.eraser || t.select || t.mooring) {
@@ -1444,6 +1458,8 @@
       btn.className = 'tool-group-btn';
       btn.type = 'button';
       btn.dataset.group = group.id;
+      const posType = posTypeForToolGroup(group);
+      if (posType) btn.dataset.posType = posType;
       btn.title = group.label;
       btn.setAttribute('data-tooltip', group.label);
       const icon = document.createElement('span');
@@ -1499,12 +1515,13 @@
           iconEl.innerHTML = g;
           iconEl.classList.add('group-icon-glyph');
         }
-        const pos = posTypeForTool(selectedTool);
+        const pos = posTypeForTool(selectedTool) || posTypeForToolGroup(group);
         if (pos) b.dataset.posType = pos; else b.removeAttribute('data-pos-type');
       } else if (iconEl.classList.contains('group-icon-glyph')) {
         iconEl.innerHTML = toolbarIconSvg(b.dataset.group);
         iconEl.classList.remove('group-icon-glyph');
-        b.removeAttribute('data-pos-type');
+        const pos = posTypeForToolGroup(group);
+        if (pos) b.dataset.posType = pos; else b.removeAttribute('data-pos-type');
       }
     });
     updateShieldToolbarState();

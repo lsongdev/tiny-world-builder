@@ -2295,6 +2295,33 @@
       setTimeout(() => { sugBox.hidden = true; }, 150);
     });
 
+    function coerceAttachedModelStampsForGeneratedWorld(data, attachments) {
+      const models = (Array.isArray(attachments) ? attachments : [])
+        .filter(item => item && item.type === 'model' && typeof item.modelStampId === 'string' && item.modelStampId);
+      if (models.length !== 1 || !data || !Array.isArray(data.cells)) return data;
+      const modelStampId = models[0].modelStampId;
+      let changed = false;
+      const repairAppearance = raw => {
+        const appearance = Object.assign({}, normalizeAppearance(raw) || {});
+        if (appearance.modelStampId === modelStampId) return raw || appearance;
+        appearance.modelStampId = modelStampId;
+        changed = true;
+        return appearance;
+      };
+      data.cells.forEach(cell => {
+        if (Array.isArray(cell)) {
+          if (cell[3] !== 'model-stamp') return;
+          cell[10] = repairAppearance(cell[10]);
+          return;
+        }
+        if (!cell || typeof cell !== 'object' || cell.kind !== 'model-stamp') return;
+        cell.appearance = repairAppearance(cell.appearance);
+      });
+      if (changed) console.warn('[agent] repaired generated model-stamp cells to attached modelStampId:', modelStampId);
+      return data;
+    }
+    window.__tinyworldCoerceAttachedModelStampsForGeneratedWorld = coerceAttachedModelStampsForGeneratedWorld;
+
     let drag = null;
     grip.addEventListener('pointerdown', e => {
       e.preventDefault();
@@ -2399,6 +2426,7 @@
         if (intent.clearFirst) doClear();
         const requestPrompt = intent.mode === 'add' ? buildFloatingAdditionPrompt(prompt) : prompt;
         let data = await generateWorld(cfg.provider, cfg.model, cfg.key, requestPrompt, GRID, { imageDataUrl });
+        data = coerceAttachedModelStampsForGeneratedWorld(data, dropAttachments);
 
         // If user had a selection active, mask the result to only affect that region (powerful "customize this area" feature)
         if (selectionBounds && data && Array.isArray(data.cells)) {

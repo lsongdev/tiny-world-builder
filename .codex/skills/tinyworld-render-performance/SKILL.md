@@ -173,6 +173,11 @@ GPU caches (introduced for low-end GPU + visible-distance scaling):
   materials. Keep the spotlight cone/decal source at the fixture and widen/fade
   it forward onto the ground, not back toward the object.
 - Building windows can switch to `M.windowLit` at dusk/night via per-window deterministic seeds. Keep this set-based (`buildingWindowObjects`) and update on time-of-day changes, not by scanning every cell each frame. Window spill/wall glow/halo helpers should be tagged `userData.windowLightEffect` and skipped by fade-material traversal so their additive shader materials survive ghost/reveal opacity setup.
+- Building light readability depends on the exterior halo and ground spill. Keep
+  the window halo bloom broad enough to read from normal editor distance
+  (`windowW * 2.2`, `windowH * 2.0` in `createWindowLightEffects()`), and do
+  not reintroduce an unmasked wall-surface glow plane that paints light through
+  surrounding brickwork.
 - The blast shield is the supplied `VoxelShield` class/API port in
   `engine/world/40-shield-system.js`, not a replacement design. Preserve
   `VoxelKit`, `BlastPanel`, `CornerKeystone`, `ShieldRing`, `ShieldDemo`, and

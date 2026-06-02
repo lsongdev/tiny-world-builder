@@ -1,6 +1,6 @@
 import { createPublicKey, randomBytes, verify } from 'node:crypto';
 import { requireAuthUser } from './lib/auth.mjs';
-import { getSql, isDatabaseUnavailable } from './lib/db.mjs';
+import { getSql, isDatabaseUnavailable, isMissingRelations } from './lib/db.mjs';
 import { corsResponse, errorResponse, jsonResponse, readJson, sameOriginWriteGuard } from './lib/http.mjs';
 import { ensureProfile } from './lib/profiles.mjs';
 import {
@@ -15,6 +15,11 @@ import {
 export const config = { path: '/api/wallet' };
 
 const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
+const WALLET_SCHEMA_RELATIONS = ['wallet_accounts', 'wallet_auth_challenges'];
+
+function isMissingWalletSchema(err) {
+  return isMissingRelations(err, WALLET_SCHEMA_RELATIONS);
+}
 
 function walletDto(row) {
   if (!row) return null;
@@ -202,6 +207,9 @@ export default async function walletFunction(request) {
   } catch (err) {
     if (isDatabaseUnavailable(err)) {
       return errorResponse('Netlify Database is not available in this local session.', 503, origin);
+    }
+    if (isMissingWalletSchema(err)) {
+      return errorResponse('Wallet database tables are missing. Run the Netlify database migrations for wallet/social features.', 503, origin);
     }
     console.error('[wallet]', err);
     return errorResponse('Wallet request failed', 500, origin);

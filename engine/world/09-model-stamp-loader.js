@@ -11,6 +11,8 @@
   const modelStampAssetCache = new Map();
   const modelStampTextureCache = new Map();
   const modelStampDroppedObjectUrls = new Map();
+  let modelStampDracoLoader = null;
+  let modelStampKtx2Loader = null;
   const CROWD_MODEL_CHARACTER_RE = /(character|person|people|human|man|woman|girl|boy|child|townie|avatar|npc|rig|skinned|walk|run|hitman|heisenberg)/i;
   const CROWD_MODEL_NEGATIVE_RE = /(building|house|tower|city|plane|aircraft|airplane|boat|ship|vessel|engine|prop|trap|terrain|tree|rock|vehicle|car|truck)/i;
   const MODEL_STAMP_FALLBACK_PALETTES = {
@@ -799,6 +801,31 @@
     })).then(list => Object.assign({}, ...list));
   }
 
+  function configureModelStampGltfLoader(loader) {
+    if (!loader) return loader;
+    if (THREE.DRACOLoader && typeof loader.setDRACOLoader === 'function') {
+      if (!modelStampDracoLoader) {
+        modelStampDracoLoader = new THREE.DRACOLoader();
+        modelStampDracoLoader.setDecoderPath('vendor/three/draco/');
+        if (typeof modelStampDracoLoader.setWorkerLimit === 'function') modelStampDracoLoader.setWorkerLimit(2);
+      }
+      loader.setDRACOLoader(modelStampDracoLoader);
+    }
+    if (typeof MeshoptDecoder !== 'undefined' && MeshoptDecoder && typeof loader.setMeshoptDecoder === 'function') {
+      loader.setMeshoptDecoder(MeshoptDecoder);
+    }
+    if (window.__tinyworldKTX2LoaderClass && typeof loader.setKTX2Loader === 'function' && renderer) {
+      if (!modelStampKtx2Loader) {
+        modelStampKtx2Loader = new window.__tinyworldKTX2LoaderClass();
+        modelStampKtx2Loader.setTranscoderPath('vendor/three/basis/');
+        if (typeof modelStampKtx2Loader.setWorkerLimit === 'function') modelStampKtx2Loader.setWorkerLimit(2);
+        if (typeof modelStampKtx2Loader.detectSupport === 'function') modelStampKtx2Loader.detectSupport(renderer);
+      }
+      loader.setKTX2Loader(modelStampKtx2Loader);
+    }
+    return loader;
+  }
+
   function parseOBJModel(text, asset = null, materialLib = {}) {
     const verts = [[0, 0, 0]];
     const normals = [[0, 1, 0]];
@@ -894,16 +921,22 @@
     }
     cache = { state: 'loading', scene: null, animations: [], errorMessage: '', ready: onReady ? [onReady] : [], error: onError ? [onError] : [] };
     modelStampAssetCache.set(asset.id, cache);
+    asset.loadState = 'loading';
+    asset.loadError = '';
     function finish(scene, animations = []) {
       cache.state = 'ready';
       cache.scene = scene;
       cache.animations = Array.isArray(animations) ? animations : [];
+      asset.loadState = 'ready';
+      asset.loadError = '';
       cache.ready.splice(0).forEach(fn => { try { fn(scene); } catch (_) {} });
       scheduleModelStampRefresh(asset.id);
     }
     function fail(err) {
       cache.state = 'error';
       cache.errorMessage = String(err && err.message || err || 'load failed');
+      asset.loadState = 'error';
+      asset.loadError = cache.errorMessage;
       cache.error.splice(0).forEach(fn => { try { fn(cache.errorMessage); } catch (_) {} });
       scheduleModelStampRefresh(asset.id);
     }
@@ -916,7 +949,7 @@
         fail(new Error('GLTFLoader missing'));
         return cache;
       }
-      const loader = new THREE.GLTFLoader(createModelStampLoadingManager(asset));
+      const loader = configureModelStampGltfLoader(new THREE.GLTFLoader(createModelStampLoadingManager(asset)));
       loader.load(asset.url, gltf => {
         const scene = gltf.scene || (gltf.scenes && gltf.scenes[0]) || new THREE.Group();
         hydrateModelStampScene(scene, asset, { flipY: false });
@@ -964,6 +997,24 @@
   }
 
   window.__tinyworldRegisterDroppedModelStamps = registerDroppedModelStampFiles;
+  window.__tinyworldPreloadModelStamp = function preloadModelStamp(id, callbacks = {}) {
+    const asset = getModelStamp(id);
+    if (!asset) return null;
+    return loadModelStampAsset(asset, callbacks.ready, callbacks.error);
+  };
+  window.__tinyworldModelStampLoadState = function modelStampLoadState(id) {
+    const asset = getModelStamp(id);
+    if (!asset) return null;
+    const cache = modelStampAssetCache.get(asset.id);
+    return {
+      id: asset.id,
+      label: asset.label,
+      format: asset.format,
+      supported: asset.supported !== false,
+      state: cache ? cache.state : (asset.loadState || 'idle'),
+      errorMessage: cache ? cache.errorMessage : (asset.loadError || ''),
+    };
+  };
 
   function scheduleModelStampRefresh(modelStampId) {
     setTimeout(() => {

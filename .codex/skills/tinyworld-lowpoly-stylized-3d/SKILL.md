@@ -96,7 +96,11 @@ Use this together with:
 ## Model import hygiene
 
 - Keep assets under `models/` and ensure `publish.sh` copies them to `dist/models/`.
-- Use `THREE.GLTFLoader` from the Three.js r128 examples CDN if loading GLB/GLTF in the single HTML file.
+- Use the vendored Three.js r128 GLTF stack for GLB/GLTF (`GLTFLoader`,
+  `DRACOLoader`, `MeshoptDecoder`, and the module-backed `KTX2Loader`
+  bootstrap) and configure the loader before loading imported model stamps.
+  Surface remaining unsupported-extension errors instead of silently showing
+  the generic placeholder.
 - After loading:
   1. compute `Box3`, center model at origin,
   2. scale to target tile/world size,

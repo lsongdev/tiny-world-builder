@@ -29,6 +29,18 @@ export function isDatabaseUnavailable(err) {
   ));
 }
 
+export function isMissingRelation(err, relationName) {
+  if (!err || err.code !== '42P01') return false;
+  const name = String(relationName || '').trim();
+  if (!name) return false;
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp('relation "' + escaped + '" does not exist', 'i').test(String(err.message || ''));
+}
+
+export function isMissingRelations(err, relationNames) {
+  return Array.isArray(relationNames) && relationNames.some(name => isMissingRelation(err, name));
+}
+
 export function getSql() {
   if (!_twSql) {
     const connectionString = connectionStringFromEnv();
