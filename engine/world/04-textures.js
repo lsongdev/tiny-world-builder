@@ -1952,6 +1952,29 @@
     }
     return customMaterialCache.get(key);
   }
+  // Apply Lambert-native surface props (emissive glow, opacity, finish) from a
+  // normalized appearance. Clones+caches off the same cache as customMaterial so
+  // identical appearances share one material. MeshBasicMaterial has no .emissive,
+  // so the guard simply skips glow there (opacity still applies).
+  function surfaceMaterial(base, a) {
+    if (!base || !base.clone || !a) return base;
+    const hasEmissive = !!a.emissiveColor || (a.finish && a.finish !== 'matte');
+    const hasOpacity = a.opacity !== undefined && a.opacity < 0.999;
+    if (!hasEmissive && !hasOpacity) return base;
+    const emHex = a.emissiveColor || (base.color ? '#' + base.color.getHexString() : '#000000');
+    const finishBoost = a.finish === 'glow' ? 0.6 : a.finish === 'satin' ? 0.12 : 0;
+    const emInt = Math.max(0, Math.min(2, (a.emissiveIntensity || 0) + finishBoost));
+    const op = hasOpacity ? a.opacity : 1;
+    const key = (base.uuid || base.id || 'mat') + ':surf:' + emHex + ':' + emInt.toFixed(3) + ':' + op.toFixed(3);
+    if (!customMaterialCache.has(key)) {
+      const mat = base.clone();
+      if (base.onBeforeCompile) mat.onBeforeCompile = base.onBeforeCompile;
+      if (mat.emissive && hasEmissive) { mat.emissive.set(emHex); mat.emissiveIntensity = emInt; }
+      if (hasOpacity) { mat.transparent = true; mat.opacity = op; }
+      customMaterialCache.set(key, mat);
+    }
+    return customMaterialCache.get(key);
+  }
   function customTextureMaterial(base, textureKey, textureScale) {
     const cleanKey = normalizeMaterialTextureKey(textureKey);
     const tex = materialTextureForKey(cleanKey);
@@ -2114,6 +2137,7 @@
       if (a.topTexture && (topBase.has(mat) || topDark.has(mat))) next = customTextureMaterial(next, a.topTexture, a.topTextureScale || 1);
       else if (a.bodyTexture && (bodyBase.has(mat) || bodyDark.has(mat))) next = customTextureMaterial(next, a.bodyTexture, a.bodyTextureScale || 1);
       if (a.materialTexture) next = customTextureMaterial(next, a.materialTexture, a.materialTextureScale || 1);
+      next = surfaceMaterial(next, a);
       return next;
     }
     root.traverse(node => {
