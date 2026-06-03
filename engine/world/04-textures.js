@@ -800,20 +800,20 @@
           ${opts.edgeStrata ? `
           float edgeDepth = clamp((-vWorldVoxelPos.y + 0.0015) / ${(DIRT_H + 0.035).toFixed(4)}, 0.0, 1.0);
           float edgeTopGate = 1.0 - smoothstep(-0.010, 0.030, vWorldVoxelPos.y);
-          float edgeBody = twSideFace * edgeTopGate * (1.0 - smoothstep(0.94, 1.02, edgeDepth));
+          float edgeBody = twSideFace * edgeTopGate * (1.0 - smoothstep(0.98, 1.04, edgeDepth));
           float edgeCell = floor(twSideCoord * 3.85);
           float edgeSeed = twVoxelBlockHash(vec2(edgeCell, 41.0));
-          float grassDrop = 0.13 + edgeSeed * 0.18;
-          float grassMask = 1.0 - smoothstep(grassDrop, grassDrop + 0.055, edgeDepth);
-          float dirtMask = smoothstep(0.12, 0.20, edgeDepth) * (1.0 - smoothstep(0.68, 0.80, edgeDepth));
-          float rockMask = smoothstep(0.64, 0.78, edgeDepth);
+          float grassDrop = 0.20 + edgeSeed * 0.20;
+          float grassMask = 1.0 - smoothstep(grassDrop, grassDrop + 0.065, edgeDepth);
+          float dirtMask = smoothstep(0.16, 0.24, edgeDepth) * (1.0 - smoothstep(0.70, 0.82, edgeDepth));
+          float rockMask = smoothstep(0.66, 0.80, edgeDepth);
           vec2 dirtCell = floor(vec2(twSideCoord * 3.55, edgeDepth * 4.80));
           vec2 rockCell = floor(vec2(twSideCoord * 3.15 + 2.0, edgeDepth * 4.15));
           float dirtShade = twVoxelBlockHash(dirtCell) - 0.5;
           float rockShade = twVoxelBlockHash(rockCell) - 0.5;
-          vec3 grassColor = mix(vec3(0.34, 0.48, 0.18), vec3(0.62, 0.72, 0.30), 0.48 + edgeSeed * 0.30);
-          vec3 dirtColor = vec3(0.43, 0.29, 0.16) + vec3(dirtShade * 0.075);
-          vec3 rockColor = vec3(0.34, 0.33, 0.30) + vec3(rockShade * 0.060);
+          vec3 grassColor = mix(vec3(0.36, 0.54, 0.17), vec3(0.74, 0.82, 0.34), 0.44 + edgeSeed * 0.34);
+          vec3 dirtColor = vec3(0.50, 0.31, 0.14) + vec3(dirtShade * 0.095);
+          vec3 rockColor = vec3(0.30, 0.30, 0.27) + vec3(rockShade * 0.070);
           float blockLineX = twVoxelSeamLine(twSideCoord + edgeDepth * 0.035, 3.55, 0.012);
           float blockLineY = twVoxelSeamLine(edgeDepth, 4.80, 0.010);
           float blockLine = clamp(blockLineX * 0.44 + blockLineY * 0.36, 0.0, 1.0);
@@ -821,12 +821,12 @@
           float rootSeed = step(0.58, twVoxelBlockHash(vec2(floor(twSideCoord * 13.0), 23.0)));
           float rootMask = rootLine * rootSeed * smoothstep(0.17, 0.24, edgeDepth) * (1.0 - smoothstep(0.48, 0.60, edgeDepth));
           vec3 strataColor = diffuseColor.rgb;
-          strataColor = mix(strataColor, dirtColor, dirtMask * 0.82);
-          strataColor = mix(strataColor, rockColor, rockMask * 0.82);
-          strataColor = mix(strataColor, grassColor, grassMask * 0.88);
-          strataColor *= mix(1.0, 0.76, blockLine * max(dirtMask, rockMask));
-          strataColor = mix(strataColor, vec3(0.13, 0.09, 0.045), rootMask * 0.58);
-          diffuseColor.rgb = mix(diffuseColor.rgb, strataColor, edgeBody * 0.94);
+          strataColor = mix(strataColor, dirtColor, dirtMask * 0.94);
+          strataColor = mix(strataColor, rockColor, rockMask * 0.94);
+          strataColor = mix(strataColor, grassColor, grassMask * 0.96);
+          strataColor *= mix(1.0, 0.68, blockLine * max(dirtMask, rockMask));
+          strataColor = mix(strataColor, vec3(0.11, 0.075, 0.035), rootMask * 0.72);
+          diffuseColor.rgb = mix(diffuseColor.rgb, strataColor, edgeBody);
           ` : ''}
           `
         );
