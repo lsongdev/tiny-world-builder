@@ -1156,6 +1156,12 @@
       sourceCube(body, 0, -2.92, 0, 1.48, 0.20, 1.34, liftStoneHi);
     }
 
+    // Perf: merge the ~282 static body cubes into a few per-material meshes
+    // before the spinning prop is built and before engine-id stamping (so
+    // canMergeStaticBaseMesh accepts them). Picking still resolves at the engine
+    // root; the prop group below stays unmerged so it can spin.
+    mergeStaticBaseMeshesByMaterial(body, { reason: 'lift-engine' });
+
     const prop = new THREE.Group();
     prop.name = 'down-facing-propeller';
     // Local X/Y must stay centred; local Z drops the fan to the lower shaft mount.
@@ -1221,6 +1227,10 @@
     root.userData.propeller = prop;
     root.scale.setScalar(0.32 + (level - 1) * 0.018 + (type === 'heavy' ? 0.025 : 0));
     castReceive(root);
+    // Perf: lift engines hang below the island, where their self-shadows are
+    // occluded by the island itself. Skip the shadow pass for all engine meshes
+    // (keep receiveShadow as castReceive set it).
+    root.traverse(c => { if (c.isMesh) c.castShadow = false; });
     return root;
   }
 
