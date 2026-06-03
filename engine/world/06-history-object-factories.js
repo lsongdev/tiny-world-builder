@@ -151,7 +151,12 @@
     function hideSide(lv, dir) {
       if (typeof lv !== 'number' || lv < level) return false;
       const neighborTerrain = terrainN[dir];
-      if (neighborTerrain !== terrain) return false;
+      // Same terrain OR same hard-ground family (path/stone) → the shared riser
+      // is hidden so adjacent stone/path cells form one continuous surface.
+      const sameFamily = (typeof sameTerrainEdgeFamily === 'function')
+        ? sameTerrainEdgeFamily(neighborTerrain, terrain)
+        : neighborTerrain === terrain;
+      if (!sameFamily) return false;
       return true;
     }
     const skipE = hideSide(levelN.e, 'e');

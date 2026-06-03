@@ -11,6 +11,15 @@
     return terrain === 'path' || terrain === 'stone';
   }
 
+  // Two terrains read as one continuous surface (no edge bricks / shared riser
+  // between them) when they're the same terrain, or both hard paved ground
+  // (path + stone) — so a stone cell next to a path cell doesn't draw a brick
+  // strip across the path.
+  function sameTerrainEdgeFamily(a, b) {
+    if (a === b) return true;
+    return isHeavyKerbTerrain(a) && isHeavyKerbTerrain(b);
+  }
+
   function terrainSurfaceOffset(terrain) {
     if (isHeavyKerbTerrain(terrain)) return -HEAVY_TERRAIN_KERB_DROP;
     if (terrain === 'water') return -WATER_SURFACE_DROP;
@@ -197,13 +206,17 @@
         const atW = ix === 0;
         const atE = ix === cells - 1;
         const edgeToDifferentTerrain =
-          (atN && terrainN.n && terrainN.n !== terrain) ||
-          (atS && terrainN.s && terrainN.s !== terrain) ||
-          (atW && terrainN.w && terrainN.w !== terrain) ||
-          (atE && terrainN.e && terrainN.e !== terrain);
+          (atN && terrainN.n && !sameTerrainEdgeFamily(terrainN.n, terrain)) ||
+          (atS && terrainN.s && !sameTerrainEdgeFamily(terrainN.s, terrain)) ||
+          (atW && terrainN.w && !sameTerrainEdgeFamily(terrainN.w, terrain)) ||
+          (atE && terrainN.e && !sameTerrainEdgeFamily(terrainN.e, terrain));
+        // Path trim shows at the path's outer boundary (no neighbour, or a
+        // non-hard-ground neighbour) — but NOT against an adjacent stone cell.
+        const hardN = dir => { const t = terrainN[dir]; return !!(t && isHeavyKerbTerrain(t)); };
         const pathEdge =
           terrain === 'path' &&
-          ((atN && !pathN.n) || (atS && !pathN.s) || (atW && !pathN.w) || (atE && !pathN.e));
+          ((atN && !pathN.n && !hardN('n')) || (atS && !pathN.s && !hardN('s')) ||
+           (atW && !pathN.w && !hardN('w')) || (atE && !pathN.e && !hardN('e')));
         const waterEdge = terrain === 'water' && edgeToDifferentTerrain;
         const r = cellRand(x * cells + ix, z * cells + iz, terrain === 'path' ? 91 : 53);
         let mat = mats.base;
