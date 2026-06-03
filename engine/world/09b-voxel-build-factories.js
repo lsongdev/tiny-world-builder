@@ -684,21 +684,21 @@
   // can be hovered/selected/moved as a single sub-object part. World positions
   // are identical to the old flat layout (group at the anchor, boxes relative).
   function voxelWindow(parent, x, y, z, face = 'z', mat = M.windowB) {
+    // Boxes keep their ABSOLUTE positions inside a group that stays at the
+    // origin — relative-0 coords would hit vbox's `y || h/2` default and shove
+    // the window upward. The group's own position is the sub-object move handle.
     const w = new THREE.Group();
-    w.position.set(x, y, z);
     w.userData.windowFace = face;
     if (face === 'x') {
-      const s = Math.sign(x || 1);
-      vbox(w, 0.034, 0.19, 0.17, 0, 0, 0, M.woodTrim);
-      vbox(w, 0.038, 0.135, 0.120, s * 0.004, 0, 0, mat);
-      vbox(w, 0.042, 0.016, 0.120, s * 0.008, 0, 0, M.woodTrim);
-      vbox(w, 0.042, 0.135, 0.014, s * 0.009, 0, 0, M.woodTrim);
+      vbox(w, 0.034, 0.19, 0.17, x, y, z, M.woodTrim);
+      vbox(w, 0.038, 0.135, 0.120, x + Math.sign(x || 1) * 0.004, y, z, mat);
+      vbox(w, 0.042, 0.016, 0.120, x + Math.sign(x || 1) * 0.008, y, z, M.woodTrim);
+      vbox(w, 0.042, 0.135, 0.014, x + Math.sign(x || 1) * 0.009, y, z, M.woodTrim);
     } else {
-      const s = Math.sign(z || 1);
-      vbox(w, 0.17, 0.19, 0.034, 0, 0, 0, M.woodTrim);
-      vbox(w, 0.120, 0.135, 0.038, 0, 0, s * 0.004, mat);
-      vbox(w, 0.120, 0.016, 0.042, 0, 0, s * 0.008, M.woodTrim);
-      vbox(w, 0.014, 0.135, 0.042, 0, 0, s * 0.009, M.woodTrim);
+      vbox(w, 0.17, 0.19, 0.034, x, y, z, M.woodTrim);
+      vbox(w, 0.120, 0.135, 0.038, x, y, z + Math.sign(z || 1) * 0.004, mat);
+      vbox(w, 0.120, 0.016, 0.042, x, y, z + Math.sign(z || 1) * 0.008, M.woodTrim);
+      vbox(w, 0.014, 0.135, 0.042, x, y, z + Math.sign(z || 1) * 0.009, M.woodTrim);
     }
     parent.add(w);
     return w;
@@ -706,19 +706,17 @@
 
   function voxelDoor(parent, x, z, face = 'z', h = 0.34) {
     const y = h / 2;
+    // Absolute positions inside an origin group (see voxelWindow note).
     const d = new THREE.Group();
     d.userData.doorPart = true;
-    d.position.set(x, 0, z);
     if (face === 'x') {
-      const s = Math.sign(x || 1);
-      vbox(d, 0.055, h, 0.21, 0, y, 0, M.door);
-      vbox(d, 0.064, 0.04, 0.27, s * 0.006, h + 0.02, 0, M.woodTrim);
-      vbox(d, 0.030, 0.030, 0.030, s * 0.028, y, 0.055, M.knob);
+      vbox(d, 0.055, h, 0.21, x, y, z, M.door);
+      vbox(d, 0.064, 0.04, 0.27, x + Math.sign(x || 1) * 0.006, h + 0.02, z, M.woodTrim);
+      vbox(d, 0.030, 0.030, 0.030, x + Math.sign(x || 1) * 0.028, y, z + 0.055, M.knob);
     } else {
-      const s = Math.sign(z || 1);
-      vbox(d, 0.21, h, 0.055, 0, y, 0, M.door);
-      vbox(d, 0.27, 0.04, 0.064, 0, h + 0.02, s * 0.006, M.woodTrim);
-      vbox(d, 0.030, 0.030, 0.030, 0.055, y, s * 0.028, M.knob);
+      vbox(d, 0.21, h, 0.055, x, y, z, M.door);
+      vbox(d, 0.27, 0.04, 0.064, x, h + 0.02, z + Math.sign(z || 1) * 0.006, M.woodTrim);
+      vbox(d, 0.030, 0.030, 0.030, x + 0.055, y, z + Math.sign(z || 1) * 0.028, M.knob);
     }
     parent.add(d);
     return d;
