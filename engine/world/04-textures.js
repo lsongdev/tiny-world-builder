@@ -1481,6 +1481,17 @@
   applyWorldUVs(M.sunflowerCenter, texSunflowerCenter, 3.2);
 
   const customMaterialCache = new Map();
+  // Soft-cap to bound steady-state growth over long (e.g. multiplayer) sessions
+  // where many distinct color/texture/surface variants get cloned. Cap is well
+  // above realistic peak (~hundreds), so evicted entries rarely need re-cloning.
+  const CUSTOM_MATERIAL_CACHE_CAP = 1024;
+  function cacheCustomMaterial(key, mat) {
+    if (customMaterialCache.size >= CUSTOM_MATERIAL_CACHE_CAP) {
+      const oldest = customMaterialCache.keys().next().value;
+      if (oldest !== undefined) customMaterialCache.delete(oldest);
+    }
+    customMaterialCache.set(key, mat);
+  }
   function normalizeHexColor(value) {
     if (typeof value !== 'string') return null;
     const s = value.trim();
@@ -1948,7 +1959,7 @@
         mat.color.set(clean);
         applyWearToMaterialColor(mat.color, 'custom', renderMaterialWear);
       }
-      customMaterialCache.set(key, mat);
+      cacheCustomMaterial(key, mat);
     }
     return customMaterialCache.get(key);
   }
@@ -1971,7 +1982,7 @@
       if (base.onBeforeCompile) mat.onBeforeCompile = base.onBeforeCompile;
       if (mat.emissive && hasEmissive) { mat.emissive.set(emHex); mat.emissiveIntensity = emInt; }
       if (hasOpacity) { mat.transparent = true; mat.opacity = op; }
-      customMaterialCache.set(key, mat);
+      cacheCustomMaterial(key, mat);
     }
     return customMaterialCache.get(key);
   }
@@ -1988,7 +1999,7 @@
       const mat = base.clone();
       if (mat.color) applyWearToMaterialColor(mat.color, 'custom', renderMaterialWear);
       applyWorldUVs(mat, tex, baseScale * scale);
-      customMaterialCache.set(key, mat);
+      cacheCustomMaterial(key, mat);
     }
     return customMaterialCache.get(key);
   }
