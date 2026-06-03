@@ -23,6 +23,22 @@ Status: Implemented (slice 1 of the editing-system overhaul)
   flag-gated — it renders saved appearance data unconditionally; only the inspector
   editing UI and the light attach are gated by `inspectorV2`.
 
+### Verification results (live, 3D-math probes)
+- Material emissive/opacity/finish: confirmed on a house (home 0,0) AND a tree
+  (non-house) — both render correct `material.emissive` hex/intensity and
+  `material.opacity` + `transparent`.
+- Real light ILLUMINATION (not just attachment): at midnight (`currentTodMinutes=0`,
+  default `renderAccentLights=0.65`) the inspector PointLight is `visible:true`,
+  `intensity≈1.3` (baseIntensity 2 × accent-enable). At noon it is correctly off —
+  **inspector real lights are dusk/night accent lights; daytime shows nothing.**
+  Always-on illumination is the emissive-glow material path, not real lights.
+- Persistence: round-trips through localStorage + reload, re-renders identically.
+- Flag OFF: no new inspector rows; light-attach suppressed even when a cell carries
+  a `light` spec.
+- NOT verified live: cross-island (sky-island) object editing — the default Farm
+  preset has 0 editable islands. The code path is the same coordinate-keyed
+  `setCell`/appearance flow, but it was not exercised on an island here.
+
 ## Background
 
 This is the first slice of a larger editing-system overhaul. The full vision (9
