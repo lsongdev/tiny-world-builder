@@ -458,7 +458,7 @@ if (!/islandShellMaterial\(M\.grass\)/.test(islandProxyBody) || !/islandShellMat
   fail('editable island proxies must keep double-sided, group-culled side shells');
 }
 const islandSideBackingBody = sourceFunctionBody(html, 'addIslandSideBacking');
-if (!/islandShellMaterial\(M\.boardSide\)/.test(islandSideBackingBody) || !/skipTop: true, skipBottom: true/.test(islandSideBackingBody)) {
+if (!/islandShellMaterial\(M\.(?:boardSide|boardSideEdge \|\| M\.boardSide)\)/.test(islandSideBackingBody) || !/skipTop: true, skipBottom: true/.test(islandSideBackingBody)) {
   fail('floating island side backing must keep a cheap double-sided wall behind edge greebles');
 }
 const prepareHomeBorderBody = sourceFunctionBody(html, 'prepareHomeBorderForRender');

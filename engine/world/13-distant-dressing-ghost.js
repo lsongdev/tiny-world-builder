@@ -139,7 +139,7 @@
     const inset = thickness * 0.5 + 0.035;
     const wallH = DIRT_H + 0.035;
     const y = -DIRT_H * 0.5 - 0.018;
-    const mat = islandShellMaterial(M.boardSide);
+    const mat = islandShellMaterial(M.boardSideEdge || M.boardSide);
     const shellOpts = { noGap: true, noShadow: true, skipTop: true, skipBottom: true };
     const north = vbox(parent, span, wallH, thickness, 0, y, -half + inset, mat, shellOpts);
     const south = vbox(parent, span, wallH, thickness, 0, y,  half - inset, mat, shellOpts);

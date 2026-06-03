@@ -57,10 +57,10 @@ Cost note: at max bevel (0.06) the merged homeBorder geometry grows ~13× (the
 many tiny greebles each round), so keep bevel modest. The **distant ghost-island
 dressing** (tiny far preview islands) intentionally stays `noBevel` for perf.
 
-Island shell materials (`M.boardSide`, `M.islandUnder`, `M.islandUnderD`) opt
-into the world-UV shader's `voxelSeams` pass in `04-textures.js`. Side faces use
-`textures/island-side-stone-voxel.png` (`texIslandSideVoxel`) at a deliberately
-low repeat scale for large pale stone squares, while underside materials use
+Island shell materials (`M.boardSide`, `M.boardSideEdge`, `M.islandUnder`,
+`M.islandUnderD`) opt into the world-UV shader pass in `04-textures.js`. Side
+faces use the internal `island-side-blocks` texture for large pale stone
+squares, while underside materials use
 `textures/island-underside-voxel.png` (`texIslandUndersideVoxel`) so the bottom
 reads as larger dark beveled voxel blocks; keep replacement shell art seamless
 and power-of-two because Three.js r128 repeats it with mipmaps. The shader pass
@@ -70,6 +70,12 @@ varyings, so the large merged side slabs read as chunky voxel blocks without
 adding geometry or draw calls. `islandShellMaterial()` in `03-geometry-materials.js`
 copies the base material's `onBeforeCompile` hook so the side-backing clone keeps
 the same coarse grid.
+
+Island edge strata is shader-driven on the side backing only:
+`addIslandSideBacking` uses `M.boardSideEdge`, which enables
+`applyWorldUVs(..., { edgeStrata: true })`. The strata starts at the top edge
+(`y = 0`) and slides down the side behind the current edge greebles/lumps; do
+not add separate overlay panels or per-tile decal geometry for this effect.
 
 Underside pipes and water details are material-driven: `M.utilityPipe`,
 `M.utilityPipeD`, and `M.utilityClamp` use the internal `pipe-metal` canvas

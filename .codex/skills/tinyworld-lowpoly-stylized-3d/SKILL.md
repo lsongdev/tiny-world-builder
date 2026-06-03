@@ -70,14 +70,18 @@ Use this together with:
   Current coarse material maps include `path-pavers`, `castle-block`,
   `brick-building`, `roof-shingles`, `window-lit`, `window-unlit`,
   `grass-voxel`, `grass-side`, `soil-side`, `fence-timber`, `crop-stalk`,
-  `corn-cob`, and sunflower maps. Keep them intentionally large and calm from
-  the default/top-down camera; if the whole island reads noisy, lower world-UV
-  repeat before adding detail. Ground path, ground grass, and ground stone
-  default back to the older calm `noise`/`cottage-grass`/`cottage-stone` maps;
-  use the newer coarse maps on object materials, side panels, or explicit
-  user-selected terrain texture overrides instead. Stone riser/side faces use a
+  `corn-cob`, sunflower maps, and `island-side-blocks`.
+  Keep them intentionally large and calm from the default/top-down camera; if
+  the whole island reads noisy, lower world-UV repeat before adding detail.
+  Ground path, ground grass, and ground stone default back to the older calm
+  `noise`/`cottage-grass`/`cottage-stone` maps; use the newer coarse maps on
+  object materials, side panels, or explicit user-selected terrain texture
+  overrides instead. Stone riser/side faces use a
   separate large-block material (`M.stoneSide`) so cliffs can scale up without
   changing the stone ground cap.
+  Home island edge grass/soil/rock strata is not a texture-map option: it is
+  the `edgeStrata` shader pass on `M.boardSideEdge`, aligned from `y = 0` down
+  the side backing behind the foreground greebles.
   Grass richness should stay FPS-safe through shared texture maps (`grass-voxel`
   or `grass-side` only when intentionally selected), not added blade meshes.
   Stone blocks should stay light cool gray like the stair/column references

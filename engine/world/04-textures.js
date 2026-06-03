@@ -220,57 +220,6 @@
         ctx.lineTo(x + len, y + Math.floor(rand() * 3) - 1);
         ctx.stroke();
       }
-    } else if (type === 'island-edge-strata') {
-      ctx.fillStyle = '#9f9a8e';
-      ctx.fillRect(0, 0, scale, scale);
-      const grassH = Math.floor(scale * 0.22);
-      const dirtStart = Math.floor(scale * 0.20);
-      const stoneStart = Math.floor(scale * 0.72);
-      ctx.fillStyle = '#86aa45';
-      ctx.fillRect(0, 0, scale, grassH);
-      const grassBlock = Math.max(10, Math.floor(scale / 7));
-      for (let x = -grassBlock; x < scale + grassBlock; x += grassBlock) {
-        const drop = Math.floor(grassH * (0.55 + rand() * 0.90));
-        const w = grassBlock + Math.floor((rand() - 0.5) * grassBlock * 0.45);
-        ctx.fillStyle = rand() > 0.62 ? '#a8ca58' : (rand() > 0.28 ? '#7fa13e' : '#5d7f31');
-        tileRect(x, 0, w, drop);
-        ctx.fillStyle = 'rgba(24,44,14,0.26)';
-        tileRect(x + Math.floor(w * 0.70), drop - 2, Math.max(2, Math.floor(w * 0.28)), 3);
-      }
-      const dirtBlock = Math.max(14, Math.floor(scale / 5));
-      for (let y = dirtStart; y < stoneStart; y += dirtBlock) {
-        const row = Math.floor((y - dirtStart) / dirtBlock);
-        const offset = row % 2 ? Math.floor(dirtBlock * 0.45) : 0;
-        for (let x = -offset; x < scale + dirtBlock; x += dirtBlock) {
-          const r = rand();
-          ctx.fillStyle = r > 0.72 ? '#986532' : (r > 0.34 ? '#77502b' : '#56351f');
-          tileRect(x + 1, y + 1, dirtBlock - 2, dirtBlock - 2);
-          ctx.fillStyle = 'rgba(228,164,84,0.16)';
-          tileRect(x + 2, y + 2, dirtBlock - 4, 2);
-          ctx.fillStyle = 'rgba(28,17,10,0.22)';
-          tileRect(x + 1, y + dirtBlock - 3, dirtBlock - 3, 2);
-          tileRect(x + dirtBlock - 3, y + 1, 2, dirtBlock - 2);
-        }
-      }
-      const stoneBlock = Math.max(13, Math.floor(scale / 5.4));
-      for (let y = stoneStart; y < scale + stoneBlock; y += stoneBlock) {
-        const offset = Math.floor((y / stoneBlock) % 2) * Math.floor(stoneBlock * 0.45);
-        for (let x = -offset; x < scale + stoneBlock; x += stoneBlock) {
-          const r = rand();
-          ctx.fillStyle = r > 0.70 ? '#8c877b' : (r > 0.34 ? '#6f6a61' : '#54514b');
-          tileRect(x + 1, y + 1, stoneBlock - 2, stoneBlock - 2);
-          ctx.fillStyle = 'rgba(255,255,255,0.12)';
-          tileRect(x + 2, y + 2, stoneBlock - 4, 1);
-          ctx.fillStyle = 'rgba(18,18,18,0.20)';
-          tileRect(x + 1, y + stoneBlock - 3, stoneBlock - 3, 2);
-        }
-      }
-      for (let i = 0; i < scale * 0.18; i++) {
-        const x = Math.floor(rand() * scale);
-        const y = Math.floor(rand() * scale);
-        ctx.fillStyle = rand() > 0.52 ? 'rgba(255,240,170,0.12)' : 'rgba(20,16,12,0.16)';
-        ctx.fillRect(x, y, 1 + Math.floor(rand() * 2), 1 + Math.floor(rand() * 2));
-      }
     } else if (type === 'pipe-metal') {
       const grad = ctx.createLinearGradient(0, 0, scale, 0);
       grad.addColorStop(0, '#8f9aa3');
@@ -757,13 +706,15 @@
 
   function applyWorldUVs(material, texture, textureScale = 1.0, opts = {}) {
     if (!material) return;
+    const needsWorldVoxel = !!(opts.voxelSeams || opts.edgeStrata);
     material.map = texture;
     material.userData = material.userData || {};
     material.userData.worldTextureScale = textureScale;
     material.userData.worldVoxelSeams = !!opts.voxelSeams;
+    material.userData.worldEdgeStrata = !!opts.edgeStrata;
     material.needsUpdate = true;
     material.onBeforeCompile = (shader) => {
-      if (opts.voxelSeams) {
+      if (needsWorldVoxel) {
         shader.vertexShader = shader.vertexShader.replace(
           '#include <common>',
           `
@@ -796,13 +747,13 @@
         } else {
           vUv = worldPos.xy * ${textureScale.toFixed(4)};
         }
-        ${opts.voxelSeams ? `
+        ${needsWorldVoxel ? `
         vWorldVoxelPos = worldPos.xyz;
         vWorldVoxelNormal = worldNormal;
         ` : ''}
         `
       );
-      if (opts.voxelSeams) {
+      if (needsWorldVoxel) {
         shader.fragmentShader = shader.fragmentShader.replace(
           '#include <common>',
           `
@@ -825,25 +776,58 @@
           '#include <map_fragment>',
           `
           #include <map_fragment>
-          vec3 seamNormal = normalize(vWorldVoxelNormal);
-          float sideFace = 1.0 - smoothstep(0.42, 0.72, abs(seamNormal.y));
-          float sideCoord = abs(seamNormal.x) > abs(seamNormal.z) ? vWorldVoxelPos.z : vWorldVoxelPos.x;
+          vec3 twVoxelNormal = normalize(vWorldVoxelNormal);
+          float twSideFace = 1.0 - smoothstep(0.42, 0.72, abs(twVoxelNormal.y));
+          float twSideCoord = abs(twVoxelNormal.x) > abs(twVoxelNormal.z) ? vWorldVoxelPos.z : vWorldVoxelPos.x;
+          ${opts.voxelSeams ? `
           float sideY = vWorldVoxelPos.y + 0.08;
           float sideGridX = 1.45;
           float sideGridY = 1.30;
-          vec2 sideCell = floor(vec2(sideCoord * sideGridX, sideY * sideGridY));
+          vec2 sideCell = floor(vec2(twSideCoord * sideGridX, sideY * sideGridY));
           float yBand = twVoxelSeamLine(sideY, sideGridY, 0.010);
-          float vBlock = twVoxelSeamLine(sideCoord, sideGridX, 0.010);
-          float vBlockFine = twVoxelSeamLine(sideCoord + sideY * 0.08, sideGridX * 1.08, 0.0025);
+          float vBlock = twVoxelSeamLine(twSideCoord, sideGridX, 0.010);
+          float vBlockFine = twVoxelSeamLine(twSideCoord + sideY * 0.08, sideGridX * 1.08, 0.0025);
           float blockShade = twVoxelBlockHash(sideCell) - 0.5;
-          float underFace = smoothstep(0.62, 0.86, -seamNormal.y);
+          float underFace = smoothstep(0.62, 0.86, -twVoxelNormal.y);
           float underX = twVoxelSeamLine(vWorldVoxelPos.x, 3.20, 0.012);
           float underZ = twVoxelSeamLine(vWorldVoxelPos.z, 3.20, 0.012);
           float underCellShade = twVoxelBlockHash(floor(vWorldVoxelPos.xz * 3.20)) - 0.5;
-          float sideSeam = sideFace * clamp(yBand * 0.42 + vBlock * 0.42 + vBlockFine * 0.04, 0.0, 1.0);
+          float sideSeam = twSideFace * clamp(yBand * 0.42 + vBlock * 0.42 + vBlockFine * 0.04, 0.0, 1.0);
           float seam = clamp(sideSeam + underFace * max(underX, underZ) * 0.42, 0.0, 1.0);
-          diffuseColor.rgb *= 1.0 + sideFace * blockShade * 0.035 + underFace * underCellShade * 0.045;
+          diffuseColor.rgb *= 1.0 + twSideFace * blockShade * 0.035 + underFace * underCellShade * 0.045;
           diffuseColor.rgb *= mix(1.0, 0.70, seam);
+          ` : ''}
+          ${opts.edgeStrata ? `
+          float edgeDepth = clamp((-vWorldVoxelPos.y + 0.0015) / ${(DIRT_H + 0.035).toFixed(4)}, 0.0, 1.0);
+          float edgeTopGate = 1.0 - smoothstep(-0.010, 0.030, vWorldVoxelPos.y);
+          float edgeBody = twSideFace * edgeTopGate * (1.0 - smoothstep(0.94, 1.02, edgeDepth));
+          float edgeCell = floor(twSideCoord * 3.85);
+          float edgeSeed = twVoxelBlockHash(vec2(edgeCell, 41.0));
+          float grassDrop = 0.13 + edgeSeed * 0.18;
+          float grassMask = 1.0 - smoothstep(grassDrop, grassDrop + 0.055, edgeDepth);
+          float dirtMask = smoothstep(0.12, 0.20, edgeDepth) * (1.0 - smoothstep(0.68, 0.80, edgeDepth));
+          float rockMask = smoothstep(0.64, 0.78, edgeDepth);
+          vec2 dirtCell = floor(vec2(twSideCoord * 3.55, edgeDepth * 4.80));
+          vec2 rockCell = floor(vec2(twSideCoord * 3.15 + 2.0, edgeDepth * 4.15));
+          float dirtShade = twVoxelBlockHash(dirtCell) - 0.5;
+          float rockShade = twVoxelBlockHash(rockCell) - 0.5;
+          vec3 grassColor = mix(vec3(0.34, 0.48, 0.18), vec3(0.62, 0.72, 0.30), 0.48 + edgeSeed * 0.30);
+          vec3 dirtColor = vec3(0.43, 0.29, 0.16) + vec3(dirtShade * 0.075);
+          vec3 rockColor = vec3(0.34, 0.33, 0.30) + vec3(rockShade * 0.060);
+          float blockLineX = twVoxelSeamLine(twSideCoord + edgeDepth * 0.035, 3.55, 0.012);
+          float blockLineY = twVoxelSeamLine(edgeDepth, 4.80, 0.010);
+          float blockLine = clamp(blockLineX * 0.44 + blockLineY * 0.36, 0.0, 1.0);
+          float rootLine = 1.0 - smoothstep(0.010, 0.026, abs(fract(twSideCoord * 13.0 + edgeSeed * 0.19) - 0.5));
+          float rootSeed = step(0.58, twVoxelBlockHash(vec2(floor(twSideCoord * 13.0), 23.0)));
+          float rootMask = rootLine * rootSeed * smoothstep(0.17, 0.24, edgeDepth) * (1.0 - smoothstep(0.48, 0.60, edgeDepth));
+          vec3 strataColor = diffuseColor.rgb;
+          strataColor = mix(strataColor, dirtColor, dirtMask * 0.82);
+          strataColor = mix(strataColor, rockColor, rockMask * 0.82);
+          strataColor = mix(strataColor, grassColor, grassMask * 0.88);
+          strataColor *= mix(1.0, 0.76, blockLine * max(dirtMask, rockMask));
+          strataColor = mix(strataColor, vec3(0.13, 0.09, 0.045), rootMask * 0.58);
+          diffuseColor.rgb = mix(diffuseColor.rgb, strataColor, edgeBody * 0.94);
+          ` : ''}
           `
         );
       }
@@ -1160,6 +1144,10 @@
   applyWorldUVs(M.grassHi, initialGrassTex, 1.0);
   M.boardSide.color.set(0xc4bdb2);
   applyWorldUVs(M.boardSide, texIslandSideBlocks, 0.22, { voxelSeams: true });
+  M.boardSideEdge = M.boardSide.clone();
+  M.boardSideEdge.name = 'island-side-edge-shader';
+  M.boardSideEdge.color.copy(M.boardSide.color);
+  applyWorldUVs(M.boardSideEdge, texIslandSideBlocks, 0.22, { voxelSeams: true, edgeStrata: true });
 
   M.path.color.set(0xf2d29c);
   M.pathTrim.color.set(0xd9b780);
