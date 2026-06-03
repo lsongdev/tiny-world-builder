@@ -74,9 +74,21 @@ Entry point: select a single voxel-build with inspectorV2 on → inspector "Edit
 toggle. Then hover/click parts; Transform→Part move/size; Edit→Voxel remove/smooth, Add
 voxel; Edit→Explode. Window API: `window.__tinyworldSubEdit`.
 
-## Remaining decision — req 8 (b): non-voxel mesh-deform
-Option (a) done. Option (b) — "voxelize-on-sculpt" for houses/trees/rocks (convert to an
-editable voxel proxy, then sculpt) — is large and NOT yet built; awaiting user go/no-go.
-Option (c) = leave non-voxel deform out of scope. Sub-object hover/select/transform
-currently target voxel-builds (the kind with clean stable identity); extending part-keys
-to house role-parts is a follow-up.
+## Scope delivered vs. requested (read this first)
+Reqs 6/7/8/9 are delivered **for home-board voxel-builds whose stamp is voxel-based.**
+The "Edit parts" affordance is GATED to exactly those configs (verified: shows on a home
+voxel stamp; hidden on island voxel-builds and on customParts stamps) so it is never
+offered where it would no-op.
+
+NOT built (the user's "all object types" answer + req 8 "other objects" cover these):
+- **All object types (reqs 6/9):** houses/trees/rocks have no sub-part hover/select/
+  transform. Needs role-based part-keys (`wall`/`roof`/`chimney:0`) stamped in the house/
+  primitive factories + an editable (un-batched) path for them. Multi-slice follow-up.
+- **customParts voxel-builds:** `makeCustomPartsStamp` (09b:358) has no `editable`/key
+  path; would need `p:<id>` keys + noVoxelBatch added there.
+- **Island sub-object editing:** `subEditObject()`/`enterSubEdit` use the home-only
+  `cellMeshes` path; islands render elsewhere.
+- **req 8 (b) non-voxel mesh-deform:** "voxelize-on-sculpt" proxy for houses/trees —
+  large; awaiting go/no-go. Option (c) = leave out of scope.
+
+These are the next chunk to greenlight, not silently absorbed into "done".
