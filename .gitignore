@@ -19,3 +19,4 @@ dist/
 .claude/worktrees/agent-a6b44378/
 /.antigravitycli
 .gstack/
+/.gstack
