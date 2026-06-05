@@ -85,7 +85,8 @@
 
 					const rv = right[ r + 1 ];
 					const lv = left[ j - r ];
-					const temp = N[ r ] / ( rv + lv );
+					const denom = rv + lv; // Local patch: guard degenerate (repeated) knots → 0/0
+					const temp = denom === 0 ? 0 : N[ r ] / denom;
 					N[ r ] = saved + rv * temp;
 					saved = lv * temp;
 
@@ -169,7 +170,7 @@
 					const rv = right[ r + 1 ];
 					const lv = left[ j - r ];
 					ndu[ j ][ r ] = rv + lv;
-					const temp = ndu[ r ][ j - 1 ] / ndu[ j ][ r ];
+					const temp = ndu[ j ][ r ] === 0 ? 0 : ndu[ r ][ j - 1 ] / ndu[ j ][ r ]; // Local patch: guard degenerate knots
 					ndu[ r ][ j ] = saved + rv * temp;
 					saved = lv * temp;
 

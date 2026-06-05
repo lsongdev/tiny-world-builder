@@ -43,8 +43,9 @@
 
 			if ( id !== 542658390 || version !== 150 ) {
 
-				console.error( 'Not a valid VOX file' );
-				return;
+				// Local patch: throw so the loader's onError chain surfaces a clear message
+				// (upstream returned undefined, which read as "no voxels" downstream).
+				throw new Error( 'Invalid VOX file: unexpected header or version' );
 
 			}
 
@@ -184,12 +185,12 @@
 				const b = ( hex >> 16 & 0xff ) / 0xff;
 				if ( r > 0 || g > 0 || b > 0 ) hasColors = true;
 				const index = x + y * offsety + z * offsetz;
-				if ( array[ index + 1 ] === 0 || x === size.x - 1 ) add( px, x, z, - y, r, g, b );
-				if ( array[ index - 1 ] === 0 || x === 0 ) add( nx, x, z, - y, r, g, b );
-				if ( array[ index + offsety ] === 0 || y === size.y - 1 ) add( ny, x, z, - y, r, g, b );
-				if ( array[ index - offsety ] === 0 || y === 0 ) add( py, x, z, - y, r, g, b );
-				if ( array[ index + offsetz ] === 0 || z === size.z - 1 ) add( pz, x, z, - y, r, g, b );
-				if ( array[ index - offsetz ] === 0 || z === 0 ) add( nz, x, z, - y, r, g, b );
+				if ( x === size.x - 1 || array[ index + 1 ] === 0 ) add( px, x, z, - y, r, g, b );
+				if ( x === 0 || array[ index - 1 ] === 0 ) add( nx, x, z, - y, r, g, b );
+				if ( y === size.y - 1 || array[ index + offsety ] === 0 ) add( ny, x, z, - y, r, g, b );
+				if ( y === 0 || array[ index - offsety ] === 0 ) add( py, x, z, - y, r, g, b );
+				if ( z === size.z - 1 || array[ index + offsetz ] === 0 ) add( pz, x, z, - y, r, g, b );
+				if ( z === 0 || array[ index - offsetz ] === 0 ) add( nz, x, z, - y, r, g, b );
 
 			}
 

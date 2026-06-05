@@ -3,7 +3,9 @@
     const MODEL_DROP_EXT_RE = /\.(glb|gltf|obj|fbx|vox)$/i;
     const IMAGE_DROP_EXT_RE = /\.(png|jpe?g|webp|gif)$/i;
     // Material/texture files that ride along with a model (OBJ .mtl + its images).
-    const MODEL_SIDECAR_EXT_RE = /\.(mtl|png|jpe?g|webp|gif|bmp|tga)$/i;
+    // Texture extensions stay in sync with MODEL_STAMP_TEXTURE_FORMATS in the model
+    // stamp loader, which is what actually classifies/loads them.
+    const MODEL_SIDECAR_EXT_RE = /\.(mtl|png|jpe?g|webp|gif)$/i;
     const MODEL_DROP_STATUS_MS = 2600;
     let agentAttachments = [];
     let dropStatusTimer = 0;

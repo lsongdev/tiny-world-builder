@@ -61,7 +61,9 @@
 		getTangent( t, optionalTarget = new THREE.Vector3() ) {
 
 			const tangent = optionalTarget;
-			const u = this.knots[ 0 ] + t * ( this.knots[ this.knots.length - 1 ] - this.knots[ 0 ] );
+			// Local patch: map t over the visible [startKnot, endKnot] span, matching getPoint
+			// (upstream r128 used the full knot vector here, giving wrong tangents for periodic NURBS).
+			const u = this.knots[ this.startKnot ] + t * ( this.knots[ this.endKnot ] - this.knots[ this.startKnot ] );
 			const ders = THREE.NURBSUtils.calcNURBSDerivatives( this.degree, this.knots, this.controlPoints, u, 1 );
 			tangent.copy( ders[ 1 ] ).normalize();
 			return tangent;
