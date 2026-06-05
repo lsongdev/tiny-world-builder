@@ -4,8 +4,8 @@
   const MODEL_STAMP_DROPPED_DB_NAME = 'tinyworld-model-stamps.v1';
   const MODEL_STAMP_DROPPED_DB_VERSION = 1;
   const MODEL_STAMP_DROPPED_STORE = 'dropped-model-files';
-  const MODEL_STAMP_SUPPORTED_FORMATS = new Set(['glb', 'gltf', 'obj']);
-  const MODEL_STAMP_DETECTED_FORMATS = new Set(['glb', 'gltf', 'obj', 'fbx']);
+  const MODEL_STAMP_SUPPORTED_FORMATS = new Set(['glb', 'gltf', 'obj', 'fbx', 'vox']);
+  const MODEL_STAMP_DETECTED_FORMATS = new Set(['glb', 'gltf', 'obj', 'fbx', 'vox']);
   const MODEL_STAMP_TEXTURE_FORMATS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif']);
   let MODEL_STAMP_ASSETS = [];
   let selectedModelStampId = null;
@@ -25,6 +25,11 @@
     plane: [0xd84a36, 0xf4e7c3, 0x2d6f93, 0x26364d, 0xf1c15e],
     generic: [0xd4b483, 0x8fb07a, 0x5d86a6, 0xbe6a4a, 0xf0d69c, 0x3b4458],
   };
+  // Muted, natural tones used as a single coherent body colour for untextured
+  // "generic" models. Banding many hues across one mesh (the old behaviour)
+  // produced a rainbow-confetti look; picking one of these per model keeps the
+  // result calm and clearly reads as "no material supplied".
+  const MODEL_STAMP_GENERIC_SOLID = [0xb9b3a6, 0xa8b89a, 0xc7b29a, 0x9fb0bd, 0xc2a99a, 0xb1aab2];
 
   function modelStampApiEnabled() {
     if (window.location.protocol !== 'http:' && window.location.protocol !== 'https:') return false;
@@ -930,6 +935,10 @@
     const kind = modelStampPaletteKind(asset);
     const palette = MODEL_STAMP_FALLBACK_PALETTES[kind] || MODEL_STAMP_FALLBACK_PALETTES.generic;
     const hash = modelStampHash((asset && asset.id) + ':' + (mesh.name || '') + ':' + index);
+    // For unnamed/generic models, commit to a single body colour for the whole
+    // mesh. Shading still comes from surface normals + a gentle vertical
+    // gradient, so the model reads as solid-coloured rather than rainbow.
+    const genericHex = MODEL_STAMP_GENERIC_SOLID[hash % MODEL_STAMP_GENERIC_SOLID.length];
     const shade = new THREE.Color(0x252a30);
     const color = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
@@ -939,7 +948,7 @@
       const yNorm = (y - minY) / spanY;
       const ny = normal ? normal.getY(i) : 0;
       const band = Math.floor((Math.atan2(z, x) + Math.PI) * 2.5) + Math.floor(yNorm * 9) + hash;
-      let hex = palette[Math.abs(band) % palette.length];
+      let hex = genericHex;
       if (kind === 'building') {
         if (yNorm > 0.72 || (ny > 0.48 && yNorm > 0.56)) hex = palette[1];
         else if (yNorm < 0.10) hex = palette[3];
@@ -954,6 +963,7 @@
         else hex = (band % 4 === 0) ? palette[4] : palette[0];
       }
       color.setHex(hex);
+      if (kind === 'generic') color.offsetHSL(0, 0, (yNorm - 0.5) * 0.08);
       if (ny < -0.12) color.lerp(shade, 0.24);
       else if (Math.abs(ny) < 0.18) color.lerp(shade, 0.10);
       color.toArray(colors, i * 3);
@@ -1375,11 +1385,36 @@
           finish(scene);
         })
         .catch(fail);
-    } else if (asset.format === 'fbx' && THREE.FBXLoader) {
-      const loader = new THREE.FBXLoader();
+    } else if (asset.format === 'fbx') {
+      if (!THREE.FBXLoader) {
+        fail(new Error('FBXLoader missing'));
+        return cache;
+      }
+      const loader = new THREE.FBXLoader(createModelStampLoadingManager(asset));
       loader.load(asset.url, obj => {
-        hydrateModelStampScene(obj, asset, { flipY: true });
-        finish(obj);
+        try {
+          hydrateModelStampScene(obj, asset, { flipY: false });
+          finish(obj, (obj && obj.animations) || []);
+        } catch (err) { fail(err); }
+      }, undefined, fail);
+    } else if (asset.format === 'vox') {
+      if (!THREE.VOXLoader || !THREE.VOXMesh) {
+        fail(new Error('VOXLoader missing'));
+        return cache;
+      }
+      const loader = new THREE.VOXLoader(createModelStampLoadingManager(asset));
+      loader.load(asset.url, chunks => {
+        try {
+          const group = new THREE.Group();
+          (chunks || []).forEach(chunk => {
+            try { group.add(new THREE.VOXMesh(chunk)); } catch (_) {}
+          });
+          if (!group.children.length) throw new Error('VOX file has no voxels');
+          // VOX meshes already carry per-voxel vertex colours from the file's
+          // own palette, so hydrate leaves them alone (no fallback palette).
+          hydrateModelStampScene(group, asset, { flipY: false });
+          finish(group);
+        } catch (err) { fail(err); }
       }, undefined, fail);
     } else {
       fail(new Error(asset.format.toUpperCase() + ' is detected but not placeable in this build'));

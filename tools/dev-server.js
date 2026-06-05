@@ -48,6 +48,7 @@ const types = {
   '.obj': 'model/obj',
   '.mtl': 'text/plain; charset=utf-8',
   '.fbx': 'application/octet-stream',
+  '.vox': 'application/octet-stream',
 };
 
 function send(res, status, body, headers = {}) {

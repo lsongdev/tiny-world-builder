@@ -1,6 +1,6 @@
   // -------- drag/drop imports --------
   (function initTinyWorldDropImports() {
-    const MODEL_DROP_EXT_RE = /\.(glb|gltf|obj|fbx)$/i;
+    const MODEL_DROP_EXT_RE = /\.(glb|gltf|obj|fbx|vox)$/i;
     const IMAGE_DROP_EXT_RE = /\.(png|jpe?g|webp|gif)$/i;
     const MODEL_DROP_STATUS_MS = 2600;
     let agentAttachments = [];
@@ -291,7 +291,7 @@
         onDrop(files) {
           const assets = registerDroppedModels(modelFiles(files));
           if (!assets.length) {
-            showDropStatus('Drop GLB, GLTF, or OBJ files for Stamps', 'error');
+            showDropStatus('Drop GLB, GLTF, OBJ, FBX, or VOX files for Stamps', 'error');
             return;
           }
           selectDroppedModel(assets[0]);
@@ -315,7 +315,7 @@
         async onDrop(files, evt) {
           const assets = registerDroppedModels(modelFiles(files));
           if (!assets.length) {
-            showDropStatus('Drop a GLB, GLTF, or OBJ model on the world', 'error');
+            showDropStatus('Drop a GLB, GLTF, OBJ, FBX, or VOX model on the world', 'error');
             return;
           }
           const target = modelPlacementTarget(evt);
