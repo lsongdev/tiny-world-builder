@@ -551,20 +551,25 @@
     vertexShader: [
       '#include <fog_pars_vertex>',
       'varying vec3 vLocalPos;',
-      'varying vec3 vCamLocal;',
+      'varying vec3 vRayLocal;',
       'void main() {',
       '  vLocalPos = position;',                     // unit pane: xy in [-0.5,0.5], z = 0
-      // Camera in the pane's own (geometry) space, computed from the model
-      // matrix columns + the built-in cameraPosition. The columns are the
-      // world-space local axes (orthogonal: rotation*scale), so dividing the
-      // projection by each axis' squared length inverts the transform without
-      // needing inverse() (WebGL1) OR a per-draw onBeforeRender CPU update — so
-      // it stays correct through cloning, instancing skips, etc.
+      // The interior-mapping ray MUST match the projection. Under perspective the
+      // rays diverge from the eye; under the editor's default ORTHOGRAPHIC camera
+      // they are parallel (the camera forward). projectionMatrix[2].w is -1 for
+      // perspective, 0 for orthographic — use it to pick the right ray so the
+      // room reads correctly at the normal (ortho) view, not just up close.
       '  vec3 ax = modelMatrix[0].xyz, ay = modelMatrix[1].xyz, az = modelMatrix[2].xyz;',
-      '  vec3 rel = cameraPosition - modelMatrix[3].xyz;',
-      '  vCamLocal = vec3(dot(rel, ax) / max(dot(ax, ax), 1e-6),',
-      '                   dot(rel, ay) / max(dot(ay, ay), 1e-6),',
-      '                   dot(rel, az) / max(dot(az, az), 1e-6));',
+      '  vec4 wp = modelMatrix * vec4(position, 1.0);',
+      '  bool isOrtho = abs(projectionMatrix[2].w) < 0.5;',
+      '  vec3 camFwd = -normalize(vec3(viewMatrix[0].z, viewMatrix[1].z, viewMatrix[2].z));', // camera -z in world
+      '  vec3 dirWorld = isOrtho ? camFwd : normalize(wp.xyz - cameraPosition);',
+      // Express the world view ray in the pane's local (geometry) basis. Columns
+      // are orthogonal (rotation*scale), so projecting onto each / its squared
+      // length converts a world direction to local without inverse() (WebGL1).
+      '  vRayLocal = vec3(dot(dirWorld, ax) / max(dot(ax, ax), 1e-6),',
+      '                   dot(dirWorld, ay) / max(dot(ay, ay), 1e-6),',
+      '                   dot(dirWorld, az) / max(dot(az, az), 1e-6));',
       '  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);',
       '  gl_Position = projectionMatrix * mvPosition;',
       '  #include <fog_vertex>',
@@ -574,13 +579,13 @@
       'precision highp float;',
       '#include <fog_pars_fragment>',
       'varying vec3 vLocalPos;',
-      'varying vec3 vCamLocal;',
+      'varying vec3 vRayLocal;',
       'uniform float uDepth;',
       'uniform vec3 uWall, uFloor, uCeil, uBack, uLightCol, uReflect, uGlass;',
       'uniform float uLit, uReflectAmt, uInteriorBright;',
       'void main() {',
       '  vec3 ro = vLocalPos;',                       // ray origin on the glass plane (z = 0)
-      '  vec3 rd = normalize(vLocalPos - vCamLocal);',// view ray, heading into the room (rd.z < 0)
+      '  vec3 rd = normalize(vRayLocal);',            // view ray into the room (rd.z < 0 when looking in)
       '  float rz = min(rd.z, -1e-3);',               // never look "outward"
       '  float tBack = (-uDepth - ro.z) / rz;',       // back wall at z = -uDepth
       '  float dx = abs(rd.x) < 1e-4 ? (rd.x < 0.0 ? -1e-4 : 1e-4) : rd.x;',
@@ -600,8 +605,8 @@
       '  float ld = length(hit.xy - vec2(0.0, 0.05));',           // warm interior light near back-centre
       '  float glow = (0.18 + uLit) * smoothstep(0.75, 0.0, ld) * smoothstep(0.0, 0.4, depthN);',
       '  col = (col + uLightCol * glow) * uInteriorBright;',      // fill light (+extra when "lit"), scaled by brightness
-      '  vec3 V = normalize(vCamLocal - vLocalPos);', // toward camera (V.z = 1 head-on)
-      '  float fres = pow(1.0 - clamp(V.z, 0.0, 1.0), 3.0);',
+      '  float vz = clamp(-rd.z, 0.0, 1.0);',         // head-on component (rd.z = -1 looking straight in)
+      '  float fres = pow(1.0 - vz, 3.0);',
       '  col = mix(col, uReflect, fres * uReflectAmt);', // glassy sky reflection at grazing angles
       '  col *= uGlass;',                             // overall dark glass tint
       '  gl_FragColor = vec4(col, 1.0);',
