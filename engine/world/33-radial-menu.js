@@ -61,6 +61,18 @@
     let lastIslandMode = false;
     let lastEditPartKey = null;
 
+    // While the user is actively working the ring (hovering or tapping a
+    // button), freeze its screen position. Resizing/duplicating grows the
+    // object's bounds, which would otherwise slide the ring out from under the
+    // cursor between taps — so the next "+" tap lands on empty space. Hold the
+    // last position until ~1.4s after the last interaction, then resume tracking
+    // the (now larger) object. The root has pointer-events:none, so the freeze
+    // is driven off the buttons (pointer-events:auto), not the root.
+    const RADIAL_FREEZE_MS = 1400;
+    let radialFreezeUntil = 0;
+    let lastRadialCx = null, lastRadialCy = null;
+    const extendRadialFreeze = () => { radialFreezeUntil = performance.now() + RADIAL_FREEZE_MS; };
+
     // Sub-object edit levels drill down: edit → edit-move/scale/color. Back goes
     // to the parent; backing out of 'edit' exits sub-edit mode.
     const LEVEL_PARENT = { edit: 'root', 'edit-move': 'edit', 'edit-scale': 'edit', 'edit-color': 'edit' };
@@ -121,7 +133,10 @@
       btn.style.top = (Math.sin(a) * RADIUS) + 'px';
       btn.style.setProperty('--d', (idx * 0.035) + 's');
       btn.innerHTML = html;
-      btn.addEventListener('pointerdown', e => e.stopPropagation());
+      btn.addEventListener('pointerdown', e => { e.stopPropagation(); extendRadialFreeze(); });
+      // Hovering toward a button also freezes the ring, so the very first tap
+      // (and every one after) lands where the cursor already is.
+      btn.addEventListener('pointerenter', extendRadialFreeze);
       return btn;
     }
 
@@ -359,7 +374,7 @@
       const cam = typeof camera !== 'undefined' ? camera : null;
       const dom = (typeof renderer !== 'undefined' && renderer) ? renderer.domElement : null;
       if (!gizmo || !cam || !dom || !gizmo.visible) {
-        if (!root.hidden) { root.hidden = true; if (currentLevel !== 'root') exitEditMode(); currentLevel = 'root'; }
+        if (!root.hidden) { root.hidden = true; if (currentLevel !== 'root') exitEditMode(); currentLevel = 'root'; lastRadialCx = lastRadialCy = null; }
         return;
       }
       // Project against the *current* camera. updateCamera() (orbit) only sets
@@ -370,17 +385,26 @@
       const p = radialProjectPoint.copy(gizmo.position);
       p.y += 0.4;
       p.project(cam);
-      if (p.z > 1) { if (!root.hidden) { root.hidden = true; currentLevel = 'root'; } return; }
+      if (p.z > 1) { if (!root.hidden) { root.hidden = true; currentLevel = 'root'; lastRadialCx = lastRadialCy = null; } return; }
       const rect = dom.getBoundingClientRect();
       const sx = rect.left + (p.x * 0.5 + 0.5) * rect.width;
       const sy = rect.top + (-p.y * 0.5 + 0.5) * rect.height;
       const m = RADIUS + 52;
-      const bounds = projectObjectBounds(selectedRadialObject3D(), cam, rect);
-      const around = radialCenterAroundBounds(bounds, sx, sy, m);
+      // Frozen while the user is on the ring — reuse the last position so the
+      // buttons stay put under the cursor while scaling/duplicating. Otherwise
+      // recompute around the (possibly resized) object's projected bounds.
+      let cx, cy;
+      if (lastRadialCx !== null && performance.now() < radialFreezeUntil) {
+        cx = lastRadialCx; cy = lastRadialCy;
+      } else {
+        const bounds = projectObjectBounds(selectedRadialObject3D(), cam, rect);
+        const around = radialCenterAroundBounds(bounds, sx, sy, m);
+        cx = Math.max(m, Math.min(window.innerWidth - m, around.x));
+        cy = Math.max(m, Math.min(window.innerHeight - m, around.y));
+      }
+      lastRadialCx = cx; lastRadialCy = cy;
       // translate3d (subpixel, GPU-composited) instead of left/top so the menu
       // tracks the object smoothly without per-frame layout or pixel snapping.
-      const cx = Math.max(m, Math.min(window.innerWidth - m, around.x));
-      const cy = Math.max(m, Math.min(window.innerHeight - m, around.y));
       root.style.transform = 'translate3d(' + cx + 'px,' + cy + 'px,0)';
       const islandMode = !!selectedRadialIsland();
       if (root.hidden) {

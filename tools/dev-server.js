@@ -245,7 +245,7 @@ function sanitizeModelStampDefaults(input) {
     if (!/^[a-z0-9][a-z0-9_-]{0,95}$/i.test(rawId)) continue;
     const cfg = raw && typeof raw === 'object' ? raw : {};
     stamps[rawId] = {
-      objectScale: +clampNumber(cfg.objectScale ?? cfg.scale, 1, 0.2, 4).toFixed(3),
+      objectScale: +clampNumber(cfg.objectScale ?? cfg.scale, 1, 0.2, 24).toFixed(3),
       offsetY: +clampNumber(cfg.offsetY, 0, -1, 2).toFixed(3),
       rotationY: +clampNumber(cfg.rotationY, 0, -Math.PI * 4, Math.PI * 4).toFixed(6),
     };

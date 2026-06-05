@@ -2089,12 +2089,16 @@
       ? null
       : (value.objectScale !== undefined ? value.objectScale : value.scale);
     const objectScaleNumber = rawScale === null ? NaN : Number(rawScale);
+    // Generous upper cap — let people build giants. This is the master clamp:
+    // every appearance write flows through here, so the radial Size button and
+    // the inspector slider both honor it. Keep in sync with the limits in
+    // 21-object-transform-voxel-build.js and the inspector slider in 28.
     const objectScale = Number.isFinite(objectScaleNumber)
-      ? Math.max(0.2, Math.min(4, objectScaleNumber))
+      ? Math.max(0.2, Math.min(24, objectScaleNumber))
       : null;
     const axisScale = raw => {
       const n = Number(raw);
-      return Number.isFinite(n) ? Math.max(0.15, Math.min(5, n)) : null;
+      return Number.isFinite(n) ? Math.max(0.15, Math.min(24, n)) : null;
     };
     const scaleX = axisScale(value.scaleX !== undefined ? value.scaleX : value.objectScaleX);
     const scaleY = axisScale(value.scaleY !== undefined ? value.scaleY : value.objectScaleY);

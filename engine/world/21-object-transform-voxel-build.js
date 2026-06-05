@@ -1061,7 +1061,7 @@
       } else {
         const current = appearance[key] || 1;
         const min = key === 'objectScale' ? 0.25 : 0.15;
-        const max = key === 'objectScale' ? 4 : 5;
+        const max = 24; // unlocked — matches normalizeAppearance (04)
         appearance[key] = Math.max(min, Math.min(max, current * amount));
         if (Math.abs(appearance[key] - 1) < 0.001) delete appearance[key];
       }
@@ -1134,7 +1134,7 @@
       const appearance = Object.assign({}, normalizeAppearance(target.cell.appearance) || {});
       const key = axis === 'x' ? 'scaleX' : axis === 'y' ? 'scaleY' : axis === 'z' ? 'scaleZ' : 'objectScale';
       const min = key === 'objectScale' ? 0.25 : 0.15;
-      const max = key === 'objectScale' ? 4 : 5;
+      const max = 24; // unlocked — matches normalizeAppearance (04)
       appearance[key] = Math.max(min, Math.min(max, v));
       if (Math.abs(appearance[key] - 1) < 0.001) delete appearance[key];
       return { appearance: Object.keys(appearance).length ? appearance : null };

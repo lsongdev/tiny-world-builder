@@ -76,7 +76,7 @@
   function normalizeModelStampSettings(value) {
     const v = value && typeof value === 'object' ? value : {};
     return {
-      objectScale: +clampModelStampNumber(v.objectScale !== undefined ? v.objectScale : v.scale, 1, 0.2, 4).toFixed(3),
+      objectScale: +clampModelStampNumber(v.objectScale !== undefined ? v.objectScale : v.scale, 1, 0.2, 24).toFixed(3),
       offsetY: +clampModelStampNumber(v.offsetY, 0, -1, 2).toFixed(3),
       rotationY: +clampModelStampNumber(v.rotationY, 0, -Math.PI * 4, Math.PI * 4).toFixed(6),
     };

@@ -2113,7 +2113,7 @@
             { key: 'posY', label: 'Pos Y', control: 'numeric', min: -0.5, max: 2, step: 0.01, currentValue: uniformValue(objectCells, c => +(c.offsetY || 0).toFixed(2)) },
             { key: 'posZ', label: 'Pos Z', control: 'numeric', min: -0.5, max: 0.5, step: 0.01, currentValue: uniformValue(objectCells, c => +(c.offsetZ || 0).toFixed(2)) },
             { key: 'rotDeg', label: 'Rot Y°', control: 'slider', min: 0, max: 360, step: 1, currentValue: uniformValue(objectCells, c => Math.round((((c.rotationY || 0) * 180 / Math.PI) % 360 + 360) % 360)) },
-            { key: 'scaleAbs', label: 'Scale', control: 'slider', min: 0.25, max: 4, step: 0.05, currentValue: uniformValue(objectCells, c => +(ap(c).objectScale || 1).toFixed(2)) },
+            { key: 'scaleAbs', label: 'Scale', control: 'slider', min: 0.25, max: 24, step: 0.05, currentValue: uniformValue(objectCells, c => +(ap(c).objectScale || 1).toFixed(2)) },
           ]);
           addRows('Appearance', [
             { key: 'baseColor', label: 'Base color', control: 'colorpicker', currentValue: uniformValue(objectCells, c => ap(c).bodyColor || null) },

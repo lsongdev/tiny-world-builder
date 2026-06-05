@@ -649,22 +649,22 @@
           "objectScale": {
             "type": "number",
             "minimum": 0.2,
-            "maximum": 4
+            "maximum": 24
           },
           "scaleX": {
             "type": "number",
             "minimum": 0.15,
-            "maximum": 5
+            "maximum": 24
           },
           "scaleY": {
             "type": "number",
             "minimum": 0.15,
-            "maximum": 5
+            "maximum": 24
           },
           "scaleZ": {
             "type": "number",
             "minimum": 0.15,
-            "maximum": 5
+            "maximum": 24
           },
           "materialTexture": {
             "type": "string"
