@@ -1125,27 +1125,29 @@
           if (twTop > 0.001) {
             vec2 wp = vTwWaterWorld.xz;
             float t = uWaterTime;
-            vec2 f1 = wp * 0.55 + vec2(t * 0.06, t * 0.045);
-            vec2 f2 = wp * 1.25 - vec2(t * 0.05, t * 0.062);
+            // Two scrolling noise fields -> a moving wave height h0. Everything
+            // below is VIEW-INDEPENDENT (depends only on world pos + time) so it
+            // reads clearly even from the default top-down-ish camera.
+            vec2 f1 = wp * 0.70 + vec2(t * 0.11, t * 0.07);
+            vec2 f2 = wp * 1.70 - vec2(t * 0.08, t * 0.12);
             float h0 = twWaterNoise(f1) * 0.6 + twWaterNoise(f2) * 0.4;
-            float e = 0.35;
+            float e = 0.30;
             float hX = twWaterNoise(f1 + vec2(e, 0.0)) * 0.6 + twWaterNoise(f2 + vec2(e, 0.0)) * 0.4;
             float hZ = twWaterNoise(f1 + vec2(0.0, e)) * 0.6 + twWaterNoise(f2 + vec2(0.0, e)) * 0.4;
-            vec3 rn = normalize(vec3(-(hX - h0) * 1.1, 1.0, -(hZ - h0) * 1.1));
+            vec3 rn = normalize(vec3(-(hX - h0) * 2.4, 1.0, -(hZ - h0) * 2.4));
             vec3 vdir = normalize(vTwWaterView);
-            vec3 sdir = normalize(vec3(0.45, 0.85, 0.35));
+            vec3 sdir = normalize(vec3(0.40, 0.72, 0.55));
             vec3 hvec = normalize(sdir + vdir);
-            float glint = pow(max(dot(rn, hvec), 0.0), 80.0);
-            float fres = pow(1.0 - clamp(dot(rn, vdir), 0.0, 1.0), 3.0);
-            float foam = smoothstep(0.74, 0.96, h0);
-            float ripple = h0 - 0.5;
-            vec3 sky = vec3(0.62, 0.80, 0.96);
-            // broad moving light/dark bands make the motion obvious from any
-            // angle; sharp glints + fresnel sheen + foam add the sparkle on top.
-            vec3 addCol = vec3(0.85, 0.93, 1.0) * ripple * 0.07
-                        + sky * fres * 0.18
-                        + vec3(1.0, 0.99, 0.95) * glint * 0.55
-                        + vec3(0.92, 0.97, 1.0) * foam * 0.12;
+            float glint = pow(max(dot(rn, hvec), 0.0), 60.0);
+            // bright thin caustic veins where the wave field crosses mid-height
+            float veins = pow(max(1.0 - abs(h0 - 0.5) * 2.0, 0.0), 4.0);
+            float foam = smoothstep(0.80, 0.96, h0);
+            // Visible moving light/dark wave bands (troughs darker, crests brighter).
+            gl_FragColor.rgb *= mix(0.82, 1.08, h0) * twTop + (1.0 - twTop);
+            // Cyan caustic veins + white sun sparkles + foam crests on top.
+            vec3 addCol = vec3(0.55, 0.86, 1.0) * veins * 0.22
+                        + vec3(1.0, 1.0, 0.98) * glint * 0.85
+                        + vec3(0.92, 0.98, 1.0) * foam * 0.22;
             gl_FragColor.rgb += addCol * twTop;
           }
         }
