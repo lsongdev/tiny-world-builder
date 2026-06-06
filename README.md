@@ -148,14 +148,16 @@ Newer systems are still routed through that same contract:
 - **Weather, time, clouds, and crop duster** are decorative scene systems layered on the same renderer.
 - **Command palette** indexes tools, views, settings, and terrain raise/lower actions.
 - **Mesh Terrain sculptor** (the "Mesh Terrain" toggle, right edge) is an opt-in
-  voxel-mesh landscape designer: lay a fine voxel grid over the whole board,
+  voxel-block landscape designer: lay a fine voxel grid over the whole board,
   paint per-voxel materials (grass/sand/water/stone/dirt/snow/lava), then grab
-  the surface and pull it up/down — the grabbed point moves fully while
-  neighbours follow with a smoothstep "tension" falloff. **Apply** bakes the
-  design back into `world[x][z]` through `setCell` (dominant material + quantised
-  height per tile, preserving existing objects), so the result renders, saves,
-  and can be built on like any other terrain. State lives under its own
-  `tinyworld:meshTerrain:*` localStorage keys; the world schema is unchanged.
+  the surface and pull voxels up/down. Each voxel keeps a **flat top** at its own
+  height with vertical step-walls between neighbours, so the result reads as
+  small flat-topped blocks depicting the layout (not a smooth/curved surface).
+  Pulling one voxel up drags its neighbours up too with a smoothstep "tension"
+  falloff. **Apply** keeps the block mesh as the rendered terrain (hiding the
+  flat home tiles) rather than baking back into per-tile terrain. State lives
+  under its own `tinyworld:meshTerrain:*` localStorage keys; the world schema is
+  unchanged.
 
 ## Validation
 

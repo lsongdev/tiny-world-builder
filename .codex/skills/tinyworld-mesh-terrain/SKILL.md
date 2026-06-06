@@ -1,83 +1,83 @@
 ---
 name: tinyworld-mesh-terrain
-description: Use when changing the Mesh Terrain sculptor — the opt-in voxel-mesh landscape designer that paints per-voxel materials and pull/push-sculpts a fine surface, then bakes it into world[x][z] terrain. Module engine/world/46-mesh-terrain.js.
+description: Use when changing the Mesh Terrain sculptor — the opt-in voxel-block landscape designer that paints per-voxel materials and pull/push-sculpts flat-topped blocks, then keeps the block mesh as the rendered terrain. Module engine/world/46-mesh-terrain.js.
 ---
 
 # Tiny World Mesh Terrain Sculptor
 
 A self-contained, opt-in landscape designer in `engine/world/46-mesh-terrain.js`.
-It is an alternative to per-tile `terrainFloors` stacking: lay a fine voxel mesh
-over the whole home board, paint materials per voxel, pull/push the surface into
-shape, then bake the result into the normal world so it renders, saves, and can
-be built on.
+Lay a fine voxel grid over the home board, paint per-voxel materials, and
+pull/push voxels up and down. The result is **flat-topped voxel blocks**, not a
+smooth/curved surface, and it stays that way — Apply keeps the block mesh as the
+terrain instead of baking into per-tile `setCell`.
 
-## Why it is structured this way
+## The model is per-voxel blocks (not a smooth heightfield)
 
-- **One IIFE, no top-level names.** The whole module is wrapped in
-  `(function meshTerrainSculptorBoot() { … })();`. Its inner identifiers stay
-  below the 2-space top-level indent, so the `tools/check.js` cross-file
-  duplicate-declaration guard ignores them and they cannot collide with other
-  modules. Keep new code inside the IIFE.
-- **Own localStorage key, no schema change.** Editor state persists under
-  `tinyworld:meshTerrain:v1` (mesh) and `tinyworld:meshTerrain:prefs:v1`
-  (tool/brush prefs). The world schema (`world.schema.json` + embedded
-  `WORLD_SCHEMA`) is untouched, so the schema-parity check stays green. Do not
-  add persisted fields to the world save for this feature.
-- **CSS injected from JS.** Styles are appended as a `<style id="mesh-terrain-styles">`
-  so the guarded `styles/tiny-world.css` is never edited. New chrome (a floating
-  toggle button + panel) uses new ids/classes; that does not trip presence-based
-  check.js guards.
-- **Zero impact when off.** Nothing is added to the scene and no listeners are
-  attached until `enter()`. `exit()` detaches everything and disposes meshes.
-
-## Data model
-
-- `N = GRID * effVpt` voxels per board side (effVpt clamped so `N <= MAX_N`).
-- `heights`: `Float32Array((N+1)^2)` — per-vertex Y delta above `surfaceY` (TOP_H).
-- `mats`: `Uint8Array(N^2)` — per-voxel material index into `MATERIALS`
+- `cellH`: `Float32Array(N*N)` — the flat-top height of **each voxel**. There are
+  no shared/interpolated vertices, so tops never slope into curves.
+- `mats`: `Uint8Array(N*N)` — per-voxel material index into `MATERIALS`
   (ids match real terrain names: grass/sand/water/stone/dirt/snow/lava).
-- Geometry is **non-indexed** (each quad owns 6 verts) so colors are sharp per
-  voxel and per-face flat normals give the low-poly facet look. `surfaceMesh`
-  is a single `MeshLambertMaterial({vertexColors:true, side:DoubleSide})` mesh.
-- Board is centred at the origin: vertex `(c,r)` world XZ = `c*spacing - half`,
-  `r*spacing - half`, where `spacing = GRID/N`, `half = GRID/2`.
+- `N = GRID * effVpt` voxels per side; `effVpt` is clamped so `N <= MAX_N` (96).
+- Render (`rebuildGeometry`): each voxel writes a flat **top quad** at its height
+  plus **vertical step-walls** only on edges where a neighbour (or the board
+  boundary) is lower. Boundary walls drop to a base skirt below the lowest block.
+  Fixed stride `FLOATS_PER_VOXEL = 90` (top + 4 walls); absent walls are written
+  as degenerate (zeroed) triangles so the buffer never reallocates. Walls are
+  shaded `WALL_SHADE` darker than the top for depth. Non-indexed +
+  `MeshLambertMaterial({vertexColors, flatShading, side:DoubleSide})`.
+- The geometry rebuild runs on every edit, so it writes from **scalars** via
+  `quad()`/`wv()` (no per-quad array allocation) to avoid GC churn.
 
-## Interaction
+## Sculpt / paint
 
-- Input is intercepted by **window capture-phase** pointer listeners (the
-  existing handlers are bubble-phase on `renderer.domElement`, so capture runs
-  first). Engage an edit only when `e.target === renderer.domElement` and the
-  ray hits the surface; then `stopPropagation()`. Otherwise let the event flow
-  so camera orbit/zoom still work. Never engage over panel/toolbar chrome.
-- **Sculpt**: drag the surface up/down. The grabbed vertex moves by the screen
-  dy mapped to world units (`perPixelWorldY`, ortho vs perspective aware);
-  neighbours follow with a smoothstep `falloff(dist/brushRadius)` — the
-  "tension". Reapply from a `startHeights` snapshot each move so it does not
-  compound.
-- **Paint**: drag to set every voxel whose centre is within `brushRadius` to the
-  selected material.
+- **Sculpt**: drag a voxel up/down. Screen dy maps to world units
+  (`perPixelWorldY`, ortho vs perspective aware). The grabbed voxel and its
+  neighbours move by `worldDy * falloff(dist/brushRadius)` (smoothstep
+  "tension"), reapplied from a `startH` snapshot each move so it does not
+  compound. Every voxel stays flat at its own height.
+- **Paint**: drag to set every voxel whose centre is within `brushRadius`.
 
-## Bake (Apply)
+## Apply keeps blocks — it does NOT bake into world tiles
 
-`bake()` walks each board tile, takes the **dominant** painted material and the
-**average** corner height (quantised to the 0.20 level step, clamped 1..MAX_FLOORS),
-and calls `setCell(tx, tz, {terrain, terrainFloors, …})`. It **preserves** any
-existing object on the tile (passes through `kind`/`floors`/transform/etc.), so
-objects ride up onto the new terrain. Then it dispatches
-`tinyworld:world-changed` and calls `saveState()` if present.
+- `applyDesign()` sets `applied = true`, persists, hides the flat home tiles
+  (`setHomeMeshesVisible(false)`), and leaves the block mesh in the scene. There
+  is **no** `setCell` bake, so there are no full GRID tiles afterwards.
+- `cancelEdit()` reverts to the last applied snapshot (stays displayed) or, if
+  nothing was committed, disposes the mesh and restores the flat tiles.
+- `removeDesign()` deletes the block terrain and restores the flat tiles.
+- Boot `restoreApplied()` rebuilds an applied design and re-hides home tiles
+  (with delayed retries + a `tinyworld:world-changed` listener, because world
+  tiles can render slightly after this module boots).
 
-Known MVP limitation: bake is per-tile, so sub-tile paint collapses to the
-dominant material per tile and heights quantise to 0.20 steps. Preserving full
-sub-tile detail as a first-class persisted surface (with object placement
-sampling the mesh height) is the natural next iteration.
+## Why it is structured this way (do not regress)
 
-## QA checklist (needs a browser — cannot be verified by npm test)
+- **One IIFE, no top-level names** → dodges the `tools/check.js` cross-file
+  duplicate-declaration guard; keep new code inside the IIFE.
+- **Own localStorage keys** (`tinyworld:meshTerrain:v2` design,
+  `tinyworld:meshTerrain:prefs:v1` prefs). The world schema and embedded
+  `WORLD_SCHEMA` are untouched, so schema parity stays green. Do not persist this
+  feature in the world save.
+- **CSS injected from JS**; guarded `styles/tiny-world.css` is never edited.
+- **Window capture-phase pointer handling** that engages only when
+  `e.target === renderer.domElement` and the ray hits the surface, then
+  `stopPropagation()`. Otherwise events flow through so orbit/zoom and UI clicks
+  keep working. Handlers attach on open, detach on leave.
 
-- Toggle opens the panel and `enter()` lays a flat grass mesh over the board;
-  the underlying home tiles hide while editing and restore on Cancel.
-- Sculpt drag pulls a smooth hill/valley; neighbours taper with the brush.
-- Paint lays the selected material; water/stone/etc. read correctly.
-- Orbit/zoom still work when dragging empty space or scrolling.
-- Apply bakes terrain + height through `setCell`; existing objects survive and
-  sit on the new heights; the world saves and reloads.
-- Cancel discards with no world change; clicking toolbar/settings is not hijacked.
+## Known limitations / next steps
+
+- The block terrain is a visual overlay persisted separately; it does not yet
+  feed object-placement height (you cannot natively "build on" individual blocks
+  — placed objects still use the hidden flat tiles). Sampling block height for
+  placement, and integrating with world save/slots, is the next iteration.
+- Home-tile hiding can race world (re)renders; it re-hides on
+  `tinyworld:world-changed` and via short boot timers.
+
+## QA checklist (needs a browser — npm test cannot verify rendering)
+
+- Open the editor: a flat grid of grass blocks covers the board; flat tiles hide.
+- Sculpt drag raises/lowers **flat-topped blocks** with vertical step-walls —
+  no sloped/curved surfaces; neighbours taper with the brush.
+- Paint lays materials per voxel; walls read slightly darker than tops.
+- Orbit/zoom still work on empty-space drag / scroll; toolbar clicks not hijacked.
+- Apply keeps the blocks (no full tiles reappear); reload restores them.
+- Cancel reverts; Remove deletes the blocks and restores the flat tiles.

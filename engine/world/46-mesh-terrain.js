@@ -1,26 +1,29 @@
-  // -------- mesh terrain sculptor (voxel paint + soft-handle sculpt) --------
-  // A self-contained, opt-in landscape designer. Instead of stacking per-tile
-  // terrain levels, you lay a fine voxel mesh over the whole home board, paint
-  // materials (grass/sand/water/stone/dirt/snow/lava) per voxel, then grab the
-  // surface and pull it up/down. The grabbed point moves fully while its
-  // neighbours follow with a smoothstep "tension" falloff, so you push and pull
-  // the land into shape. "Apply" bakes the design back into the normal
-  // world[x][z] terrain (dominant material + quantised height per tile) through
-  // setCell(), so the result renders, saves, and can be built on like any other
-  // terrain.
+  // -------- mesh terrain sculptor (voxel paint + flat-top block sculpt) --------
+  // An opt-in landscape designer. Lay a fine voxel grid over the home board,
+  // paint per-voxel materials (grass/sand/water/stone/dirt/snow/lava), then grab
+  // the surface and pull voxels up/down. Each voxel keeps a FLAT horizontal top
+  // at its own height; vertical step-walls form between neighbours of different
+  // heights, so the result reads as small flat-topped blocks depicting the
+  // layout — never a smooth/curved surface. Pulling one voxel up drags its
+  // neighbours up too, with a smoothstep "tension" falloff over the brush.
   //
-  // Everything here lives inside one IIFE: its inner names never reach the
-  // 2-space top-level scope, so they cannot collide with other modules and they
-  // do not need to be globally unique. State persists under its own localStorage
-  // key (the world schema is untouched), and all CSS is injected from JS. When
-  // the mode is off, nothing is attached and the editor has zero impact.
+  // "Apply" keeps the block mesh as the rendered terrain (persisted under its own
+  // localStorage key) and hides the underlying flat home tiles — it does NOT bake
+  // back into per-tile terrain, so there are no full tiles afterwards.
+  //
+  // Self-contained: one IIFE (no top-level names -> no cross-file decl clashes),
+  // own localStorage keys (world schema untouched), CSS injected from JS, and
+  // zero scene/listener footprint until the editor is opened.
   (function meshTerrainSculptorBoot() {
-    const STORE_KEY = 'tinyworld:meshTerrain:v1';
+    const STORE_KEY = 'tinyworld:meshTerrain:v2';
     const PREF_KEY = 'tinyworld:meshTerrain:prefs:v1';
-    const MAX_N = 128;            // hard cap on voxels-per-side across the board
+    const MAX_N = 96;            // hard cap on voxels-per-side across the board
     const VPT_OPTIONS = [4, 6, 8, 10];
+    const FLOATS_PER_VOXEL = 90; // top quad + 4 wall quads, 2 tris each, 3 verts, 3 floats
+    const WALL_SHADE = 0.78;     // side walls a touch darker than the top
+    const BASE_SKIRT = 0.25;     // how far boundary walls drop below the lowest block
 
-    // Editor palette. ids match real terrain names so the bake maps 1:1.
+    // Editor palette. ids match real terrain names.
     const MATERIALS = [
       { id: 'grass', label: 'Grass', color: 0x6fae4f },
       { id: 'sand',  label: 'Sand',  color: 0xe2cf95 },
@@ -31,41 +34,42 @@
       { id: 'lava',  label: 'Lava',  color: 0xe2592a },
     ];
 
-    // ---- editor state ----
-    let active = false;
+    // ---- editor prefs ----
     let vpt = 8;
     let toolMode = 'sculpt';     // 'sculpt' | 'paint'
     let paintMatIndex = 0;
     let brushRadius = 1.5;       // world units (tiles)
 
+    // ---- session state ----
+    let editing = false;         // pointer handlers attached, brush shown
+    let applied = false;         // a committed block design is being displayed
     let gridAtEnter = 8;
     let half = 4;
     let N = 0;                   // voxels per side across the whole board
-    let spacing = 1;            // world units per voxel = TILE / vpt
+    let spacing = 1;             // world units per voxel = TILE / effVpt
     let surfaceY = 0.18;
 
-    let heights = null;          // Float32Array (N+1)^2 vertex Y deltas
-    let mats = null;             // Uint8Array N^2 per-voxel material index
-    let positions = null, colors = null, normals = null; // reused buffers
+    let cellH = null;            // Float32Array(N*N) per-voxel top height delta
+    let mats = null;             // Uint8Array(N*N) per-voxel material index
+    let positions = null, colors = null, normals = null;
 
-    let surfaceMesh = null, brushRing = null, grabHandle = null;
-    let geom = null;
+    let surfaceMesh = null, brushRing = null, grabHandle = null, geom = null;
     let ray = null;
-
-    let drag = null;             // { kind, c0, r0, startY, perPixel, startHeights }
-    const hiddenMeshes = [];     // [mesh, prevVisible] pairs hidden while editing
+    let drag = null;             // { kind, i0, j0, startClientY, perPixel, startH }
+    let tmpColor = null;
 
     // ---- DOM ----
     let toggleBtn = null, panel = null, builtUI = false;
-    let resSeg = null, modeSeg = null, swatchWrap = null, brushInput = null, brushVal = null;
+    let modeSeg = null, swatchWrap = null, brushInput = null, brushVal = null;
 
     function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+    function shown() { return !!surfaceMesh; }
 
+    // ---- prefs persistence ----
     function loadPrefs() {
       try {
-        const raw = localStorage.getItem(PREF_KEY);
-        if (!raw) return;
-        const p = JSON.parse(raw);
+        const p = JSON.parse(localStorage.getItem(PREF_KEY) || 'null');
+        if (!p) return;
         if (VPT_OPTIONS.includes(p.vpt)) vpt = p.vpt;
         if (p.toolMode === 'sculpt' || p.toolMode === 'paint') toolMode = p.toolMode;
         if (Number.isFinite(p.brushRadius)) brushRadius = clamp(p.brushRadius, 0.3, 12);
@@ -73,131 +77,128 @@
       } catch (_) {}
     }
     function savePrefs() {
-      try {
-        localStorage.setItem(PREF_KEY, JSON.stringify({ vpt, toolMode, brushRadius, paintMatIndex }));
-      } catch (_) {}
+      try { localStorage.setItem(PREF_KEY, JSON.stringify({ vpt, toolMode, brushRadius, paintMatIndex })); } catch (_) {}
     }
 
-    function saveMesh() {
+    // ---- design persistence (its own key; world schema untouched) ----
+    function saveDesign() {
+      if (!cellH || !mats) return;
       try {
         localStorage.setItem(STORE_KEY, JSON.stringify({
-          v: 1, gridSize: gridAtEnter, vpt,
-          heights: Array.from(heights),
-          mats: Array.from(mats),
+          v: 2, gridSize: gridAtEnter, vpt, applied,
+          cellH: Array.from(cellH), mats: Array.from(mats),
         }));
       } catch (_) {}
     }
-    function loadMeshInto() {
-      // Returns true if a compatible saved design was restored into heights/mats.
-      try {
-        const raw = localStorage.getItem(STORE_KEY);
-        if (!raw) return false;
-        const s = JSON.parse(raw);
-        if (!s || s.gridSize !== gridAtEnter || s.vpt !== vpt) return false;
-        if (!Array.isArray(s.heights) || s.heights.length !== heights.length) return false;
-        if (!Array.isArray(s.mats) || s.mats.length !== mats.length) return false;
-        heights.set(s.heights);
-        mats.set(s.mats);
-        return true;
-      } catch (_) { return false; }
+    function readDesign() {
+      try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (_) { return null; }
+    }
+    function clearDesign() { try { localStorage.removeItem(STORE_KEY); } catch (_) {} }
+
+    function loadDesignInto(d) {
+      if (!d || d.gridSize !== gridAtEnter || d.vpt !== vpt) return false;
+      if (!Array.isArray(d.cellH) || d.cellH.length !== cellH.length) return false;
+      if (!Array.isArray(d.mats) || d.mats.length !== mats.length) return false;
+      cellH.set(d.cellH);
+      mats.set(d.mats);
+      return true;
     }
 
-    // ---- geometry sizing ----
+    // ---- sizing / buffers ----
     function recomputeDims() {
       gridAtEnter = (typeof GRID === 'number' && GRID > 0) ? GRID : 8;
       half = gridAtEnter / 2;
       surfaceY = (typeof TOP_H === 'number') ? TOP_H : 0.18;
-      // Clamp voxels-per-tile so the whole-board mesh never exceeds MAX_N a side.
       let effVpt = vpt;
       while (effVpt > 2 && gridAtEnter * effVpt > MAX_N) effVpt -= 1;
       N = gridAtEnter * effVpt;
-      spacing = gridAtEnter / N; // == TILE / effVpt
+      spacing = gridAtEnter / N;
     }
-
-    function vIdx(c, r) { return r * (N + 1) + c; }
-    function vYat(c, r) { return surfaceY + heights[vIdx(c, r)]; }
-
-    // ---- buffers ----
     function allocBuffers() {
-      heights = new Float32Array((N + 1) * (N + 1));
-      mats = new Uint8Array(N * N);          // defaults to 0 = grass
-      const quadCount = N * N;
-      positions = new Float32Array(quadCount * 18); // 2 tris * 3 verts * 3
-      colors = new Float32Array(quadCount * 18);
-      normals = new Float32Array(quadCount * 18);
+      cellH = new Float32Array(N * N);
+      mats = new Uint8Array(N * N);
+      const f = N * N * FLOATS_PER_VOXEL;
+      positions = new Float32Array(f);
+      colors = new Float32Array(f);
+      normals = new Float32Array(f);
     }
-
     function matColor(i) {
-      const c = new THREE.Color(MATERIALS[i] ? MATERIALS[i].color : 0x6fae4f);
-      return c;
+      if (!tmpColor) tmpColor = new THREE.Color();
+      tmpColor.setHex(MATERIALS[i] ? MATERIALS[i].color : 0x6fae4f);
+      return tmpColor;
     }
 
-    function rebuildColors() {
-      for (let j = 0; j < N; j++) {
-        for (let i = 0; i < N; i++) {
-          const c = matColor(mats[j * N + i]);
-          const base = (j * N + i) * 18;
-          for (let k = 0; k < 6; k++) {
-            colors[base + k * 3] = c.r;
-            colors[base + k * 3 + 1] = c.g;
-            colors[base + k * 3 + 2] = c.b;
-          }
-        }
-      }
-      if (geom) geom.attributes.color.needsUpdate = true;
+    // Write one vertex (position + normal + color) at float offset `o`.
+    function wv(o, x, y, z, nx, ny, nz, r, g, b) {
+      positions[o] = x; positions[o + 1] = y; positions[o + 2] = z;
+      normals[o] = nx; normals[o + 1] = ny; normals[o + 2] = nz;
+      colors[o] = r; colors[o + 1] = g; colors[o + 2] = b;
+    }
+    // Write one quad (2 triangles a-b-c, a-c-d) from scalar corners — no
+    // per-call array allocation, since this runs for every voxel on each edit.
+    function quad(o, ax, ay, az, bx, by, bz, cx, cy, cz, dx, dy, dz, nx, ny, nz, r, g, b) {
+      wv(o, ax, ay, az, nx, ny, nz, r, g, b);
+      wv(o + 3, bx, by, bz, nx, ny, nz, r, g, b);
+      wv(o + 6, cx, cy, cz, nx, ny, nz, r, g, b);
+      wv(o + 9, ax, ay, az, nx, ny, nz, r, g, b);
+      wv(o + 12, cx, cy, cz, nx, ny, nz, r, g, b);
+      wv(o + 15, dx, dy, dz, nx, ny, nz, r, g, b);
+    }
+    function writeDegenerate(o) {
+      for (let k = 0; k < 18; k++) positions[o + k] = 0;
     }
 
-    function writeTri(off, ax, ay, az, bx, by, bz, cx, cy, cz) {
-      positions[off] = ax; positions[off + 1] = ay; positions[off + 2] = az;
-      positions[off + 3] = bx; positions[off + 4] = by; positions[off + 5] = bz;
-      positions[off + 6] = cx; positions[off + 7] = cy; positions[off + 8] = cz;
-      // flat normal, oriented up
-      let nx = (by - ay) * (cz - az) - (bz - az) * (cy - ay);
-      let ny = (bz - az) * (cx - ax) - (bx - ax) * (cz - az);
-      let nz = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
-      const len = Math.hypot(nx, ny, nz) || 1;
-      nx /= len; ny /= len; nz /= len;
-      if (ny < 0) { nx = -nx; ny = -ny; nz = -nz; }
-      for (let k = 0; k < 3; k++) {
-        normals[off + k * 3] = nx;
-        normals[off + k * 3 + 1] = ny;
-        normals[off + k * 3 + 2] = nz;
-      }
-    }
-
-    function rebuildPositions() {
+    // Rebuild the whole block mesh from cellH + mats: each voxel = flat top + the
+    // vertical walls needed where a neighbour (or the board edge) is lower.
+    function rebuildGeometry() {
+      let gmin = Infinity;
+      for (let k = 0; k < cellH.length; k++) if (cellH[k] < gmin) gmin = cellH[k];
+      if (!isFinite(gmin)) gmin = 0;
+      const baseY = surfaceY + Math.min(0, gmin) - BASE_SKIRT;
       for (let j = 0; j < N; j++) {
         const z0 = j * spacing - half, z1 = (j + 1) * spacing - half;
         for (let i = 0; i < N; i++) {
+          const idx = j * N + i;
           const x0 = i * spacing - half, x1 = (i + 1) * spacing - half;
-          const y00 = vYat(i, j), y10 = vYat(i + 1, j), y11 = vYat(i + 1, j + 1), y01 = vYat(i, j + 1);
-          const base = (j * N + i) * 18;
-          // triangle A: (x0,z0) -> (x0,z1) -> (x1,z1)
-          writeTri(base, x0, y00, z0, x0, y01, z1, x1, y11, z1);
-          // triangle B: (x0,z0) -> (x1,z1) -> (x1,z0)
-          writeTri(base + 9, x0, y00, z0, x1, y11, z1, x1, y10, z0);
+          const topY = surfaceY + cellH[idx];
+          const c = matColor(mats[idx]);
+          const cr = c.r, cg = c.g, cb = c.b;
+          const wr = cr * WALL_SHADE, wg = cg * WALL_SHADE, wb = cb * WALL_SHADE;
+          let o = idx * FLOATS_PER_VOXEL;
+          // flat top
+          quad(o, x0, topY, z0, x0, topY, z1, x1, topY, z1, x1, topY, z0, 0, 1, 0, cr, cg, cb); o += 18;
+          // east wall (x = x1)
+          const nE = (i + 1 < N) ? surfaceY + cellH[idx + 1] : baseY;
+          if (topY > nE + 1e-6) quad(o, x1, nE, z0, x1, nE, z1, x1, topY, z1, x1, topY, z0, 1, 0, 0, wr, wg, wb); else writeDegenerate(o); o += 18;
+          // west wall (x = x0)
+          const nW = (i - 1 >= 0) ? surfaceY + cellH[idx - 1] : baseY;
+          if (topY > nW + 1e-6) quad(o, x0, nW, z1, x0, nW, z0, x0, topY, z0, x0, topY, z1, -1, 0, 0, wr, wg, wb); else writeDegenerate(o); o += 18;
+          // south wall (z = z1)
+          const nS = (j + 1 < N) ? surfaceY + cellH[idx + N] : baseY;
+          if (topY > nS + 1e-6) quad(o, x0, nS, z1, x1, nS, z1, x1, topY, z1, x0, topY, z1, 0, 0, 1, wr, wg, wb); else writeDegenerate(o); o += 18;
+          // north wall (z = z0)
+          const nN = (j - 1 >= 0) ? surfaceY + cellH[idx - N] : baseY;
+          if (topY > nN + 1e-6) quad(o, x1, nN, z0, x0, nN, z0, x0, topY, z0, x1, topY, z0, 0, 0, -1, wr, wg, wb); else writeDegenerate(o); o += 18;
         }
       }
       if (geom) {
         geom.attributes.position.needsUpdate = true;
+        geom.attributes.color.needsUpdate = true;
         geom.attributes.normal.needsUpdate = true;
       }
     }
 
     function buildMesh() {
       allocBuffers();
-      rebuildPositions();
-      rebuildColors();
+    }
+    function buildMeshMeshes() {
+      rebuildGeometry();
       geom = new THREE.BufferGeometry();
       geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
       geom.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
-      // Broad-phase bound covers the board plus a tall sculpt range so raycasts
-      // never get culled when peaks/valleys grow.
-      geom.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, surfaceY, 0), gridAtEnter * 0.95 + 60);
-      const mat = new THREE.MeshLambertMaterial({
-        vertexColors: true, flatShading: true, side: THREE.DoubleSide,
-      });
+      geom.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, surfaceY, 0), gridAtEnter * 1.1 + 80);
+      const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: THREE.DoubleSide });
       surfaceMesh = new THREE.Mesh(geom, mat);
       surfaceMesh.userData = { kind: 'mesh-terrain-surface' };
       surfaceMesh.renderOrder = 1;
@@ -205,23 +206,13 @@
 
       const ringGeo = new THREE.RingGeometry(0.9, 1.0, 48);
       ringGeo.rotateX(-Math.PI / 2);
-      const ringMat = new THREE.MeshBasicMaterial({
-        color: 0xffe27a, transparent: true, opacity: 0.85, depthTest: false, side: THREE.DoubleSide,
-      });
-      brushRing = new THREE.Mesh(ringGeo, ringMat);
-      brushRing.renderOrder = 30;
-      brushRing.visible = false;
-      scene.add(brushRing);
+      brushRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffe27a, transparent: true, opacity: 0.85, depthTest: false, side: THREE.DoubleSide }));
+      brushRing.renderOrder = 30; brushRing.visible = false; scene.add(brushRing);
 
-      const handleGeo = new THREE.SphereGeometry(1, 14, 10);
-      const handleMat = new THREE.MeshBasicMaterial({ color: 0xfff2c4, depthTest: false });
-      grabHandle = new THREE.Mesh(handleGeo, handleMat);
-      grabHandle.renderOrder = 31;
-      grabHandle.visible = false;
-      scene.add(grabHandle);
+      grabHandle = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshBasicMaterial({ color: 0xfff2c4, depthTest: false }));
+      grabHandle.renderOrder = 31; grabHandle.visible = false; scene.add(grabHandle);
     }
-
-    function disposeMesh() {
+    function disposeMeshes() {
       for (const m of [surfaceMesh, brushRing, grabHandle]) {
         if (!m) continue;
         scene.remove(m);
@@ -229,16 +220,12 @@
         if (m.material) m.material.dispose();
       }
       surfaceMesh = brushRing = grabHandle = geom = null;
-      heights = mats = positions = colors = normals = null;
     }
 
     // ---- picking ----
     function pointerNDC(clientX, clientY) {
       const rect = renderer.domElement.getBoundingClientRect();
-      return new THREE.Vector2(
-        ((clientX - rect.left) / rect.width) * 2 - 1,
-        -((clientY - rect.top) / rect.height) * 2 + 1
-      );
+      return new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     }
     function raycastSurface(clientX, clientY) {
       if (!surfaceMesh) return null;
@@ -247,143 +234,113 @@
       const hits = ray.intersectObject(surfaceMesh, false);
       return hits.length ? hits[0].point : null;
     }
-    function nearestVertex(point) {
-      const c = clamp(Math.round((point.x + half) / spacing), 0, N);
-      const r = clamp(Math.round((point.z + half) / spacing), 0, N);
-      return { c, r };
+    function voxelAt(point) {
+      return {
+        i: clamp(Math.floor((point.x + half) / spacing), 0, N - 1),
+        j: clamp(Math.floor((point.z + half) / spacing), 0, N - 1),
+      };
     }
-
-    function falloff(d) {
-      const t = 1 - d / brushRadius;
-      if (t <= 0) return 0;
-      return t * t * (3 - 2 * t);
-    }
+    function voxelCenter(i, j) { return { x: (i + 0.5) * spacing - half, z: (j + 0.5) * spacing - half }; }
+    function falloff(d) { const t = 1 - d / brushRadius; return t <= 0 ? 0 : t * t * (3 - 2 * t); }
 
     function showBrushAt(point) {
       if (!brushRing) return;
-      const s = brushRadius;
-      brushRing.scale.set(s, 1, s);
+      brushRing.scale.set(brushRadius, 1, brushRadius);
       brushRing.position.set(point.x, surfaceY + 0.02, point.z);
       brushRing.visible = true;
-      const nv = nearestVertex(point);
-      const hs = clamp(spacing * 0.42, 0.04, 0.4);
+      const v = voxelAt(point), ctr = voxelCenter(v.i, v.j);
+      const hs = clamp(spacing * 0.45, 0.05, 0.45);
       grabHandle.scale.set(hs, hs, hs);
-      grabHandle.position.set(nv.c * spacing - half, vYat(nv.c, nv.r), nv.r * spacing - half);
+      grabHandle.position.set(ctr.x, surfaceY + cellH[v.j * N + v.i] + hs, ctr.z);
       grabHandle.visible = (toolMode === 'sculpt');
     }
-    function hideBrush() {
-      if (brushRing) brushRing.visible = false;
-      if (grabHandle) grabHandle.visible = false;
-    }
+    function hideBrush() { if (brushRing) brushRing.visible = false; if (grabHandle) grabHandle.visible = false; }
 
     // ---- edits ----
     function applySculpt(worldDy) {
-      const gx = drag.c0 * spacing - half, gz = drag.r0 * spacing - half;
+      const gc = voxelCenter(drag.i0, drag.j0);
       const reach = Math.ceil(brushRadius / spacing) + 1;
-      for (let dr = -reach; dr <= reach; dr++) {
-        const r = drag.r0 + dr;
-        if (r < 0 || r > N) continue;
-        for (let dc = -reach; dc <= reach; dc++) {
-          const c = drag.c0 + dc;
-          if (c < 0 || c > N) continue;
-          const vx = c * spacing - half, vz = r * spacing - half;
-          const w = falloff(Math.hypot(vx - gx, vz - gz));
+      for (let dj = -reach; dj <= reach; dj++) {
+        const j = drag.j0 + dj; if (j < 0 || j >= N) continue;
+        for (let di = -reach; di <= reach; di++) {
+          const i = drag.i0 + di; if (i < 0 || i >= N) continue;
+          const ctr = voxelCenter(i, j);
+          const w = falloff(Math.hypot(ctr.x - gc.x, ctr.z - gc.z));
           if (w <= 0) continue;
-          const idx = vIdx(c, r);
-          heights[idx] = drag.startHeights[idx] + worldDy * w;
+          const idx = j * N + i;
+          cellH[idx] = drag.startH[idx] + worldDy * w;
         }
       }
-      rebuildPositions();
-      grabHandle.position.y = vYat(drag.c0, drag.r0);
+      rebuildGeometry();
+      grabHandle.position.y = surfaceY + cellH[drag.j0 * N + drag.i0] + grabHandle.scale.y;
     }
-
     function applyPaint(point) {
-      const ci = clamp(Math.floor((point.x + half) / spacing), 0, N - 1);
-      const cj = clamp(Math.floor((point.z + half) / spacing), 0, N - 1);
       const reach = Math.ceil(brushRadius / spacing) + 1;
+      const v = voxelAt(point);
       let changed = false;
       for (let dj = -reach; dj <= reach; dj++) {
-        const j = cj + dj;
-        if (j < 0 || j >= N) continue;
+        const j = v.j + dj; if (j < 0 || j >= N) continue;
         for (let di = -reach; di <= reach; di++) {
-          const i = ci + di;
-          if (i < 0 || i >= N) continue;
-          // distance from voxel centre to the brush centre point
-          const vx = (i + 0.5) * spacing - half, vz = (j + 0.5) * spacing - half;
-          if (Math.hypot(vx - point.x, vz - point.z) > brushRadius) continue;
+          const i = v.i + di; if (i < 0 || i >= N) continue;
+          const ctr = voxelCenter(i, j);
+          if (Math.hypot(ctr.x - point.x, ctr.z - point.z) > brushRadius) continue;
           if (mats[j * N + i] !== paintMatIndex) { mats[j * N + i] = paintMatIndex; changed = true; }
         }
       }
-      if (changed) rebuildColors();
+      if (changed) rebuildGeometry();
     }
-
     function perPixelWorldY(atPoint) {
       const h = renderer.domElement.clientHeight || window.innerHeight || 800;
-      if (camera.isOrthographicCamera) {
-        return ((camera.top - camera.bottom) / (camera.zoom || 1)) / h;
-      }
+      if (camera.isOrthographicCamera) return ((camera.top - camera.bottom) / (camera.zoom || 1)) / h;
       const dist = camera.position.distanceTo(atPoint);
       const fov = (camera.fov || 45) * Math.PI / 180;
       return (2 * dist * Math.tan(fov / 2)) / h;
     }
 
     // ---- pointer handlers (window capture phase) ----
-    function inPanel(target) {
-      return (panel && panel.contains(target)) || (toggleBtn && toggleBtn.contains(target));
-    }
+    function inPanel(t) { return (panel && panel.contains(t)) || (toggleBtn && toggleBtn.contains(t)); }
     function onDown(e) {
-      if (!active || inPanel(e.target)) return;
-      // Only engage on the 3D canvas itself; never hijack a click that landed on
-      // toolbar/settings/other chrome that overlaps the canvas.
-      if (e.target !== renderer.domElement) return;
+      if (!editing || inPanel(e.target)) return;
+      if (e.target !== renderer.domElement) return; // never hijack chrome clicks
       if (e.button !== 0) return;
       const point = raycastSurface(e.clientX, e.clientY);
-      if (!point) return; // missed the surface -> let the camera orbit
-      e.stopPropagation();
-      e.preventDefault();
+      if (!point) return; // missed surface -> let the camera orbit
+      e.stopPropagation(); e.preventDefault();
       try { renderer.domElement.setPointerCapture(e.pointerId); } catch (_) {}
       if (toolMode === 'sculpt') {
-        const nv = nearestVertex(point);
-        drag = {
-          kind: 'sculpt', c0: nv.c, r0: nv.r,
-          startClientY: e.clientY,
-          perPixel: perPixelWorldY(point),
-          startHeights: heights.slice(),
-        };
+        const v = voxelAt(point);
+        drag = { kind: 'sculpt', i0: v.i, j0: v.j, startClientY: e.clientY, perPixel: perPixelWorldY(point), startH: cellH.slice() };
         showBrushAt(point);
       } else {
         drag = { kind: 'paint' };
-        applyPaint(point);
-        showBrushAt(point);
+        applyPaint(point); showBrushAt(point);
       }
     }
     function onMove(e) {
-      if (!active || inPanel(e.target)) return;
+      if (!editing || inPanel(e.target)) return;
       if (drag) {
-        e.stopPropagation();
-        e.preventDefault();
+        e.stopPropagation(); e.preventDefault();
         if (drag.kind === 'sculpt') {
-          const worldDy = (drag.startClientY - e.clientY) * drag.perPixel;
-          applySculpt(worldDy);
-          brushRing.position.set(drag.c0 * spacing - half, surfaceY + 0.02, drag.r0 * spacing - half);
+          applySculpt((drag.startClientY - e.clientY) * drag.perPixel);
+          const ctr = voxelCenter(drag.i0, drag.j0);
+          brushRing.position.set(ctr.x, surfaceY + 0.02, ctr.z);
         } else {
-          const point = raycastSurface(e.clientX, e.clientY);
-          if (point) { applyPaint(point); showBrushAt(point); }
+          const p = raycastSurface(e.clientX, e.clientY);
+          if (p) { applyPaint(p); showBrushAt(p); }
         }
         return;
       }
-      // hover preview (do not block — keeps orbit/zoom responsive)
       if (e.target !== renderer.domElement) { hideBrush(); return; }
-      const point = raycastSurface(e.clientX, e.clientY);
-      if (point) showBrushAt(point); else hideBrush();
+      const p = raycastSurface(e.clientX, e.clientY);
+      if (p) showBrushAt(p); else hideBrush();
     }
     function onUp(e) {
-      if (!active) return;
+      if (!editing) return;
       if (drag) {
         e.stopPropagation();
         try { renderer.domElement.releasePointerCapture(e.pointerId); } catch (_) {}
         drag = null;
-        saveMesh();
+        saveDesign();
       }
     }
     function attachPointer() {
@@ -397,152 +354,131 @@
       window.removeEventListener('pointerup', onUp, true);
     }
 
-    // ---- hide / restore the underlying home board while editing ----
-    function hideHomeMeshes() {
-      hiddenMeshes.length = 0;
+    // ---- hide/show the flat home tiles under the block terrain ----
+    function setHomeMeshesVisible(visible) {
       if (typeof cellMeshes !== 'object' || !cellMeshes) return;
       for (let x = 0; x < gridAtEnter; x++) {
         for (let z = 0; z < gridAtEnter; z++) {
           const m = cellMeshes[x + ',' + z];
           if (!m) continue;
-          if (m.tile) { hiddenMeshes.push([m.tile, m.tile.visible]); m.tile.visible = false; }
-          if (m.object) { hiddenMeshes.push([m.object, m.object.visible]); m.object.visible = false; }
+          if (m.tile) m.tile.visible = visible;
+          if (m.object) m.object.visible = visible;
         }
       }
     }
-    function restoreHomeMeshes() {
-      for (const [mesh, vis] of hiddenMeshes) { try { mesh.visible = vis; } catch (_) {} }
-      hiddenMeshes.length = 0;
-    }
+    function applyDisplayHiding() { if (shown()) setHomeMeshesVisible(false); }
 
-    // ---- bake into the world ----
-    function bake() {
-      if (typeof setCell !== 'function') return;
-      const MAXF = (typeof MAX_FLOORS === 'number') ? MAX_FLOORS : 8;
-      const vCount = N / gridAtEnter; // voxels per tile side
-      for (let tx = 0; tx < gridAtEnter; tx++) {
-        for (let tz = 0; tz < gridAtEnter; tz++) {
-          // dominant painted material over this tile's voxels
-          const tally = new Array(MATERIALS.length).fill(0);
-          for (let j = 0; j < vCount; j++) {
-            for (let i = 0; i < vCount; i++) {
-              const vi = tx * vCount + i, vj = tz * vCount + j;
-              tally[mats[vj * N + vi]]++;
-            }
-          }
-          let best = 0;
-          for (let k = 1; k < tally.length; k++) if (tally[k] > tally[best]) best = k;
-          const terrain = MATERIALS[best].id;
-          // average vertex height across the tile -> quantised level
-          let sum = 0, n = 0;
-          for (let r = tz * vCount; r <= (tz + 1) * vCount; r++) {
-            for (let c = tx * vCount; c <= (tx + 1) * vCount; c++) { sum += heights[vIdx(c, r)]; n++; }
-          }
-          const avg = n ? sum / n : 0;
-          const level = clamp(Math.round(avg / 0.20) + 1, 1, MAXF);
-          // preserve any existing object on this tile; only retarget terrain + height
-          const prev = (typeof world === 'object' && world[tx] && world[tx][tz]) ? world[tx][tz] : {};
-          setCell(tx, tz, {
-            terrain, terrainFloors: level,
-            kind: prev.kind || null, floors: prev.floors,
-            buildingType: prev.buildingType, fenceSide: prev.fenceSide,
-            extras: prev.extras, rotationY: prev.rotationY,
-            offsetX: prev.offsetX, offsetY: prev.offsetY, offsetZ: prev.offsetZ,
-            appearance: prev.appearance, waterFlow: prev.waterFlow,
-            forceTile: true, animate: false, userEdited: true,
-          });
-        }
-      }
-      try { window.dispatchEvent(new Event('tinyworld:world-changed')); } catch (_) {}
-      if (typeof saveState === 'function') { try { saveState(); } catch (_) {} }
-    }
+    function repaint() { if (typeof renderScene === 'function') { try { renderScene(); } catch (_) {} } }
 
-    // ---- enter / exit ----
-    function enter() {
-      if (active) return;
+    // ---- open / commit / cancel / remove ----
+    function openEditor() {
+      if (editing) return;
       if (typeof scene === 'undefined' || typeof camera === 'undefined' || typeof renderer === 'undefined') return;
-      recomputeDims();
-      buildMesh();
-      if (!loadMeshInto()) { /* start flat on grass (already the default) */ }
-      rebuildPositions();
-      rebuildColors();
-      hideHomeMeshes();
+      if (!shown()) {
+        recomputeDims();
+        buildMesh();
+        const d = readDesign();
+        if (d) { applied = !!d.applied; if (!loadDesignInto(d)) applied = false; }
+        buildMeshMeshes();
+      }
+      setHomeMeshesVisible(false);
       attachPointer();
-      active = true;
+      editing = true;
       document.body.classList.add('mesh-terrain-active');
       if (panel) panel.hidden = false;
       if (toggleBtn) toggleBtn.setAttribute('aria-pressed', 'true');
-      if (typeof renderScene === 'function') { try { renderScene(); } catch (_) {} }
+      repaint();
     }
-    function exit(commit) {
-      if (!active) return;
+    function leaveEditOnly() {
       detachPointer();
       drag = null;
-      restoreHomeMeshes();
-      if (commit) { saveMesh(); bake(); }
-      disposeMesh();
-      active = false;
+      hideBrush();
+      editing = false;
       document.body.classList.remove('mesh-terrain-active');
       if (panel) panel.hidden = true;
       if (toggleBtn) toggleBtn.setAttribute('aria-pressed', 'false');
-      if (typeof renderScene === 'function') { try { renderScene(); } catch (_) {} }
     }
-
-    function resetFlat() {
-      if (!heights || !mats) return;
-      heights.fill(0);
-      mats.fill(0);
-      rebuildPositions();
-      rebuildColors();
-      saveMesh();
+    function applyDesign() {
+      // Keep the block terrain displayed; persist it. No bake into world tiles.
+      applied = true;
+      saveDesign();
+      setHomeMeshesVisible(false);
+      leaveEditOnly();
+      repaint();
+    }
+    function cancelEdit() {
+      const d = readDesign();
+      if (d && d.applied && d.gridSize === gridAtEnter && d.vpt === vpt && loadDesignInto(d)) {
+        // revert to the last applied design and keep it displayed
+        applied = true;
+        rebuildGeometry();
+        setHomeMeshesVisible(false);
+        leaveEditOnly();
+      } else {
+        // nothing committed -> tear the editor down and restore the flat tiles
+        leaveEditOnly();
+        disposeMeshes();
+        cellH = mats = positions = colors = normals = null;
+        setHomeMeshesVisible(true);
+        applied = false;
+      }
+      repaint();
+    }
+    function removeDesign() {
+      leaveEditOnly();
+      disposeMeshes();
+      cellH = mats = positions = colors = normals = null;
+      setHomeMeshesVisible(true);
+      applied = false;
+      clearDesign();
+      repaint();
+    }
+    function flatten() {
+      if (!cellH) return;
+      cellH.fill(0); mats.fill(0);
+      rebuildGeometry();
+      saveDesign();
     }
 
     function changeResolution(newVpt) {
       if (!VPT_OPTIONS.includes(newVpt) || newVpt === vpt) return;
-      // resample existing design into the new resolution so work is not lost
-      const oldN = N, oldHeights = heights, oldMats = mats, oldGrid = gridAtEnter;
-      vpt = newVpt;
-      savePrefs();
+      const oldN = N, oldH = cellH, oldM = mats, oldGrid = gridAtEnter, wasShown = shown();
+      vpt = newVpt; savePrefs();
       recomputeDims();
       allocBuffers();
-      if (oldHeights && oldGrid === gridAtEnter) {
-        for (let r = 0; r <= N; r++) {
-          for (let c = 0; c <= N; c++) {
-            const oc = clamp(Math.round(c / N * oldN), 0, oldN);
-            const orr = clamp(Math.round(r / N * oldN), 0, oldN);
-            heights[vIdx(c, r)] = oldHeights[orr * (oldN + 1) + oc];
-          }
-        }
+      if (oldH && oldGrid === gridAtEnter) {
         for (let j = 0; j < N; j++) {
           for (let i = 0; i < N; i++) {
             const oi = clamp(Math.floor(i / N * oldN), 0, oldN - 1);
             const oj = clamp(Math.floor(j / N * oldN), 0, oldN - 1);
-            mats[j * N + i] = oldMats[oj * oldN + oi];
+            cellH[j * N + i] = oldH[oj * oldN + oi];
+            mats[j * N + i] = oldM[oj * oldN + oi];
           }
         }
       }
-      // rebuild the mesh with the new buffer sizes
-      disposeMeshKeepData();
-      buildMeshFromData();
-      saveMesh();
+      if (wasShown) { disposeMeshes(); buildMeshMeshes(); }
+      saveDesign();
+      repaint();
     }
-    // Rebuild geometry from the already-populated heights/mats (used by resize).
-    function disposeMeshKeepData() {
-      for (const m of [surfaceMesh, brushRing, grabHandle]) {
-        if (!m) continue;
-        scene.remove(m);
-        if (m.geometry) m.geometry.dispose();
-        if (m.material) m.material.dispose();
-      }
-      surfaceMesh = brushRing = grabHandle = geom = null;
-    }
-    function buildMeshFromData() {
-      const savedH = heights, savedM = mats;
-      buildMesh();           // reallocs buffers + fresh meshes
-      heights.set(savedH);
-      mats.set(savedM);
-      rebuildPositions();
-      rebuildColors();
+
+    // ---- boot-time restore of an applied design ----
+    function restoreApplied() {
+      const d = readDesign();
+      if (!d || !d.applied) return;
+      if (typeof GRID !== 'number') return;
+      gridAtEnter = GRID;
+      if (d.gridSize !== gridAtEnter) return;
+      if (VPT_OPTIONS.includes(d.vpt)) vpt = d.vpt;
+      recomputeDims();
+      buildMesh();
+      if (!loadDesignInto(d)) return;
+      applied = true;
+      buildMeshMeshes();
+      setHomeMeshesVisible(false);
+      // The world tiles may render slightly after us; re-hide a couple of times.
+      setTimeout(applyDisplayHiding, 600);
+      setTimeout(applyDisplayHiding, 1800);
+      repaint();
     }
 
     // ---- UI ----
@@ -557,44 +493,39 @@
 .mesh-terrain-toggle .glyph{font-size:14px;line-height:1;}
 .mesh-terrain-panel{position:fixed;right:14px;top:50%;transform:translateY(-90px);z-index:61;width:236px;
   background:rgba(244,248,255,.98);color:#143878;border:1.5px solid #143878;border-radius:14px;
-  box-shadow:inset 0 0 0 1px #fff,0 10px 30px rgba(0,0,0,.28);font:500 12px/1.35 system-ui,sans-serif;
-  padding:10px 12px 12px;}
+  box-shadow:inset 0 0 0 1px #fff,0 10px 30px rgba(0,0,0,.28);font:500 12px/1.35 system-ui,sans-serif;padding:10px 12px 12px;}
 .mesh-terrain-panel[hidden]{display:none;}
 .mesh-terrain-panel h4{margin:0 0 8px;font-size:13px;display:flex;align-items:center;justify-content:space-between;}
 .mesh-terrain-panel .mt-close{cursor:pointer;border:none;background:none;color:#143878;font-size:16px;line-height:1;padding:0 2px;}
 .mesh-terrain-panel .mt-row{margin:8px 0;}
 .mesh-terrain-panel .mt-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;opacity:.7;margin-bottom:4px;}
 .mesh-terrain-seg{display:flex;gap:4px;flex-wrap:wrap;}
-.mesh-terrain-seg button{flex:1 1 auto;min-width:34px;padding:5px 6px;border-radius:8px;cursor:pointer;
-  border:1.5px solid #143878;background:#fff;color:#143878;font:600 11px/1 system-ui,sans-serif;}
+.mesh-terrain-seg button{flex:1 1 auto;min-width:34px;padding:5px 6px;border-radius:8px;cursor:pointer;border:1.5px solid #143878;background:#fff;color:#143878;font:600 11px/1 system-ui,sans-serif;}
 .mesh-terrain-seg button.on{background:#143878;color:#fff;}
 .mesh-terrain-swatches{display:flex;flex-wrap:wrap;gap:5px;}
 .mesh-terrain-swatches button{width:26px;height:26px;border-radius:7px;cursor:pointer;border:2px solid rgba(20,56,120,.35);}
 .mesh-terrain-swatches button.on{border-color:#143878;box-shadow:0 0 0 2px rgba(20,56,120,.25);}
 .mesh-terrain-panel input[type=range]{width:100%;}
-.mesh-terrain-actions{display:flex;gap:6px;margin-top:10px;}
-.mesh-terrain-actions button{flex:1;padding:7px 6px;border-radius:9px;cursor:pointer;font:700 11px/1 system-ui,sans-serif;border:1.5px solid #143878;}
+.mesh-terrain-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+.mesh-terrain-actions button{flex:1 1 46%;padding:7px 6px;border-radius:9px;cursor:pointer;font:700 11px/1 system-ui,sans-serif;border:1.5px solid #143878;}
 .mesh-terrain-actions .mt-apply{background:#1f7a3d;border-color:#0f4a24;color:#fff;}
 .mesh-terrain-actions .mt-reset{background:#fff;color:#143878;}
 .mesh-terrain-actions .mt-cancel{background:#fff;color:#8a2b2b;border-color:#8a2b2b;}
+.mesh-terrain-actions .mt-remove{background:#fff;color:#8a2b2b;border-color:#8a2b2b;}
 .mesh-terrain-hint{margin-top:8px;font-size:10.5px;opacity:.72;line-height:1.4;}
-@media (max-width:700px){.mesh-terrain-toggle,.mesh-terrain-panel{top:auto;bottom:90px;transform:none;}
-  .mesh-terrain-panel{right:8px;left:8px;width:auto;}}
+@media (max-width:700px){.mesh-terrain-toggle,.mesh-terrain-panel{top:auto;bottom:90px;transform:none;}.mesh-terrain-panel{right:8px;left:8px;width:auto;}}
 `;
       const style = document.createElement('style');
       style.id = 'mesh-terrain-styles';
       style.textContent = css;
       document.head.appendChild(style);
     }
-
     function makeSeg(options, getActive, onPick) {
       const wrap = document.createElement('div');
       wrap.className = 'mesh-terrain-seg';
       options.forEach(opt => {
         const b = document.createElement('button');
-        b.type = 'button';
-        b.textContent = opt.label;
-        b.dataset.val = String(opt.val);
+        b.type = 'button'; b.textContent = opt.label; b.dataset.val = String(opt.val);
         b.addEventListener('click', () => { onPick(opt.val); syncSeg(wrap, getActive); });
         wrap.appendChild(b);
       });
@@ -605,6 +536,10 @@
       const cur = String(getActive());
       wrap.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.val === cur));
     }
+    function syncPaintVisibility() {
+      if (!panel) return;
+      panel.querySelectorAll('.mt-paint-only').forEach(el => { el.style.display = (toolMode === 'paint') ? '' : 'none'; });
+    }
 
     function buildUI() {
       if (builtUI) return;
@@ -612,119 +547,83 @@
       injectStyles();
 
       toggleBtn = document.createElement('button');
-      toggleBtn.type = 'button';
-      toggleBtn.id = 'mesh-terrain-toggle';
-      toggleBtn.className = 'mesh-terrain-toggle';
+      toggleBtn.type = 'button'; toggleBtn.id = 'mesh-terrain-toggle'; toggleBtn.className = 'mesh-terrain-toggle';
       toggleBtn.setAttribute('aria-pressed', 'false');
-      toggleBtn.title = 'Mesh Terrain — sculpt & paint a voxel landscape';
+      toggleBtn.title = 'Mesh Terrain — sculpt & paint a voxel-block landscape';
       toggleBtn.innerHTML = '<span class="glyph">◰</span><span>Mesh Terrain</span>';
-      toggleBtn.addEventListener('click', () => { active ? exit(false) : enter(); });
+      toggleBtn.addEventListener('click', () => { editing ? cancelEdit() : openEditor(); });
       document.body.appendChild(toggleBtn);
 
       panel = document.createElement('div');
-      panel.id = 'mesh-terrain-panel';
-      panel.className = 'mesh-terrain-panel';
-      panel.hidden = true;
+      panel.id = 'mesh-terrain-panel'; panel.className = 'mesh-terrain-panel'; panel.hidden = true;
 
       const head = document.createElement('h4');
       head.innerHTML = '<span>Mesh Terrain</span>';
       const close = document.createElement('button');
-      close.type = 'button'; close.className = 'mt-close'; close.textContent = '×';
-      close.title = 'Close (discard)';
-      close.addEventListener('click', () => exit(false));
-      head.appendChild(close);
-      panel.appendChild(head);
+      close.type = 'button'; close.className = 'mt-close'; close.textContent = '×'; close.title = 'Close (revert this edit)';
+      close.addEventListener('click', cancelEdit);
+      head.appendChild(close); panel.appendChild(head);
 
-      // resolution
       const resRow = document.createElement('div'); resRow.className = 'mt-row';
       const resLab = document.createElement('div'); resLab.className = 'mt-label'; resLab.textContent = 'Voxels / tile';
-      resSeg = makeSeg(VPT_OPTIONS.map(v => ({ label: v + '²', val: v })), () => vpt, v => changeResolution(v));
-      resRow.appendChild(resLab); resRow.appendChild(resSeg); panel.appendChild(resRow);
+      resRow.appendChild(resLab);
+      resRow.appendChild(makeSeg(VPT_OPTIONS.map(v => ({ label: v + '²', val: v })), () => vpt, v => changeResolution(v)));
+      panel.appendChild(resRow);
 
-      // tool mode
       const modeRow = document.createElement('div'); modeRow.className = 'mt-row';
       const modeLab = document.createElement('div'); modeLab.className = 'mt-label'; modeLab.textContent = 'Tool';
-      modeSeg = makeSeg([{ label: 'Sculpt', val: 'sculpt' }, { label: 'Paint', val: 'paint' }], () => toolMode, v => {
-        toolMode = v; savePrefs(); syncPaintVisibility();
-      });
+      modeSeg = makeSeg([{ label: 'Sculpt', val: 'sculpt' }, { label: 'Paint', val: 'paint' }], () => toolMode, v => { toolMode = v; savePrefs(); syncPaintVisibility(); });
       modeRow.appendChild(modeLab); modeRow.appendChild(modeSeg); panel.appendChild(modeRow);
 
-      // material swatches (paint)
       const swRow = document.createElement('div'); swRow.className = 'mt-row mt-paint-only';
       const swLab = document.createElement('div'); swLab.className = 'mt-label'; swLab.textContent = 'Material';
       swatchWrap = document.createElement('div'); swatchWrap.className = 'mesh-terrain-swatches';
       MATERIALS.forEach((m, i) => {
         const b = document.createElement('button');
-        b.type = 'button';
-        b.title = m.label;
+        b.type = 'button'; b.title = m.label;
         b.style.background = '#' + m.color.toString(16).padStart(6, '0');
         b.classList.toggle('on', i === paintMatIndex);
-        b.addEventListener('click', () => {
-          paintMatIndex = i; savePrefs();
-          swatchWrap.querySelectorAll('button').forEach((el, k) => el.classList.toggle('on', k === i));
-        });
+        b.addEventListener('click', () => { paintMatIndex = i; savePrefs(); swatchWrap.querySelectorAll('button').forEach((el, k) => el.classList.toggle('on', k === i)); });
         swatchWrap.appendChild(b);
       });
       swRow.appendChild(swLab); swRow.appendChild(swatchWrap); panel.appendChild(swRow);
 
-      // brush size
       const brushRow = document.createElement('div'); brushRow.className = 'mt-row';
       const brushLab = document.createElement('div'); brushLab.className = 'mt-label';
       brushLab.innerHTML = 'Brush size <span id="mt-brush-val"></span>';
       brushInput = document.createElement('input');
-      brushInput.type = 'range'; brushInput.min = '0.3'; brushInput.max = '6'; brushInput.step = '0.1';
-      brushInput.value = String(brushRadius);
-      brushVal = brushLab.querySelector('#mt-brush-val');
-      brushVal.textContent = '(' + brushRadius.toFixed(1) + ')';
-      brushInput.addEventListener('input', () => {
-        brushRadius = parseFloat(brushInput.value) || 1.5;
-        brushVal.textContent = '(' + brushRadius.toFixed(1) + ')';
-        savePrefs();
-      });
+      brushInput.type = 'range'; brushInput.min = '0.3'; brushInput.max = '6'; brushInput.step = '0.1'; brushInput.value = String(brushRadius);
+      brushVal = brushLab.querySelector('#mt-brush-val'); brushVal.textContent = '(' + brushRadius.toFixed(1) + ')';
+      brushInput.addEventListener('input', () => { brushRadius = parseFloat(brushInput.value) || 1.5; brushVal.textContent = '(' + brushRadius.toFixed(1) + ')'; savePrefs(); });
       brushRow.appendChild(brushLab); brushRow.appendChild(brushInput); panel.appendChild(brushRow);
 
-      // actions
       const actions = document.createElement('div'); actions.className = 'mesh-terrain-actions';
-      const apply = document.createElement('button'); apply.type = 'button'; apply.className = 'mt-apply'; apply.textContent = 'Apply';
-      apply.title = 'Bake this design into the world terrain';
-      apply.addEventListener('click', () => exit(true));
-      const reset = document.createElement('button'); reset.type = 'button'; reset.className = 'mt-reset'; reset.textContent = 'Flatten';
-      reset.title = 'Reset the mesh to flat grass';
-      reset.addEventListener('click', resetFlat);
-      const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'mt-cancel'; cancel.textContent = 'Cancel';
-      cancel.title = 'Discard and leave';
-      cancel.addEventListener('click', () => exit(false));
-      actions.appendChild(apply); actions.appendChild(reset); actions.appendChild(cancel);
+      const apply = document.createElement('button'); apply.type = 'button'; apply.className = 'mt-apply'; apply.textContent = 'Apply'; apply.title = 'Keep these blocks as the terrain'; apply.addEventListener('click', applyDesign);
+      const reset = document.createElement('button'); reset.type = 'button'; reset.className = 'mt-reset'; reset.textContent = 'Flatten'; reset.title = 'Reset to flat grass blocks'; reset.addEventListener('click', flatten);
+      const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'mt-cancel'; cancel.textContent = 'Cancel'; cancel.title = 'Revert this edit'; cancel.addEventListener('click', cancelEdit);
+      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'mt-remove'; remove.textContent = 'Remove'; remove.title = 'Delete the block terrain and restore flat tiles'; remove.addEventListener('click', removeDesign);
+      actions.appendChild(apply); actions.appendChild(reset); actions.appendChild(cancel); actions.appendChild(remove);
       panel.appendChild(actions);
 
       const hint = document.createElement('div'); hint.className = 'mesh-terrain-hint';
-      hint.textContent = 'Sculpt: drag the land up/down — neighbours follow with tension. Paint: drag to lay material. Drag empty space to orbit. Apply bakes it into the world to build on.';
+      hint.textContent = 'Sculpt: drag a voxel up/down — flat-topped blocks, neighbours follow with tension. Paint: drag to lay material. Drag empty space to orbit. Apply keeps the blocks as the terrain.';
       panel.appendChild(hint);
 
       document.body.appendChild(panel);
       syncPaintVisibility();
     }
 
-    function syncPaintVisibility() {
-      if (!panel) return;
-      panel.querySelectorAll('.mt-paint-only').forEach(el => { el.style.display = (toolMode === 'paint') ? '' : 'none'; });
-      if (grabHandle) grabHandle.visible = grabHandle.visible && toolMode === 'sculpt';
-    }
-
     function boot() {
       loadPrefs();
       buildUI();
+      try { restoreApplied(); } catch (_) {}
+      window.addEventListener('tinyworld:world-changed', applyDisplayHiding);
     }
+    if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', boot); else boot();
 
-    if (document.readyState === 'loading') {
-      window.addEventListener('DOMContentLoaded', boot);
-    } else {
-      boot();
-    }
-
-    // expose a tiny control surface for tooling / console
     window.__tinyworldMeshTerrain = {
-      enter, exit, isActive: () => active,
+      open: openEditor, apply: applyDesign, cancel: cancelEdit, remove: removeDesign,
+      isEditing: () => editing, isApplied: () => applied,
       setTool: (m) => { if (m === 'sculpt' || m === 'paint') { toolMode = m; if (modeSeg) syncSeg(modeSeg, () => toolMode); syncPaintVisibility(); } },
     };
   })();
