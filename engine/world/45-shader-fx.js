@@ -49,8 +49,18 @@
     const tracked = new Set();
 
     // Register a material so the frame ticker advances its uTime uniform.
+    // Wraps dispose() once so the tracker auto-prunes and can never leak.
     function track(mat) {
-      if (mat && mat.uniforms && mat.uniforms.uTime) tracked.add(mat);
+      if (mat && mat.uniforms && mat.uniforms.uTime && !mat.userData.__fxTracked) {
+        mat.userData.__fxTracked = true;
+        tracked.add(mat);
+        const baseDispose = mat.dispose.bind(mat);
+        mat.dispose = function () {
+          mat.userData.__fxDisposed = true;
+          tracked.delete(mat);
+          baseDispose();
+        };
+      }
       return mat;
     }
 
@@ -333,6 +343,18 @@
     function applyWear(material, opts) {
       if (!material) return material;
       opts = opts || {};
+      material.userData = material.userData || {};
+      // Idempotent: a repeat call just updates the existing uniforms instead of
+      // chaining another onBeforeCompile (which would patch the shader twice and
+      // break compilation with duplicate varyings/uniforms).
+      if (material.userData.wearUniforms) {
+        const w = material.userData.wearUniforms;
+        if (opts.amount != null) w.uWearAmount.value = opts.amount;
+        if (opts.scale != null) w.uWearScale.value = opts.scale;
+        if (opts.color != null) w.uWearColor.value.set(opts.color);
+        if (opts.seed != null) w.uWearSeed.value = opts.seed;
+        return material;
+      }
       const u = {
         uWearAmount: { value: opts.amount != null ? opts.amount : 0.5 },
         uWearScale:  { value: opts.scale != null ? opts.scale : 0.7 },
