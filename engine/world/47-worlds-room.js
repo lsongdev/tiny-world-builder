@@ -425,7 +425,7 @@
     // Camera-relative ground axes from the orbit azimuth (a classic-script global).
     function camGround() {
       const az = (typeof azimuth === 'number') ? azimuth : 0;
-      return { f: { x: -Math.cos(az), z: -Math.sin(az) }, r: { x: -Math.sin(az), z: Math.cos(az) } };
+      return { f: { x: -Math.cos(az), z: -Math.sin(az) }, r: { x: Math.sin(az), z: -Math.cos(az) } };
     }
     // Facing relative to the player's view: rotate a world delta into screen space so
     // S = toward the camera, N = away, E = his right, W = his left.
@@ -467,7 +467,7 @@
       }
       const mat = new THREE.SpriteMaterial({ map: ent.tex.idle, transparent: true, depthWrite: false, alphaTest: 0.2 });
       ent.sprite = new THREE.Sprite(mat);
-      ent.sprite.center.set(0.5, 0);     // anchor at the feet
+      ent.sprite.center.set(0.5, 0.12);  // anchor near the feet (cells have transparent padding below)
       ent.sprite.scale.set(1.7, 1.7, 1);
       ent.sprite.renderOrder = 10;
       const par = avatarParent(); if (par) par.add(ent.sprite);
