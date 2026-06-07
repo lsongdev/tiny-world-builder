@@ -25,7 +25,7 @@
     const STORE_KEY = 'tinyworld:meshTerrain:v2';
     const PREF_KEY = 'tinyworld:meshTerrain:prefs:v1';
     const MAX_N = 96;            // hard cap on voxels-per-side across the board
-    const VPT_OPTIONS = [4, 6, 8, 10];
+    const VPT_OPTIONS = [4, 6, 8, 10, 12];
     const FLOATS_PER_VOXEL = 90; // top quad + 4 wall quads, 2 tris each, 3 verts, 3 floats
     const BASE_SKIRT = 0.25;     // how far boundary walls drop below the lowest block
     const MAX_HEIGHT = 40;       // cap on how high a voxel can be pulled

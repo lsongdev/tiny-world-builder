@@ -869,10 +869,10 @@ for (const [section, ids] of Object.entries(settingsControlGroups)) {
 
 if (!externalSchema.properties || !externalSchema.properties.gridSize) fail('schema missing gridSize contract');
 const gridSizeEnum = externalSchema.properties.gridSize.enum || [];
-if (JSON.stringify(gridSizeEnum) !== JSON.stringify([8, 12, 16, 20])) {
+if (JSON.stringify(gridSizeEnum) !== JSON.stringify([8, 10, 12, 16, 20])) {
   fail('gridSize enum must stay capped at 20');
 }
-if (!/const HOME_GRID_MAX = 20;/.test(html) || !/const HOME_GRID_OPTIONS = \[8, 12, 16, 20\];/.test(html)) {
+if (!/const HOME_GRID_MAX = 20;/.test(html) || !/const HOME_GRID_OPTIONS = \[8, 10, 12, 16, 20\];/.test(html)) {
   fail('home grid constants must stay capped at 20');
 }
 const homeGridResizeBody = sourceFunctionBody(html, 'setHomeGridSize');
