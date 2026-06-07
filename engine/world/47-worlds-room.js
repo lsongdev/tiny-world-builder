@@ -76,7 +76,11 @@
       world = w; token = joinToken || ''; role = joinRole || 'observe';
       gridSize = w.gridSize || 8; taxPercent = w.taxPercent != null ? w.taxPercent : null;
       cells = w.data && Array.isArray(w.data.cells) ? w.data.cells : [];
+      rebuildBlocked();
       if (w.data && typeof applyState === 'function') { try { applyState(w.data); } catch (_) {} }
+      // One map: hide the builder's own minimap, and lock out builder tools.
+      hideBaseMinimap(true);
+      if (typeof WS.setPlayChrome === 'function') WS.setPlayChrome(true);
       emit('enter', { world: w, role });
       const roomId = 'world-' + w.slug;
       const url = host() + '/party/' + encodeURIComponent(roomId) + '?_pk=' + encodeURIComponent(connToken());
@@ -102,10 +106,22 @@
     WS.enterRoom = enterRoom;
   
     function leaveRoom() {
+      cancelWalk();
       if (socket) { try { socket.close(); } catch (_) {} socket = null; }
       connected = false; peers.clear(); nodes = {}; animals = [];
       unbindInput(); hideMinimap();
+      hideBaseMinimap(false);
+      if (typeof WS.setPlayChrome === 'function') WS.setPlayChrome(false);
       emit('leave', {});
+    }
+
+    // Hide/restore the builder's own minimap so there's a single in-world map.
+    let baseMapEl = null, baseMapPrevDisplay = '';
+    function hideBaseMinimap(hide) {
+      baseMapEl = baseMapEl || document.getElementById('minimap-wrap');
+      if (!baseMapEl) return;
+      if (hide) { baseMapPrevDisplay = baseMapEl.style.display; baseMapEl.style.display = 'none'; }
+      else { baseMapEl.style.display = baseMapPrevDisplay || ''; }
     }
     WS.leaveRoom = function () {
       leaveRoom();
@@ -178,14 +194,64 @@
     }
     WS.getState = snapshot;
   
-    // ---- movement ----
+    // ---- movement + click-to-walk pathfinding ----
+    const BLOCKED_KINDS = new Set(['house', 'tree', 'rock', 'fence', 'bush', 'voxel-build', 'model-stamp']);
+    let blocked = new Set();   // 'x,z' cells you cannot stand on (mirrors server)
+    function rebuildBlocked() {
+      blocked = new Set();
+      for (const c of cells) {
+        const x = Array.isArray(c) ? c[0] : c.x, z = Array.isArray(c) ? c[1] : c.z;
+        if (x == null || z == null) continue;
+        const ter = Array.isArray(c) ? c[2] : c.terrain, k = Array.isArray(c) ? c[3] : c.kind;
+        if (ter === 'water' || ter === 'lava' || ter === 'stone' || (k && BLOCKED_KINDS.has(k))) blocked.add(x + ',' + z);
+      }
+    }
+    function standable(x, z) { return x >= 0 && z >= 0 && x < gridSize && z < gridSize && !blocked.has(x + ',' + z); }
+
     function step(dx, dz) {
       const nx = Math.max(0, Math.min(gridSize - 1, you.x + dx));
       const nz = Math.max(0, Math.min(gridSize - 1, you.z + dz));
       if (nx === you.x && nz === you.z) return;
+      if (!standable(nx, nz)) return;
       you.x = nx; you.z = nz;       // optimistic; server presence will correct
       send({ type: 'move', x: nx, z: nz });
       emit('you', you); drawMinimap();
+    }
+
+    // BFS over standable cells; returns the ordered list of steps to (tx,tz).
+    function findPath(tx, tz) {
+      if (!standable(tx, tz)) return null;
+      const start = you.x + ',' + you.z, goal = tx + ',' + tz;
+      if (start === goal) return [];
+      const q = [[you.x, you.z]]; const prev = new Map([[start, null]]); let head = 0;
+      while (head < q.length) {
+        const [x, z] = q[head++];
+        if (x + ',' + z === goal) break;
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, nz = z + dz, nk = nx + ',' + nz;
+          if (prev.has(nk) || !standable(nx, nz)) continue;
+          prev.set(nk, x + ',' + z); q.push([nx, nz]);
+        }
+      }
+      if (!prev.has(goal)) return null;
+      const path = []; let cur = goal;
+      while (cur && cur !== start) { const [x, z] = cur.split(',').map(Number); path.push([x, z]); cur = prev.get(cur); }
+      return path.reverse();
+    }
+    let walkTimer = null;
+    function cancelWalk() { if (walkTimer) { clearTimeout(walkTimer); walkTimer = null; } }
+    function walkTo(tx, tz) {
+      cancelWalk();
+      const path = findPath(tx, tz);
+      if (!path || !path.length) return;
+      let i = 0;
+      const next = () => {
+        if (i >= path.length) { walkTimer = null; return; }
+        const [nx, nz] = path[i++];
+        you.x = nx; you.z = nz; send({ type: 'move', x: nx, z: nz }); emit('you', you); drawMinimap();
+        walkTimer = setTimeout(next, 170);
+      };
+      next();
     }
   
     // ---- harvest ----
@@ -195,6 +261,7 @@
   
     // Find an in-reach node/animal that matches `action` and request a harvest.
     function harvest(action) {
+      cancelWalk();
       if (role !== 'play') { toast(T('worlds.observing')); return; }
       if (action === 'hunt') {
         const a = animals.find(an => reach(you, an));
@@ -220,6 +287,7 @@
       const tag = (e.target && e.target.tagName) || '';
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       let handled = true;
+      cancelWalk();   // manual key interrupts any auto-walk
       if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') step(0, -1);
       else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') step(0, 1);
       else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') step(-1, 0);
@@ -257,9 +325,9 @@
       const cx = Math.floor((e.clientX - rect.left) / CELL);
       const cz = Math.floor((e.clientY - rect.top) / CELL);
       if (cx < 0 || cz < 0 || cx >= gridSize || cz >= gridSize) return;
-      // One step toward the clicked cell (server enforces single-cell moves).
-      const dx = Math.sign(cx - you.x), dz = Math.sign(cz - you.z);
-      if (dx || dz) step(dx, dz);
+      // Walk (auto-path) to the clicked tile; the server still validates each
+      // one-cell step. Arrow/WASD keys interrupt the walk.
+      walkTo(cx, cz);
     }
   
     function terrainColor(t) {
