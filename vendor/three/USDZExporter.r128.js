@@ -32,6 +32,19 @@
       const materials = {};
       const textures = {};
 
+      // Instancing via internal references. (Local addition to the r128 exporter.)
+      // TinyWorld expands instanced props (crops, fences, voxels) into many
+      // copies that all share one geometry object. The stock exporter inlines
+      // the full point/normal/index arrays for every copy, producing a huge,
+      // uncompressed USDA (USDZ must be stored, not deflated). Instead we emit
+      // each unique geometry+material ONCE as an abstract `class` prototype and
+      // make every placement a tiny `def Xform` that just carries its transform
+      // and references the prototype. The class is abstract so it never renders
+      // on its own; each reference composes the shared mesh in at the instance's
+      // location. This is the main win for AR Quick Look load time.
+      const prototypes = new Map(); // key -> { geometry, material, name }
+      let instances = '';
+
       scene.traverse( ( object ) => {
 
         if ( object.isMesh ) {
@@ -48,12 +61,23 @@
           if ( material.metalnessMap !== null ) textures[ material.metalnessMap.uuid ] = material.metalnessMap;
           if ( material.emissiveMap !== null ) textures[ material.emissiveMap.uuid ] = material.emissiveMap;
 
-          output += buildXform( object, buildMesh( geometry, material ) );
+          const key = geometry.id + '|' + material.id;
+          let proto = prototypes.get( key );
+          if ( proto === undefined ) {
+
+            proto = { geometry, material, name: 'Proto_' + prototypes.size };
+            prototypes.set( key, proto );
+
+          }
+
+          instances += buildInstance( object, proto.name );
 
         }
 
       } );
 
+      output += buildPrototypes( prototypes );
+      output += instances;
       output += buildMaterials( materials );
       output += buildTextures( textures );
 
@@ -124,7 +148,9 @@
 
   //
 
-  const PRECISION = 7;
+  // 5 significant digits is ample for a ~0.5 m tabletop model and trims a lot of
+  // number text vs the stock 7. (Local change to the r128 exporter.)
+  const PRECISION = 5;
 
   function buildHeader() {
 
@@ -141,19 +167,42 @@
 
   }
 
-  // Xform
+  // Prototypes + instances (Local addition to the r128 exporter.)
 
-  function buildXform( object, define ) {
+  // Each unique geometry+material is written once as an abstract `class` so it
+  // is never imaged on its own; placements reference it by path.
+  function buildPrototypes( prototypes ) {
+
+    let body = '';
+
+    prototypes.forEach( ( proto ) => {
+
+      body += `class Xform "${ proto.name }"
+{
+    ${ buildMesh( proto.geometry, proto.material ) }}
+
+`;
+
+    } );
+
+    return body;
+
+  }
+
+  // A placement: just its world transform plus a reference to its prototype.
+  // The geometry lives only in the prototype, so this stays tiny no matter how
+  // many copies of the same shape exist.
+  function buildInstance( object, protoName ) {
 
     const name = 'Object_' + object.id;
     const transform = buildMatrix( object.matrixWorld );
 
-    return `def Xform "${ name }"
+    return `def Xform "${ name }" (
+    references = </${ protoName }>
+)
 {
     matrix4d xformOp:transform = ${ transform }
     uniform token[] xformOpOrder = ["xformOp:transform"]
-
-    ${ define }
 }
 
 `;
@@ -193,6 +242,16 @@
     // holes in AR Quick Look without it. (Local addition to the r128 exporter.)
     const doubleSided = material && material.side === 2 ? 1 : 0;
 
+    // UVs are only meaningful when a texture samples them. TinyWorld exports
+    // flat, untextured colours, so emit primvars:st only if the material has a
+    // map — otherwise it is dead weight in the file. (Local addition.)
+    const hasMap = !!( material && ( material.map || material.normalMap || material.aoMap ||
+      material.roughnessMap || material.metalnessMap || material.emissiveMap ) );
+    const st = ( hasMap && attributes.uv ) ? `
+        float2[] primvars:st = [${ buildVector2Array( attributes.uv, count )}] (
+            interpolation = "vertex"
+        )` : '';
+
     return `def Mesh "${ name }"
     {
         uniform bool doubleSided = ${ doubleSided }
@@ -202,10 +261,7 @@
         normal3f[] normals = [${ buildVector3Array( attributes.normal, count )}] (
             interpolation = "vertex"
         )
-        point3f[] points = [${ buildVector3Array( attributes.position, count )}]
-        float2[] primvars:st = [${ buildVector2Array( attributes.uv, count )}] (
-            interpolation = "vertex"
-        )
+        point3f[] points = [${ buildVector3Array( attributes.position, count )}]${ st }
         uniform token subdivisionScheme = "none"
     }
 `;
