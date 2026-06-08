@@ -1,0 +1,13 @@
+{
+  "enabled": [
+    "discovered-/Users/jkneen/Documents/GitHub/tinyworld/.claude/skills/tinyworld-i18n/SKILL.md",
+    "command:/clear",
+    "command:/compact",
+    "command:/export-notes",
+    "command:/help",
+    "command:/init",
+    "command:/mode",
+    "command:/model"
+  ],
+  "disabled": []
+}
