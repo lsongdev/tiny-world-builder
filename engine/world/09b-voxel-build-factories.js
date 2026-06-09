@@ -776,10 +776,13 @@
     });
   }
 
-  function voxelInvertedSteppedRoof(parent, width, depth, topY, roofMat = M.islandUnder, trimMat = M.islandUnderD) {
-    const layers = Math.max(7, Math.min(14, Math.round(Math.max(width, depth) * 0.65)));
-    const totalDrop = Math.max(1.85, Math.min(6.2, Math.max(width, depth) * 0.30));
-    const yStep = totalDrop / layers;
+  function voxelInvertedSteppedRoof(parent, width, depth, topY, roofMat = M.islandUnder, trimMat = M.islandUnderD, layersOverride = 0) {
+    const autoLayers = Math.max(7, Math.min(14, Math.round(Math.max(width, depth) * 0.65)));
+    const autoDrop = Math.max(1.85, Math.min(6.2, Math.max(width, depth) * 0.30));
+    const yStepBase = autoDrop / autoLayers; // per-row height, kept constant so fewer rows = shorter pyramid
+    const layers = (layersOverride && layersOverride >= 2) ? Math.max(2, Math.min(20, Math.round(layersOverride))) : autoLayers;
+    const totalDrop = yStepBase * layers;
+    const yStep = yStepBase;
     const layerH = yStep * 1.08;
     for (let i = 0; i < layers; i++) {
       const t = i / Math.max(1, layers - 1);
@@ -1074,6 +1077,12 @@
       // Uniform resize for jets + propellers. Applied via a single setScalar so
       // aspect ratio is locked by construction (no per-axis path exists).
       sizeScale: Math.max(0.4, Math.min(3, Number(src.sizeScale) || 1)),
+      // Free placement: stored offsets from the slot's default position (so the
+      // user can slide an engine along the underside). null/undefined keeps the
+      // slot default. mount 'side' seats it on the rim facing outward (thrust).
+      posX: Number.isFinite(Number(src.posX)) ? Number(src.posX) : null,
+      posZ: Number.isFinite(Number(src.posZ)) ? Number(src.posZ) : null,
+      mount: src.mount === 'side' ? 'side' : 'under',
       installed: src.installed !== false,
       mesh: null,
       propeller: null,
@@ -1319,12 +1328,11 @@
   }
 
   const EDITABLE_ISLAND_ENGINE_MAX = 8;
-  function editableIslandEnginePlacement(slot) {
+  function editableIslandEnginePlacement(slot, engineState) {
     const span = GRID * TILE;
     const half = span * 0.5;
     const inset = Math.max(0.95, Math.min(1.55, span * 0.15));
     const edge = half - inset * 0.5;
-    const y = -DIRT_H - 0.74;
     // First 4: the original corner slots. Next 4: edge midpoints, so up to 8
     // engines spread along the underside.
     const placements = [
@@ -1337,13 +1345,28 @@
       [ 0,             edge],
       [-edge,          0],
     ];
-    const [x, z] = placements[slot] || placements[slot % placements.length] || placements[0];
-    return { x, y, z, rotationY: Math.atan2(x, z) };
+    let [x, z] = placements[slot] || placements[slot % placements.length] || placements[0];
+    // Free placement: stored posX/posZ override the slot default; clamp inside
+    // the board so an engine can't drift off the underside.
+    const lim = half + 0.4;
+    if (engineState && Number.isFinite(engineState.posX)) x = Math.max(-lim, Math.min(lim, engineState.posX));
+    if (engineState && Number.isFinite(engineState.posZ)) z = Math.max(-lim, Math.min(lim, engineState.posZ));
+    const mount = engineState && engineState.mount === 'side' ? 'side' : 'under';
+    if (mount === 'side') {
+      // Seat on the rim, push to the nearest edge, thrust axis horizontal/outward.
+      const y = -DIRT_H * 0.5;
+      const ax = Math.abs(x), az = Math.abs(z);
+      let outX = x, outZ = z, yaw;
+      if (ax >= az) { outX = Math.sign(x || 1) * (half + 0.18); yaw = x >= 0 ? Math.PI / 2 : -Math.PI / 2; }
+      else { outZ = Math.sign(z || 1) * (half + 0.18); yaw = z >= 0 ? 0 : Math.PI; }
+      return { x: outX, y, z: outZ, rotationY: yaw, mount: 'side' };
+    }
+    return { x, y: -DIRT_H - 0.74, z, rotationY: Math.atan2(x, z), mount: 'under' };
   }
 
   function buildEditableIslandEngineMesh(island, engineState) {
     if (!island || !engineState || engineState.installed === false) return null;
-    const placement = editableIslandEnginePlacement(engineState.slot || 0);
+    const placement = editableIslandEnginePlacement(engineState.slot || 0, engineState);
     const seed = 4200 + (engineState.slot || 0) * 137;
     // Heavy tier IS the ORIGINAL jet/rocket engine (makeVoxelRocketEngine) used
     // unchanged — its nozzle + thrust plume, no propeller. lift/turbo = propeller.
@@ -1359,6 +1382,21 @@
     // getWorldScale (14) — scales with it automatically.
     const sizeScale = Math.max(0.4, Math.min(3, Number(engineState.sizeScale) || 1));
     if (sizeScale !== 1) engine.scale.multiplyScalar(sizeScale);
+    if (placement.mount === 'side') {
+      // The engine is built thrusting DOWN (-Y). Tilt it 90deg so it thrusts
+      // horizontally, then yaw it to face outward from the rim. A holder group
+      // keeps the tilt + yaw composition clean (no Euler-order surprises).
+      const holder = new THREE.Group();
+      engine.rotation.set(Math.PI / 2, 0, 0); // -Y thrust -> -Z (forward)
+      holder.add(engine);
+      holder.position.set(placement.x, placement.y, placement.z);
+      holder.rotation.y = placement.rotationY;
+      stampEditableIslandEngineMesh(holder, island, engineState);
+      engineState.mesh = holder;
+      engineState.propeller = engine.userData.propeller || null;
+      if (engineState.propeller) editableIslandEnginePropellers.add(engineState.propeller);
+      return holder;
+    }
     engine.position.set(placement.x, placement.y, placement.z);
     engine.rotation.y = placement.rotationY;
     stampEditableIslandEngineMesh(engine, island, engineState);
@@ -1399,8 +1437,19 @@
       scaleZ: clampPyramidScale(src.scaleZ),
       width: Math.max(0, num(src.width, 0)),   // 0 => full board span (tracks GRID)
       depth: Math.max(0, num(src.depth, 0)),
+      rows: Math.max(0, Math.round(num(src.rows, 0))), // 0 => auto-derived layer count; >=2 = explicit (shrink without stretch)
       mesh: null,
     };
+  }
+
+  // Effective step/layer count for a pyramid: the explicit `rows` if set, else
+  // the count auto-derived from its footprint (matching the original look).
+  function editableIslandPyramidEffectiveRows(pyramidState) {
+    if (pyramidState && pyramidState.rows >= 2) return Math.max(2, Math.min(20, Math.round(pyramidState.rows)));
+    const span = GRID * TILE;
+    const w = (pyramidState && pyramidState.width > 0) ? pyramidState.width : span;
+    const d = (pyramidState && pyramidState.depth > 0) ? pyramidState.depth : span;
+    return Math.max(7, Math.min(14, Math.round(Math.max(w, d) * 0.65)));
   }
 
   // Default = one pyramid reproducing today's baked underside. Old saves with no
@@ -1433,7 +1482,7 @@
     // the attachment point (not around an arbitrary origin); the group position
     // then drops it to the real underside Y. With unit scale + zero offset this
     // is pixel-identical to the old inline voxelInvertedSteppedRoof call.
-    voxelInvertedSteppedRoof(group, width, depth, 0, M.islandUnder, M.islandUnderD);
+    voxelInvertedSteppedRoof(group, width, depth, 0, M.islandUnder, M.islandUnderD, pyramidState.rows || 0);
     group.position.set(
       pyramidState.offsetX || 0,
       EDITABLE_ISLAND_PYRAMID_BASE_TOP_Y + (pyramidState.offsetY || 0),

@@ -347,6 +347,8 @@
     });
     const engineTarget = typeof selectedEditableIslandEngineTarget === 'function' ? selectedEditableIslandEngineTarget() : null;
     if (engineTarget && engineTarget.engine && engineTarget.engine.mesh) addObjectOutline(engineTarget.engine.mesh);
+    const pyramidTarget = typeof selectedEditableIslandPyramidTarget === 'function' ? selectedEditableIslandPyramidTarget() : null;
+    if (pyramidTarget && pyramidTarget.pyramid && pyramidTarget.pyramid.mesh) addObjectOutline(pyramidTarget.pyramid.mesh);
   }
   function notifySelectionChanged() {
     rebuildSelectionMeshes();

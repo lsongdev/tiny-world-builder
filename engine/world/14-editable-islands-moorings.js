@@ -792,6 +792,9 @@
     if (patch.type !== undefined) engine.type = normalizeEditableIslandEngineType(patch.type);
     if (patch.level !== undefined) engine.level = Math.max(1, Math.min(3, Math.round(Number(patch.level) || 1)));
     if (patch.sizeScale !== undefined) engine.sizeScale = Math.max(0.4, Math.min(3, Number(patch.sizeScale) || 1));
+    if (patch.mount !== undefined) engine.mount = patch.mount === 'side' ? 'side' : 'under';
+    if (patch.posX !== undefined) engine.posX = (patch.posX === null || !Number.isFinite(Number(patch.posX))) ? null : Number(patch.posX);
+    if (patch.posZ !== undefined) engine.posZ = (patch.posZ === null || !Number.isFinite(Number(patch.posZ))) ? null : Number(patch.posZ);
     if (patch.installed !== undefined) engine.installed = patch.installed !== false;
     rebuildEditableIslandEngine(engineTarget.island, engine);
     saveState();
@@ -838,6 +841,7 @@
     if (patch.offsetY !== undefined) p.offsetY = num(patch.offsetY, p.offsetY);
     if (patch.offsetZ !== undefined) p.offsetZ = num(patch.offsetZ, p.offsetZ);
     if (patch.rotationY !== undefined) p.rotationY = num(patch.rotationY, p.rotationY);
+    if (patch.rows !== undefined) p.rows = Math.max(0, Math.min(20, Math.round(num(patch.rows, p.rows))));
     rebuildEditableIslandPyramid(pyramidTarget.island, p);
     saveState();
   }
@@ -899,6 +903,9 @@
         type: normalizeEditableIslandEngineType(engine.type),
         level: Math.max(1, Math.min(3, Math.round(Number(engine.level) || 1))),
         sizeScale: Math.max(0.4, Math.min(3, Number(engine.sizeScale) || 1)),
+        mount: engine.mount === 'side' ? 'side' : 'under',
+        posX: Number.isFinite(Number(engine.posX)) ? Number(engine.posX) : null,
+        posZ: Number.isFinite(Number(engine.posZ)) ? Number(engine.posZ) : null,
         installed: engine.installed !== false,
       })),
       pyramids: (island.pyramids || []).map(p => ({
@@ -912,6 +919,7 @@
         scaleZ: p.scaleZ || 1,
         width: p.width || 0,
         depth: p.depth || 0,
+        rows: p.rows || 0,
       })),
     }));
   }

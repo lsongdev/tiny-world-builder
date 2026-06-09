@@ -1501,6 +1501,15 @@
       } else if (rowKey === 'islandEngineAdd') {
         const made = (typeof addEditableIslandEngine === 'function') ? addEditableIslandEngine(target.island) : null;
         if (made && typeof selectEditableIslandEngine === 'function') selectEditableIslandEngine(made);
+      } else if (rowKey === 'islandEngineMount') {
+        updateEditableIslandEngine(target, { mount: value, installed: true });
+      } else if (rowKey === 'islandEngineMoveX' || rowKey === 'islandEngineMoveZ') {
+        const axis = rowKey === 'islandEngineMoveX' ? 'posX' : 'posZ';
+        const base = (typeof editableIslandEnginePlacement === 'function')
+          ? editableIslandEnginePlacement(target.engine.slot || 0, { mount: 'under' }) : { x: 0, z: 0 };
+        const cur = Number.isFinite(target.engine[axis]) ? target.engine[axis] : (axis === 'posX' ? base.x : base.z);
+        const next = value === 'down' ? cur - 0.6 : value === 'up' ? cur + 0.6 : Number(value);
+        updateEditableIslandEngine(target, { [axis]: Number.isFinite(next) ? next : cur, installed: true });
       } else {
         return false;
       }
@@ -1530,6 +1539,16 @@
         { key: 'islandEngineSize', label: 'Size', control: 'stepper', options: [
           { label: 'Down', value: 'down', disabled: (Number(engine.sizeScale) || 1) <= 0.4 + 1e-6 },
           { label: 'Up', value: 'up', disabled: (Number(engine.sizeScale) || 1) >= 3 - 1e-6 },
+        ] },
+        { key: 'islandEngineMount', label: 'Facing', currentValue: (engine.mount === 'side' ? 'side' : 'under'), options: [
+          { label: 'Under', value: 'under' },
+          { label: 'Side', value: 'side' },
+        ] },
+        { key: 'islandEngineMoveX', label: 'Move X', control: 'stepper', options: [
+          { label: 'Down', value: 'down' }, { label: 'Up', value: 'up' },
+        ] },
+        { key: 'islandEngineMoveZ', label: 'Move Z', control: 'stepper', options: [
+          { label: 'Down', value: 'down' }, { label: 'Up', value: 'up' },
         ] },
         { key: 'islandEngineAction', label: 'Mount', options: [
           { label: 'Restore', value: 'restore', disabled: engine.installed !== false },
@@ -1619,6 +1638,11 @@
       else if (rowKey === 'islandPyramidScaleZ') updateEditableIslandPyramid(target, { scaleZ: stepScale('scaleZ') });
       else if (rowKey === 'islandPyramidOffsetX') updateEditableIslandPyramid(target, { offsetX: stepOffset('offsetX') });
       else if (rowKey === 'islandPyramidOffsetZ') updateEditableIslandPyramid(target, { offsetZ: stepOffset('offsetZ') });
+      else if (rowKey === 'islandPyramidRows') {
+        const eff = (typeof editableIslandPyramidEffectiveRows === 'function') ? editableIslandPyramidEffectiveRows(p) : (p.rows || 7);
+        const next = value === 'down' ? eff - 1 : value === 'up' ? eff + 1 : Number(value);
+        updateEditableIslandPyramid(target, { rows: Math.max(2, Math.min(20, Number.isFinite(next) ? next : eff)) });
+      }
       else return false;
       renderSelection();
       return true;
@@ -1636,6 +1660,10 @@
         { key: 'islandPyramidScaleAll', label: 'Size', control: 'stepper', options: [
           { label: 'Down', value: 'down', disabled: sMin(p.scaleX) && sMin(p.scaleY) && sMin(p.scaleZ) },
           { label: 'Up', value: 'up', disabled: sMax(p.scaleX) && sMax(p.scaleY) && sMax(p.scaleZ) },
+        ] },
+        { key: 'islandPyramidRows', label: 'Rows ' + ((typeof editableIslandPyramidEffectiveRows === 'function') ? editableIslandPyramidEffectiveRows(p) : (p.rows || 7)), control: 'stepper', options: [
+          { label: 'Down', value: 'down', disabled: ((typeof editableIslandPyramidEffectiveRows === 'function') ? editableIslandPyramidEffectiveRows(p) : (p.rows || 7)) <= 2 },
+          { label: 'Up', value: 'up', disabled: ((typeof editableIslandPyramidEffectiveRows === 'function') ? editableIslandPyramidEffectiveRows(p) : (p.rows || 7)) >= 20 },
         ] },
         { key: 'islandPyramidScaleX', label: 'Width ' + fmt(p.scaleX), control: 'stepper', options: [
           { label: 'Down', value: 'down', disabled: sMin(p.scaleX) }, { label: 'Up', value: 'up', disabled: sMax(p.scaleX) },
