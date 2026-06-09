@@ -762,8 +762,10 @@
       <h1 class="sr-only" id="welcome-title">Tiny World Builder</h1>
       <img class="welcome-logo" src="assets/twlogo.png" alt="Tiny World Builder" width="1254" height="1254">
       <div class="welcome-actions" aria-label="Choose mode">
-        <button class="welcome-mode-btn welcome-build" id="welcome-build" type="button" data-pos-type="primary">BUILD</button>
-        <button class="welcome-mode-btn welcome-play" id="welcome-play" type="button" data-pos-type="terrain">PLAY</button>
+        <button class="welcome-mode-btn welcome-tinyverse" id="welcome-tinyverse" type="button" data-pos-type="primary">Tinyverse</button>
+        <button class="welcome-mode-btn welcome-battleworlds" id="welcome-battleworlds" type="button" data-pos-type="shield">Battleworlds</button>
+        <button class="welcome-mode-btn welcome-build" id="welcome-build" type="button" data-pos-type="tertiary">Build</button>
+        <button class="welcome-mode-btn welcome-play" id="welcome-play" type="button" data-pos-type="terrain">Play</button>
       </div>
       <p class="welcome-credit">
         <span>Created by Jason Kneen</span>
@@ -1446,10 +1448,13 @@
   </section>
 
   <div id="agent-panel" class="agent-panel" data-ai-interface aria-live="polite">
+    <div class="agent-panel-resizer" id="agent-panel-resizer" role="separator" aria-orientation="vertical" aria-label="Resize AI chat"></div>
     <div class="agent-panel-head">
-      <span id="agent-panel-title">Agent conversation</span>
-      <button type="button" class="agent-panel-clear" id="agent-panel-clear" aria-label="Clear conversation">⌫</button>
-      <button type="button" class="agent-panel-toggle" id="agent-panel-toggle" aria-label="Close conversation">×</button>
+      <span id="agent-panel-title">AI chat</span>
+      <div class="agent-panel-actions">
+        <button type="button" class="agent-panel-clear" id="agent-panel-clear" aria-label="Clear conversation">⌫</button>
+        <button type="button" class="agent-panel-toggle" id="agent-panel-toggle" aria-label="Collapse AI chat">×</button>
+      </div>
     </div>
     <div class="agent-selection-preview selection-staging" id="agent-selection-preview" hidden aria-hidden="true">
       <div class="selection-preview-pane" hidden>
@@ -1461,24 +1466,22 @@
       <div class="agent-selection-properties" id="agent-selection-properties" hidden></div>
     </div>
     <div class="agent-messages" id="agent-messages"></div>
+    <form id="agent-input" class="agent-input" data-ai-interface autocomplete="off">
+      <button type="button" class="agent-grip" id="agent-grip" title="Attach files" aria-label="Attach files">+</button>
+      <button type="button" class="agent-target-chip" id="agent-target-chip" title="Selected object target" aria-label="Clear selected object target" hidden></button>
+      <input id="agent-prompt" type="text" placeholder="Ask the agent to change this world…" aria-label="Ask the agent" />
+      <button type="submit" class="agent-send" id="agent-send" aria-label="Send to agent">↑</button>
+      <div id="agent-suggestions" class="agent-suggestions" role="listbox" aria-label="Suggested prompts" hidden></div>
+    </form>
   </div>
 
-  <!-- Persistent right-edge grip handle. Only visible when the agent panel has
-       real history and is currently slid off-screen. Exact same glassmorphism
-       and ⋮⋮ drag cue as the bottom input bar. -->
+  <!-- Persistent right-edge grip handle retained for older code paths; the
+       right-side chat now collapses into its own rail. -->
   <button id="agent-panel-handle" class="agent-panel-handle" title="Show agent conversation" aria-label="Show agent conversation" hidden>⋮⋮</button>
 
   <div id="generation-plan-overlay" class="generation-plan-overlay" hidden aria-hidden="true">
     <img id="generation-plan-image" alt="" />
   </div>
-
-  <form id="agent-input" class="agent-input" data-ai-interface autocomplete="off">
-    <button type="button" class="agent-grip" id="agent-grip" title="Drag agent input" aria-label="Drag agent input">⋮⋮</button>
-    <button type="button" class="agent-target-chip" id="agent-target-chip" title="Selected object target" aria-label="Clear selected object target" hidden></button>
-    <input id="agent-prompt" type="text" placeholder="Ask the agent to change this world…" aria-label="Ask the agent" />
-    <button type="submit" class="agent-send" id="agent-send" aria-label="Send to agent">↑</button>
-    <div id="agent-suggestions" class="agent-suggestions" role="listbox" aria-label="Suggested prompts" hidden></div>
-  </form>
 
   <div class="toolbar" id="toolbar"></div>
   <div class="flyout" id="flyout" hidden></div>

@@ -2,6 +2,8 @@
   function initWelcomeDialog() {
     const modal = document.getElementById('welcome-modal');
     if (!modal) return;
+    const tinyverseBtn = document.getElementById('welcome-tinyverse');
+    const battleworldsBtn = document.getElementById('welcome-battleworlds');
     const buildBtn = document.getElementById('welcome-build');
     const playBtn = document.getElementById('welcome-play');
     const closeWelcome = () => {
@@ -27,14 +29,38 @@
       }
       closeWelcome();
     };
+    const openTinyverse = () => {
+      const worlds = window.__tinyworldWorlds;
+      closeWelcome();
+      try {
+        if (worlds && typeof worlds.open === 'function') {
+          worlds.open();
+          return;
+        }
+      } catch (_) {}
+      chooseWelcomeMode('build');
+    };
+    const openBattleworlds = () => {
+      const battleworlds = window.__tinyworldBattleworlds;
+      if (battleworlds && typeof battleworlds.open === 'function') {
+        closeWelcome();
+        try {
+          battleworlds.open();
+          return;
+        } catch (_) {}
+      }
+      chooseWelcomeMode('play');
+    };
 
     modal.hidden = false;
     modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('welcome-launch-open');
+    if (tinyverseBtn) tinyverseBtn.addEventListener('click', openTinyverse);
+    if (battleworldsBtn) battleworldsBtn.addEventListener('click', openBattleworlds);
     if (buildBtn) buildBtn.addEventListener('click', () => chooseWelcomeMode('build'));
     if (playBtn) playBtn.addEventListener('click', () => chooseWelcomeMode('play'));
     requestAnimationFrame(() => {
-      try { (buildBtn || playBtn).focus({ preventScroll: true }); } catch (_) {}
+      try { (tinyverseBtn || battleworldsBtn || buildBtn || playBtn).focus({ preventScroll: true }); } catch (_) {}
     });
   }
 

@@ -123,6 +123,12 @@ The existing minimap implementation (`clampMinimapPosition` /
 reference pattern. Minimap collapse must shrink in place; do not use a
 `translateX(...)` trick that pushes the map outside the viewport.
 
+The AI chat panel is a fixed right-side rail, not a draggable bottom prompt.
+Persist only width/collapse state under `tinyworld:agent:panel-pos` (the `-pos`
+suffix keeps it out of shipped defaults). Do not restore absolute `left/top`
+coordinates for the AI chat; it should stay anchored to the right edge, with a
+left-edge resize grip and a compact collapsed rail.
+
 ## Audio system
 
 Two layers:
