@@ -11,9 +11,10 @@ const vercelPath = path.join(root, 'vercel.json');
 const netlifyPath = path.join(root, 'netlify.toml');
 const partykitPath = path.join(root, 'partykit.json');
 const publishPath = path.join(root, 'publish.sh');
-const htmlRaw = fs.readFileSync(htmlPath, 'utf8');
-const cssRaw = fs.readFileSync(cssPath, 'utf8');
-const publishRaw = fs.existsSync(publishPath) ? fs.readFileSync(publishPath, 'utf8') : '';
+const readText = (file) => fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+const htmlRaw = readText(htmlPath);
+const cssRaw = readText(cssPath);
+const publishRaw = fs.existsSync(publishPath) ? readText(publishPath) : '';
 const defaultsPath = path.join(root, 'tinyworld-defaults.json');
 
 // The app was split out of the old single-file HTML into external <script src>
@@ -25,14 +26,14 @@ function collectAppModules(rootDir) {
   const out = [];
   const landscape = path.join(rootDir, 'LandscapeEngine.js');
   if (fs.existsSync(landscape)) {
-    out.push({ file: 'LandscapeEngine.js', source: fs.readFileSync(landscape, 'utf8') });
+    out.push({ file: 'LandscapeEngine.js', source: readText(landscape) });
   }
   const walk = (dir) => {
     for (const name of fs.readdirSync(dir).sort()) {
       const full = path.join(dir, name);
       if (fs.statSync(full).isDirectory()) walk(full);
       else if (name.endsWith('.js')) {
-        out.push({ file: path.relative(rootDir, full), source: fs.readFileSync(full, 'utf8') });
+        out.push({ file: path.relative(rootDir, full), source: readText(full) });
       }
     }
   };
@@ -195,7 +196,7 @@ if (fs.existsSync(worldDir)) {
   const declOwners = new Map();
   for (const name of fs.readdirSync(worldDir).sort()) {
     if (!name.endsWith('.js')) continue;
-    const source = fs.readFileSync(path.join(worldDir, name), 'utf8');
+    const source = readText(path.join(worldDir, name));
     for (const line of source.split('\n')) {
       const match = declPattern.exec(line);
       if (!match) continue;
