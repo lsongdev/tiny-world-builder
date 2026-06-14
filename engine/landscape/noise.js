@@ -54,12 +54,42 @@
     },
 
     /**
+     * Flooded-planet height field: a drowned world of small, scattered islands.
+     * Only used when this.flood is set (the planet underlay); the home builder's
+     * canyon terrain is left untouched. Most of the domain sits below WATER_LEVEL
+     * (a flat-ish seabed) with sparse archipelagos poking above into sandy isles.
+     * FREQ_SCALE shrinks/multiplies the islands; HEIGHT_SCALE controls relief.
+     */
+    _floodHeight(x, z) {
+      const fs = this.FREQ_SCALE || 1;
+      const hs = this.HEIGHT_SCALE || 1;
+      const f = 0.0011 * fs;
+      // Large-scale archipelago regions: bands of "more islands" vs open ocean.
+      const region = this._fbm(x * f * 0.30 + 19.7, z * f * 0.30 - 4.2, 3);
+      // The island field itself.
+      const n = this._fbm(x * f, z * f, 4);
+      // Land only where the field clears a high bar, nudged by the region mask, so
+      // islands stay sparse and scattered with plenty of water between them.
+      let land = (n - 0.60) + (region - 0.5) * 0.22;
+      if (land <= 0) {
+        // Seabed dips below the waterline so the ocean plane reads as water.
+        const depth = 8 + (0.6 - n) * 55;
+        return Math.max(0, this.WATER_LEVEL - depth);
+      }
+      land = Math.pow(land, 1.25);
+      let h = this.WATER_LEVEL + land * 320 * hs;                 // rise to low hills
+      h += (this._fbm(x * f * 4, z * f * 4, 2) - 0.5) * 10 * hs;  // micro-relief
+      return Math.max(this.WATER_LEVEL - 2, h);
+    },
+
+    /**
      * Evaluates the absolute height of the canyon terrain at grid coordinates.
      * @param {number} x - X Coordinate
      * @param {number} z - Z Coordinate
      * @returns {number} Height
      */
     getHeight(x, z) {
+      if (this.flood) return this._floodHeight(x, z);
       const runwayEllipse = Math.hypot(x * 1.45, z * 0.22);
       const runwayMask = this._smoothstepRange(220, 560, runwayEllipse);
       const corridorX = 1 - this._smoothstepRange(135, 360, Math.abs(x));

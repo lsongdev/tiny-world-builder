@@ -1101,9 +1101,10 @@ class LandscapeEngine {
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
     geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     const mesh = new THREE.Mesh(geo, this.voxelMat);
+    mesh.castShadow = false;
     mesh.receiveShadow = !far;
     group.add(mesh);
-    return group;
+    return { group, geo, mesh };   // same shape as _makeChunk/_makeFarChunk so the streamer can add + dispose it
   }
 
   // --- Terrain Chunk Builder ---
