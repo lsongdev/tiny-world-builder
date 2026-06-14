@@ -3382,21 +3382,26 @@
       }
       let html = '';
       let lastGroup = null;
+      // Palette entry text can derive from user-named custom stamps, so escape every
+      // interpolated field and only inline a swatch that is a strict CSS color
+      // (so it can't break out of the style attribute).
+      const safeColor = (c) => /^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : null;
       filtered.forEach((e, i) => {
         if (e.group !== lastGroup) {
-          html += '<div class="palette-group">' + e.group + '</div>';
+          html += '<div class="palette-group">' + escapeName(e.group) + '</div>';
           lastGroup = e.group;
         }
-        const icon = e.swatch
-          ? '<span class="swatch" style="background:' + e.swatch + '"></span>'
+        const sw = safeColor(e.swatch);
+        const icon = sw
+          ? '<span class="swatch" style="background:' + sw + '"></span>'
           : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/></svg>';
-        const hint = e.hint ? '<div class="palette-item-hint">' + e.hint + '</div>' : '';
-        const kbd  = e.kbd  ? '<span class="palette-item-kbd">' + e.kbd + '</span>' : '';
+        const hint = e.hint ? '<div class="palette-item-hint">' + escapeName(e.hint) + '</div>' : '';
+        const kbd  = e.kbd  ? '<span class="palette-item-kbd">' + escapeName(e.kbd) + '</span>' : '';
         html += '<div class="palette-item' + (i === cursor ? ' active' : '') +
                 '" role="option" data-i="' + i + '">' +
                 '<span class="palette-item-icon">' + icon + '</span>' +
                 '<div class="palette-item-body">' +
-                  '<div class="palette-item-label">' + e.label + '</div>' + hint +
+                  '<div class="palette-item-label">' + escapeName(e.label) + '</div>' + hint +
                 '</div>' + kbd +
                 '</div>';
       });

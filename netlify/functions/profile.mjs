@@ -12,6 +12,11 @@ function validateProfile(body) {
   const image = String((body && body.image) || '').trim().slice(0, 2048);
   if (!/^[a-z0-9_]{3,24}$/.test(username)) return { error: 'Username must be 3-24 lowercase letters, numbers, underscores' };
   if (!displayName) return { error: 'Display name required' };
+  // Reject non-http(s) image URLs so a stored `javascript:`/`data:text/html` value
+  // can't become stored XSS if a client ever renders it as an <img src>/anchor.
+  if (image && !/^https:\/\/[^\s]+$/i.test(image) && !/^http:\/\/localhost(:\d+)?\//i.test(image)) {
+    return { error: 'Image must be an https URL' };
+  }
   return { username, displayName, about, image };
 }
 

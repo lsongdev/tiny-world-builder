@@ -2794,11 +2794,17 @@
         selectionBounds = { minX, maxX, minZ, maxZ };
         selectedObjectTarget = selectedBoardObjectTarget();
 
+        // The object label can derive from a user-named custom stamp, so clamp it
+        // to a short single-line token before embedding it in the system prompt —
+        // defuses prompt-injection via crafted stamp names. (The cell intent is
+        // already injection-safe: cloneCellIntent allowlists only scalars/enums and
+        // normalizeAppearance reduces appearance to hex colors + [a-z0-9_-] ids.)
+        const safeObjectLabel = (lbl) => String(lbl || 'selected object').replace(/[\r\n]+/g, ' ').replace(/[^\w \-]/g, '').slice(0, 48);
         prompt =
           `You are ONLY allowed to modify the rectangular region from x=${minX} to x=${maxX}, z=${minZ} to z=${maxZ}. ` +
           `Do not output any changes outside this exact area. The user wants you to customize this specific region.\n\n` +
           (selectedObjectTarget
-            ? `Selected object chip: ${selectedBoardObjectLabel(selectedObjectTarget)} at x=${selectedObjectTarget.x}, z=${selectedObjectTarget.z}. Current cell intent: ${JSON.stringify(cloneCellIntent(selectedObjectTarget.cell))}\n\n`
+            ? `Selected object chip: ${safeObjectLabel(selectedBoardObjectLabel(selectedObjectTarget))} at x=${selectedObjectTarget.x}, z=${selectedObjectTarget.z}. Current cell intent: ${JSON.stringify(cloneCellIntent(selectedObjectTarget.cell))}\n\n`
             : '') +
           userText + attachmentPrompt;
       }

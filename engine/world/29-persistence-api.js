@@ -196,14 +196,17 @@
       const name = (typeof c.customName === 'string' && c.customName.trim()) ? c.customName.trim() : 'Custom Object';
       const footprint = customPartCellFootprint(c, name);
       const offsetY = customPartCellDefaultOffsetY(c, name);
+      // Validate the conversion BEFORE mutating the cell. If normalization throws
+      // or returns falsy (malformed import, schema drift), bail with the source
+      // data intact instead of deleting it and leaving an unconverted cell.
+      let stamp = null;
+      try { stamp = normalizeVoxelBuildStamp({ name, customParts: parts, custom: true, footprint }, 'Custom Object'); } catch (_) {}
+      if (!stamp) continue;
       delete c.customParts;
       delete c.customName;
       delete c.customFootprint;
       delete c.footprint;
       delete c.renderFootprint;
-      let stamp = null;
-      try { stamp = normalizeVoxelBuildStamp({ name, customParts: parts, custom: true, footprint }, 'Custom Object'); } catch (_) {}
-      if (!stamp) continue;
       if (typeof VOXEL_BUILD_STAMPS !== 'undefined' && typeof getVoxelBuildStamp === 'function' && !getVoxelBuildStamp(stamp.id)) {
         VOXEL_BUILD_STAMPS.push(stamp);
       }

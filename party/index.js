@@ -937,7 +937,9 @@ export default class TinyWorldParty {
         // Production: trust ONLY a valid signed join token. Resources flush to the
         // durable bank, so the role/profile must be cryptographically verified.
         const payload = await verifyJoinTokenWeb(data.token, secret);
-        if (payload && (!payload.slug || payload.slug === slug)) {
+        // Fail closed: a signed token must name THIS world. (Previously a
+        // slug-less token was accepted on any world — a latent cross-world replay.)
+        if (payload && payload.slug === slug) {
           role = payload.r === 'play' ? 'play' : 'observe';
           profileId = payload.r === 'play' ? (payload.p || null) : null;
           if (payload.w) await this.ensureWorldLoaded(payload.w);
@@ -1009,6 +1011,7 @@ export default class TinyWorldParty {
 
   handleMove(id, data) {
     const p = this.getPlayer(id);
+    if (p.role !== 'play' || !p.profileId) return;    // observers/guests can't roam the board
     if (Date.now() < p.busyUntil) return;             // movement locked during a harvest
     if (!this.worldState) return;
     const to = { x: Math.round(Number(data.x)), z: Math.round(Number(data.z)) };

@@ -90,7 +90,7 @@ export default async function roadmapFunction(request) {
       const sql = getSql();
       await ensureTable(sql);
       await seedTable(sql);
-      const rows = await sql`SELECT * FROM roadmap_milestones ORDER BY sort_order ASC, id ASC`;
+      const rows = await sql`SELECT * FROM roadmap_milestones ORDER BY sort_order ASC, id ASC LIMIT 500`;
       return jsonResponse({ milestones: rows.map(milestoneDto), source: 'db', admin: isAdmin(request) }, origin);
     } catch (err) {
       if (isDatabaseUnavailable(err) || isMissingRelation(err, 'roadmap_milestones')) {

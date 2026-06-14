@@ -65,8 +65,13 @@ export default async function worldResourcesFunction(request) {
       const resources = (body && body.resources) || {};
       const taxPayouts = (body && body.taxPayouts) || {};
 
+      // Bound the batch so a single grant can't fan out into thousands of DB
+      // round-trips (the caller holds the service token, but a shared/leaked
+      // token shouldn't be a DoS lever).
+      const MAX_GRANT_ENTRIES = 500;
+
       // Harvester (and self-harvest) whole-unit credits.
-      for (const [pid, raw] of Object.entries(resources)) {
+      for (const [pid, raw] of Object.entries(resources).slice(0, MAX_GRANT_ENTRIES)) {
         const profileId = Number(pid);
         if (!Number.isInteger(profileId) || profileId < 1) continue;
         const delta = cleanDelta(raw);
@@ -74,10 +79,10 @@ export default async function worldResourcesFunction(request) {
       }
 
       // Owner tax payouts: credit the owner's balance AND record tax history.
-      for (const [wid, owners] of Object.entries(taxPayouts)) {
+      for (const [wid, owners] of Object.entries(taxPayouts).slice(0, MAX_GRANT_ENTRIES)) {
         const worldId = Number(wid);
         if (!Number.isInteger(worldId) || worldId < 1 || !owners || typeof owners !== 'object') continue;
-        for (const [oid, raw] of Object.entries(owners)) {
+        for (const [oid, raw] of Object.entries(owners).slice(0, MAX_GRANT_ENTRIES)) {
           const ownerId = Number(oid);
           if (!Number.isInteger(ownerId) || ownerId < 1) continue;
           const delta = cleanDelta(raw);

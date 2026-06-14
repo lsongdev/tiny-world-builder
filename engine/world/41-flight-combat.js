@@ -751,7 +751,7 @@
         _fcMDesired.lerp(_fcMToTarget, Math.min(1, maxStep)).normalize();
         m.vel.copy(_fcMDesired).multiplyScalar(MISSILE_SPEED);
         if (m.pos.distanceTo(_fcMTgtPos) < (tgt.radius + 0.8)) {
-          tgt.applyDamage(MISSILE_DAMAGE, _fcMTgtPos.clone(), 'missile');
+          tgt.applyDamage(MISSILE_DAMAGE, _fcMTgtPos, 'missile');  // applyDamage ignores hitPos; no clone needed
           spawnExplosionFX(_fcMTgtPos);
           deactivateMissile(m); continue;
         }

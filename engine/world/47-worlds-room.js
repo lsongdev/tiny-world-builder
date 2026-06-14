@@ -821,7 +821,10 @@
     function disposeEntity(ent) {
       if (!ent) return; ent.disposed = true;
       removeBubble(ent);
-      if (ent.sprite && ent.sprite.parent) ent.sprite.parent.remove(ent.sprite);
+      if (ent.sprite) {
+        if (ent.sprite.parent) ent.sprite.parent.remove(ent.sprite);
+        if (ent.sprite.material) ent.sprite.material.dispose();  // SpriteMaterial is per-entity, not shared
+      }
       disposeAvatarTextures(ent);
     }
     // Pet billboards animate via named anims (idle / left / right), not 8-way sheets.

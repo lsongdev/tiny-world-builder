@@ -225,7 +225,11 @@ let shippedDefaults;
 try {
   shippedDefaults = JSON.parse(fs.readFileSync(defaultsPath, 'utf8'));
 } catch (err) {
-  fail('tinyworld-defaults.json is not valid JSON: ' + err.message);
+  if (err && err.code === 'ENOENT') {
+    fail('tinyworld-defaults.json not found at ' + defaultsPath + ' (publish.sh treats it as optional, but check.js requires it for the settings assertions below).');
+  } else {
+    fail('tinyworld-defaults.json is not valid JSON: ' + err.message);
+  }
 }
 
 const schemaDecl = '  const WORLD_SCHEMA = ';

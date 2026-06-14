@@ -35,7 +35,11 @@ export function errorResponse(message, status, origin) {
   return jsonResponse({ error: message }, origin, status);
 }
 
-export async function readJson(request) {
+export async function readJson(request, maxBytes = 1_048_576) {
+  // Reject oversized bodies before parsing so a large/deeply-nested payload can't
+  // spike memory. Netlify caps requests ~6MB; this is a tighter per-call guard.
+  const len = Number(request.headers.get('content-length') || 0);
+  if (len && len > maxBytes) return null;
   try {
     return await request.json();
   } catch (_) {
@@ -44,7 +48,15 @@ export async function readJson(request) {
 }
 
 export function sameOriginWriteGuard(request) {
+  const reqOrigin = new URL(request.url).origin;
   const origin = request.headers.get('origin');
-  if (!origin) return true;
-  return origin === new URL(request.url).origin;
+  if (origin) return origin === reqOrigin;
+  // No Origin header: fail closed, but accept a same-origin Referer as a fallback
+  // (some same-origin browser requests omit Origin) and allow localhost for dev
+  // tooling / server-to-server calls that send neither.
+  const referer = request.headers.get('referer');
+  if (referer) {
+    try { return new URL(referer).origin === reqOrigin; } catch (_) { return false; }
+  }
+  return /^http:\/\/localhost(:\d+)?$/.test(reqOrigin);
 }

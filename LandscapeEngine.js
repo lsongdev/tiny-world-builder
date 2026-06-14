@@ -1430,10 +1430,18 @@ class LandscapeEngine {
   /**
    * Clears out all loaded and pending chunks to force rebuilds.
    */
+  _disposeChunk(c) {
+    this.scene.remove(c.group);
+    c.geo.dispose();
+    // Free each InstancedMesh's per-chunk instanceMatrix buffer. Their geometry
+    // and material are engine-owned and shared across chunks, so we do NOT
+    // dispose those — InstancedMesh.dispose() only frees the instance buffers.
+    if (c.instanced) for (const im of c.instanced) { if (im) im.dispose(); }
+  }
+
   clearChunks() {
     for (const c of this.chunks.values()) {
-      this.scene.remove(c.group);
-      c.geo.dispose();
+      this._disposeChunk(c);
     }
     this.chunks.clear();
 
@@ -1493,8 +1501,7 @@ class LandscapeEngine {
 
     for (const [key, c] of this.chunks) {
       if (!wantedNear.has(key)) {
-        this.scene.remove(c.group);
-        c.geo.dispose();
+        this._disposeChunk(c);
         this.chunks.delete(key);
       }
     }

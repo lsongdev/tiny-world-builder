@@ -71,7 +71,8 @@
       if (attrs) for (const k of Object.keys(attrs)) {
         if (k === 'class') node.className = attrs[k];
         else if (k === 'text') node.textContent = attrs[k];
-        else if (k === 'html') node.innerHTML = attrs[k];
+        // No 'html'/innerHTML branch by design (it had no callers) — use 'text' or
+        // appendChild so a future caller can't pipe untrusted data into innerHTML.
         else if (k.slice(0, 2) === 'on' && typeof attrs[k] === 'function') node.addEventListener(k.slice(2), attrs[k]);
         else node.setAttribute(k, attrs[k]);
       }

@@ -204,7 +204,11 @@
 
       this.scene.add(group);
 
-      return { group, geo, mesh };
+      // Return the instanced scatter so chunk teardown can dispose each one's
+      // per-chunk instanceMatrix buffer. Their geometry/material are engine-owned
+      // and shared across chunks, so InstancedMesh.dispose() (which frees only the
+      // instance buffers, not the shared geo/mat) is the correct teardown.
+      return { group, geo, mesh, instanced: [rocks, pines, cacti, shrubs, boulders] };
     },
 
     // --- Far LOD Chunks ---

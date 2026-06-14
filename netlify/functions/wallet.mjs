@@ -88,7 +88,21 @@ function walletLoginUserDto(user, publicKey) {
   };
 }
 
+// Sentinel thrown when a wallet is already linked to a different profile, so the
+// caller can return a 409 instead of silently reassigning ownership.
+class WalletOwnedByOtherProfile extends Error {}
+
 async function linkWalletToProfile(sql, profile, publicKey) {
+  // public_key is globally unique (migration: wallet_accounts_public_key_unique).
+  // Without this check, ON CONFLICT DO UPDATE would flip an existing wallet's
+  // owner from another profile to this one, defeating the per-profile payment
+  // authorization in world-claim.mjs. Reject instead of reassigning.
+  const existing = await sql`
+    SELECT profile_id FROM wallet_accounts WHERE public_key = ${publicKey} LIMIT 1
+  `;
+  if (existing.length && existing[0].profile_id !== profile.id) {
+    throw new WalletOwnedByOtherProfile('Wallet already linked to another account');
+  }
   await sql`
     DELETE FROM wallet_accounts
     WHERE profile_id = ${profile.id}
@@ -283,6 +297,9 @@ export default async function walletFunction(request) {
 
     return errorResponse('Unknown wallet action', 400, origin);
   } catch (err) {
+    if (err instanceof WalletOwnedByOtherProfile) {
+      return errorResponse('This wallet is already linked to another account', 409, origin);
+    }
     if (isDatabaseUnavailable(err)) {
       return errorResponse('Netlify Database is not available in this local session.', 503, origin);
     }

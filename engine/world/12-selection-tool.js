@@ -43,6 +43,9 @@
   // colour so a slightly-scaled clone of the mesh appears as a thick
   // outline around the original. Beats LineSegments because GPU line
   // width is typically capped at 1px.
+  // Intentionally shared and never disposed: one module-scope material reused by
+  // every outline mesh for the whole session, so clearSelectionMeshes must NOT
+  // dispose it (only the per-selection hull geometry is transient).
   const selectionOutlineMat = new THREE.MeshBasicMaterial({
     color: 0x1f5fd8,
     side: THREE.BackSide,

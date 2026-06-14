@@ -516,3 +516,16 @@ test('movement is one standable cell at a time and locked during a harvest', () 
   party.handleMove('p1', { x: 1, z: 1 });
   assert.deepEqual({ x: party.getPlayer('p1').x, z: party.getPlayer('p1').z }, { x: 4, z: 3 }, 'water is not standable');
 });
+
+test('observers and guests cannot move (role/profile gate)', () => {
+  const { party, connect } = worldSetup();
+  connect('obs');
+  // A provisional observer (the default role after onConnect on a world room).
+  const obs = party.getPlayer('obs'); obs.x = 3; obs.z = 3;
+  party.handleMove('obs', { x: 4, z: 3 });
+  assert.deepEqual({ x: party.getPlayer('obs').x, z: party.getPlayer('obs').z }, { x: 3, z: 3 }, 'observer move rejected');
+  // role=play but no profileId (an un-upgraded/guest seat) is still rejected.
+  obs.role = 'play'; obs.profileId = null;
+  party.handleMove('obs', { x: 4, z: 3 });
+  assert.deepEqual({ x: party.getPlayer('obs').x, z: party.getPlayer('obs').z }, { x: 3, z: 3 }, 'play-without-profile move rejected');
+});
