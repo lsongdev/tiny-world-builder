@@ -121,8 +121,11 @@
       const sandTex = sandTexture();   // (kept for parity; vertex colors carry the sand)
       const grassTex = grassTexture();
 
-      // voxel-finish heightfield: raised meadow heart, sloping sand, and a true seabed
-      const G = 0.2, pos = [], col = [], idx = [];
+      // voxel-finish heightfield: raised meadow heart, sloping sand, and a true seabed.
+      // G is the cell size: the poser used 0.2 for a close-up camera, but at planet
+      // scale (x1.6) seen from the fly-down orbit, 0.4 is visually identical and cuts
+      // the island triangle count ~4x (the surface was ~300k tris at 0.2).
+      const G = 0.4, pos = [], col = [], idx = [];
       const mpos = [], muv = [], midx = [];
       const SAND = [[0.80, 0.70, 0.51], [0.76, 0.66, 0.47], [0.84, 0.74, 0.55], [0.72, 0.62, 0.43]];
       const QH = (x, z) => Math.round(groundH(x, z) / 0.014) * 0.014;
@@ -184,8 +187,10 @@
         ISLE.meadow = meadow;
       }
 
-      // sea: a soft-banded disc, vertices bob for gentle swell
-      const seaGeo = new THREE.PlaneGeometry(150, 150, 80, 80);
+      // sea: a soft-banded disc. The water shading is fully procedural in the
+      // fragment shader (from world-XZ), so the plane needs almost no tessellation
+      // (80x80 -> 8x8 drops ~12.6k tris with no visual change).
+      const seaGeo = new THREE.PlaneGeometry(150, 150, 8, 8);
       seaGeo.rotateX(-Math.PI / 2);
       {
         const n = seaGeo.attributes.position.count;
