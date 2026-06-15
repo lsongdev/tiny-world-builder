@@ -95,6 +95,9 @@
       hideBaseMinimap(true);
       setAmbientCrowdVisibleForRoom(false);
       if (typeof WS.setPlayChrome === 'function') WS.setPlayChrome(true);
+      // Tilt-shift reads as a toy-diorama effect; turn it off for the immersive
+      // tinyverse view. Remember prior state so leaving restores the build setting.
+      try { window.__twTiltWasOff = document.body.classList.contains('tilt-blur-off'); document.body.classList.add('tilt-blur-off'); } catch (_) {}
       // Force play mode so all edit gates block building while in a tinyverse world.
       const mode = window.__tinyworldMode;
       if (mode) { prevPlayMode = mode.isPlay(); mode.setPlay(); }
@@ -133,6 +136,7 @@
       setAmbientCrowdVisibleForRoom(true);
       hideBaseMinimap(false);
       if (typeof WS.setPlayChrome === 'function') WS.setPlayChrome(false);
+      try { if (!window.__twTiltWasOff) document.body.classList.remove('tilt-blur-off'); } catch (_) {}
       // Restore whichever build/play mode the user had before entering the room.
       const mode = window.__tinyworldMode;
       if (mode && prevPlayMode !== null) { if (prevPlayMode) mode.setPlay(); else mode.setBuild(); prevPlayMode = null; }
@@ -214,6 +218,7 @@
         case 'harvest.deny': emit('deny', d); break;
         case 'chat': emit('chat', d); if (d && d.text != null) showChatBubble(d.id, d.text); break;
         case 'chat.typing': emit('typing', d); break;
+        case 'present': emit('present', d); break;   // lobby slide sync (58-lobby-presentation)
         default: break;
       }
     }
@@ -223,6 +228,9 @@
     const localRes = { fish: 0, meat: 0, plants: 0, ore: 0 };
     function addLocalResource(r, n) { if (localRes[r] != null && n > 0) { localRes[r] += n; emit('resources', Object.assign({}, localRes)); } }
     WS.getResources = () => Object.assign({}, localRes);
+    // Lobby presentation: broadcast the current slide index to the room (58 listens
+    // for the server's 'present' echo to apply it on every client).
+    WS.present = function (slide) { send({ type: 'present', slide: slide | 0 }); };
   
     function myPresencePos() {
       // The server tracks our position and broadcasts it in presence.cursor; mirror
@@ -247,19 +255,46 @@
         const x = Array.isArray(c) ? c[0] : c.x, z = Array.isArray(c) ? c[1] : c.z;
         if (x == null || z == null) continue;
         const ter = Array.isArray(c) ? c[2] : c.terrain, k = Array.isArray(c) ? c[3] : c.kind;
-        if (ter === 'water' || ter === 'lava' || ter === 'stone' || (k && BLOCKED_KINDS.has(k))) blocked.add(x + ',' + z);
+        if (ter === 'lava' || ter === 'stone' || (k && BLOCKED_KINDS.has(k))) blocked.add(x + ',' + z);   // water walkable
       }
     }
     function standable(x, z) { return x >= 0 && z >= 0 && x < gridSize && z < gridSize && !blocked.has(x + ',' + z); }
 
+    let lastStepAt = 0;
     function step(dx, dz) {
-      const nx = Math.max(0, Math.min(gridSize - 1, you.x + dx));
+      if (selfEnt && (selfEnt._traveling || selfEnt._climb)) return;   // no grid move mid-portal/climb
+      const now = Date.now();
+      if (now - lastStepAt < 175) return;   // one tile at a time: hold-to-move is capped to the glide
+      const nx = Math.max(0, Math.min(gridSize - 1, you.x + dx));   // cadence so key-repeat can't skip tiles
       const nz = Math.max(0, Math.min(gridSize - 1, you.z + dz));
       if (nx === you.x && nz === you.z) return;
       if (!standable(nx, nz)) return;
+      lastStepAt = now;
       you.x = nx; you.z = nz;       // optimistic; server presence will correct
       send({ type: 'move', x: nx, z: nz });
       emit('you', you); drawMinimap(); updateSelfAvatar();
+      tryEnterGate();              // walked onto a lobby gate cell? -> use the portal
+    }
+
+    // If the player has just stepped onto a lobby-gate cell, run the gate-to-gate travel
+    // on THEIR avatar (dissolve here, emerge at the paired gate) and teleport their grid
+    // cell to the destination. animVoxel cedes control while _traveling (see its guard).
+    function tryEnterGate() {
+      if (!selfEnt || !selfEnt.voxel || selfEnt._traveling) return;
+      const GT = window.__tinyworldGateTransit;
+      if (!GT || typeof GT.travelPlayer !== 'function') return;
+      if (typeof GT.gateAtCell === 'function' && !GT.gateAtCell({ x: you.x, z: you.z })) return;
+      selfEnt._traveling = true;
+      const ok = GT.travelPlayer({ x: you.x, z: you.z }, selfEnt.voxel, (destCell) => {
+        if (destCell) {
+          you.x = destCell.x; you.z = destCell.z;
+          moveEntity(selfEnt, destCell.x, destCell.z);   // settle avatar on the destination cell
+          try { send({ type: 'move', x: destCell.x, z: destCell.z }); } catch (_) {}
+          emit('you', you); if (typeof drawMinimap === 'function') drawMinimap();
+        }
+        selfEnt._traveling = false;
+      });
+      if (!ok) selfEnt._traveling = false;
     }
 
     // BFS over standable cells; returns the ordered list of steps to (tx,tz).
@@ -293,11 +328,127 @@
         if (i >= path.length) { walkTimer = null; return; }
         const [nx, nz] = path[i++];
         you.x = nx; you.z = nz; send({ type: 'move', x: nx, z: nz }); emit('you', you); drawMinimap(); updateSelfAvatar();
+        tryEnterGate();
+        if (selfEnt && selfEnt._traveling) { walkTimer = null; return; }   // portal took over
         walkTimer = setTimeout(next, 170);
       };
       next();
     }
-  
+
+    // ---- ladder climb (LOCAL-SELF only, v1) ----
+    // A maintenance rig (58-lobby-presentation) tags its ladder with an Object3D named
+    // 'climb-ladder' carrying userData = { baseY, topY, halfW, halfD, exitDX, exitDZ } in
+    // the lobby group's LOCAL frame. The lobby group and the avatars share avatarParent()
+    // (both resolve to worldGroup), but we still convert through world space so any future
+    // scale/offset is honoured: marker world pos -> avatarParent local = the avatar frame
+    // the rig's group.position lives in. Climbing is a LOCAL VISUAL mode (the server only
+    // tracks grid x,z, like crouch/sit) — peers don't see it (peer sync deferred, see report).
+    const CLIMB_SPEED = 1.4;          // world units/sec along the ladder (W up / S down)
+    const CLIMB_ENTER_MARGIN = 0.85;  // horizontal slack: halfW=0.35 is sub-tile (TILE=1), so
+    // the nearest standable tile centre can sit up to ~0.7 from the ladder centre; the margin
+    // must reach a real tile or enter never fires. reach = halfW+margin = 1.2 > tile pitch 1.0,
+    // so a tile geometrically lands in range. NOT yet measured against the live rig (room is
+    // role-gated) — the live check must confirm a STANDABLE tile actually sits within ~1 unit
+    // of the ladder base (the ladder is behind the lobby screen near the north edge; if the
+    // rig/screen tiles are blocked, the enter tile/margin may need adjustment).
+    const _v3a = (typeof THREE !== 'undefined') ? new THREE.Vector3() : null;
+    // Resolve the ladder marker (if present + visible) into the avatar's coordinate frame.
+    // Returns { cx, cz, baseY, topY, halfW, halfD, exitDX, exitDZ } or null.
+    function findLadder() {
+      const par = avatarParent();
+      if (!par || !_v3a) return null;
+      const marker = (typeof par.getObjectByName === 'function') ? par.getObjectByName('climb-ladder') : null;
+      if (!marker) return null;
+      // skip if the rig is hidden (lobby presentation not shown)
+      let o = marker, vis = true;
+      while (o) { if (o.visible === false) { vis = false; break; } o = o.parent; }
+      if (!vis) return null;
+      const ud = marker.userData || {};
+      marker.getWorldPosition(_v3a);
+      par.worldToLocal(_v3a);                          // marker origin -> avatar/group frame
+      // scale local userData distances by the marker's world scale so volume dims match.
+      const sc = marker.getWorldScale(new THREE.Vector3()).x || 1;
+      return {
+        cx: _v3a.x, cz: _v3a.z,                        // ladder centre in the avatar frame
+        markerY: _v3a.y,                               // marker origin (avatar-frame Y datum)
+        halfW: (typeof ud.halfW === 'number' ? ud.halfW : 0.35) * sc,
+        halfD: (typeof ud.halfD === 'number' ? ud.halfD : 0.35) * sc,
+        exitDX: (typeof ud.exitDX === 'number' ? ud.exitDX : 0) * sc,
+        exitDZ: (typeof ud.exitDZ === 'number' ? ud.exitDZ : 0) * sc,
+        _ud: ud, _marker: marker, _sc: sc,
+      };
+    }
+    // Convert a rig-local height (baseY/topY, heights ABOVE the rig origin) to the avatar
+    // frame Y: marker origin's avatar-frame Y + (height * world scale).
+    function resolveLadderY(L, hLocal) {
+      return L.markerY + (hLocal || 0) * L._sc;
+    }
+    // Can the local self enter the ladder right now? (within footprint, near the base.)
+    function ladderEnterable(L) {
+      if (!L || !selfEnt || !selfEnt.sprite) return false;
+      const p = selfEnt.sprite.position;
+      const dx = p.x - L.cx, dz = p.z - L.cz;
+      if (Math.abs(dx) > L.halfW + CLIMB_ENTER_MARGIN) return false;
+      if (Math.abs(dz) > L.halfD + CLIMB_ENTER_MARGIN) return false;
+      const baseY = resolveLadderY(L, L._ud.baseY || 0);
+      return Math.abs(p.y - baseY) < 0.9;              // must be near the foot of the ladder
+    }
+    // Enter climb mode: snap x/z to the ladder centre, face the rungs, suspend grid move.
+    function enterClimb(L) {
+      if (!selfEnt || !selfEnt.voxel) return false;
+      cancelWalk();
+      const baseY = resolveLadderY(L, L._ud.baseY || 0);
+      const topY = resolveLadderY(L, (typeof L._ud.topY === 'number' ? L._ud.topY : L._ud.baseY) || 0);
+      selfEnt._climb = { cx: L.cx, cz: L.cz, baseY, topY, exitDX: L.exitDX, exitDZ: L.exitDZ, dir: 0 };
+      const sp = selfEnt.sprite.position;
+      sp.x = L.cx; sp.z = L.cz;                          // snap to centre
+      selfEnt.tx = L.cx; selfEnt.tz = L.cz;              // kill any pending grid tween
+      sp.y = Math.max(baseY, Math.min(topY, sp.y));
+      selfEnt._yc = sp.y; selfEnt.ty = sp.y;
+      // face the ladder: you climb facing the rungs (chest toward the ladder), not away.
+      // The prior heading (PI) pointed the climber OUTWARD; flip it to face the rungs.
+      selfEnt.voxel.setHeading(0);
+      selfEnt.voxel.setState('climb');
+      return true;
+    }
+    function exitClimbToGround() {
+      if (!selfEnt) return;
+      selfEnt._climb = null;
+      if (selfEnt.voxel) selfEnt.voxel.setState('idle');
+      // grid x,z unchanged (still the base tile); let placeEntity re-ground on next move.
+    }
+    function exitClimbToPlatform(c) {
+      if (!selfEnt || !selfEnt.sprite) return;
+      const sp = selfEnt.sprite.position;
+      sp.x = c.cx + c.exitDX; sp.z = c.cz + c.exitDZ;    // step off onto the deck
+      sp.y = c.topY;
+      selfEnt.tx = sp.x; selfEnt.tz = sp.z; selfEnt.ty = c.topY; selfEnt._yc = c.topY;
+      selfEnt._climb = null;
+      if (selfEnt.voxel) selfEnt.voxel.setState('idle');
+      // NOTE: the platform is not a grid tile (server tracks only x,z). The avatar rests at
+      // platform height until the first grid move re-grounds it. Honest v1 limit (see report).
+    }
+    // Held-key vertical intent, set by onKey/onKeyUp while climbing (1 up, -1 down, 0 hold).
+    let climbDir = 0;
+    // Advance the climb each frame: move group.position.y toward top/bottom, feed the rig a
+    // phase delta proportional to the distance moved (so limbs cycle while moving, hang when
+    // still), and exit at either end. Called from animVoxel for the local self only.
+    function stepClimb(ent, dt) {
+      const c = ent._climb; if (!c) return;
+      const sp = ent.sprite.position;
+      const vy = climbDir * CLIMB_SPEED * dt;            // signed vertical move this frame
+      let ny = sp.y + vy;
+      let exited = false;
+      if (ny >= c.topY) { ny = c.topY; if (climbDir > 0) { exitClimbToPlatform(c); exited = true; } }
+      else if (ny <= c.baseY) { ny = c.baseY; if (climbDir < 0) { sp.y = ny; ent._yc = ny; ent.ty = ny; exitClimbToGround(); exited = true; } }
+      if (exited) return;
+      sp.y = ny; ent._yc = ny; ent.ty = ny;
+      // phase delta: 2*pi per ~0.5 world unit climbed -> a brisk hand-over-hand cadence.
+      ent.voxel.climbAdvance(Math.abs(vy) * (Math.PI * 2 / 0.5));
+      ent.voxel.setState('climb');                      // no-op if already climbing
+      ent.voxel.update(dt);
+    }
+
     // ---- harvest ----
     function nodeKindToAction(type) { return type === 'fish' ? 'fish' : type === 'ore' ? 'mine' : 'gather'; }
     function reach(a, b) { return Math.abs(a.x - b.x) <= 1 && Math.abs(a.z - b.z) <= 1; }
@@ -333,6 +484,20 @@
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       let handled = true;
       const k = e.key.toLowerCase();
+      // ---- climb intercept (LOCAL-SELF only) ----
+      // While climbing, W/Up drives UP the ladder, S/Down drives DOWN; left/right and jump
+      // drop off. When NOT climbing, pressing W/Up into a nearby ladder ENTERS climb mode
+      // instead of taking the grid step.
+      if (selfEnt && selfEnt._climb) {
+        if (k === 'arrowup' || k === 'w') { climbDir = 1; e.preventDefault(); return; }
+        if (k === 'arrowdown' || k === 's') { climbDir = -1; e.preventDefault(); return; }
+        if (k === 'arrowleft' || k === 'a' || k === 'arrowright' || k === 'd' || k === ' ' || k === 'spacebar') {
+          exitClimbToGround(); climbDir = 0; e.preventDefault(); return;   // hop off, resume grid movement
+        }
+      } else if ((k === 'arrowup' || k === 'w') && selfEnt) {
+        const L = findLadder();
+        if (L && ladderEnterable(L) && enterClimb(L)) { climbDir = 1; e.preventDefault(); return; }
+      }
       // Movement is relative to the camera/player view (his up/down/left/right).
       if (k === 'arrowup' || k === 'w') { cancelWalk(); const [x, z] = worldStepFromScreen(0, 1); step(x, z); }
       else if (k === 'arrowdown' || k === 's') { cancelWalk(); const [x, z] = worldStepFromScreen(0, -1); step(x, z); }
@@ -340,13 +505,27 @@
       else if (k === 'arrowright' || k === 'd') { cancelWalk(); const [x, z] = worldStepFromScreen(1, 0); step(x, z); }
       else if (k === ' ' || k === 'spacebar') startJump();
       else if (k === ATTACK_KEY) startAttack();
+      // crouch = HOLD 'c' (released on keyup, see onKeyUp); sit = TOGGLE 'x'. These set
+      // local-self rig pose flags only; animVoxel reads them. Crouch/sit are v1
+      // LOCAL-SELF only (peer sync would need an avatar-state party message — see report).
+      else if (k === 'c') { if (selfEnt) selfEnt._crouchHeld = true; }
+      else if (k === 'x') { if (selfEnt) selfEnt._sitToggle = !selfEnt._sitToggle; }
       else if (e.code === 'BracketLeft' || k === '[') cycleAvatarClass(-1);
       else if (e.code === 'BracketRight' || k === ']') cycleAvatarClass(1);
       else handled = false;
       if (handled) e.preventDefault();
     }
-    function bindInput() { window.addEventListener('keydown', onKey); }
-    function unbindInput() { window.removeEventListener('keydown', onKey); }
+    function onKeyUp(e) {
+      if (!connected) return;
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (e.key.toLowerCase() === 'c' && selfEnt) selfEnt._crouchHeld = false;  // release crouch hold
+      // releasing the climb keys stops vertical motion -> the rig holds a static hang pose.
+      const ku = e.key.toLowerCase();
+      if (selfEnt && selfEnt._climb && (ku === 'w' || ku === 's' || ku === 'arrowup' || ku === 'arrowdown')) climbDir = 0;
+    }
+    function bindInput() { window.addEventListener('keydown', onKey); window.addEventListener('keyup', onKeyUp); }
+    function unbindInput() { window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onKeyUp); }
   
     // ---- minimap ----
     let mapWrap = null, canvas = null, ctx = null;
@@ -976,6 +1155,13 @@
     const VOXEL_WALK_SPEED = 1.8;   // world units/sec between tiles
     function animVoxel(ent, dt) {
       const pos = ent.sprite.position;
+      // ---- climb mode (LOCAL-SELF only): owns position.y + the 'climb' rig pose, and
+      // short-circuits the grid tween/state logic below so it can't yank the avatar back
+      // to its base tile while it's on the ladder. ----
+      if (ent === selfEnt && ent._climb) { stepClimb(ent, dt); updateBubble(ent); return; }
+      // portal travel (LOCAL-SELF): 56's travel() owns the avatar's position + pose during
+      // the dissolve/emerge; cede the grid tween so it can't fight the effect.
+      if (ent === selfEnt && ent._traveling) { updateBubble(ent); return; }
       const tx = (ent.tx != null) ? ent.tx : pos.x;
       const tz = (ent.tz != null) ? ent.tz : pos.z;
       const ty = (ent.ty != null) ? ent.ty : (ent.groundY != null ? ent.groundY : 0.02);
@@ -990,10 +1176,24 @@
         moving = true;
         ent.voxel.setHeadingFromDelta(dxw, dzw);
       }
+      // Jump: fire the rig's jump pose on the rising edge of ent.jumpStart (set by
+      // startJump / a peer jump). The pose (crouch -> launch -> land, arms + legs
+      // bending) is self-timed inside the rig and auto-returns to idle.
+      if (ent.jumpStart && !ent._jumpPrev) ent.voxel.setState('jump');
+      ent._jumpPrev = !!ent.jumpStart;
       const rigState = ent.voxel.getState();
-      if (rigState !== 'attack') {
+      // attack and jump are one-shot poses owned by the rig — don't stomp them with
+      // walk/idle each frame (the rig clears back to idle when the pose finishes).
+      if (rigState !== 'attack' && rigState !== 'jump') {
         if (ent.attacking) ent.attacking = false;          // rig finished the swing
-        const want = moving ? 'walk' : 'idle';
+        // crouch (hold 'c') / sit (toggle 'x') are LOCAL-SELF only (v1). Precedence,
+        // re-evaluated each frame: moving -> walk (this also clears the sit toggle so
+        // you stand up when you move); else crouch-held; else sit-toggled; else idle.
+        let want;
+        if (moving) { want = 'walk'; if (ent === selfEnt) ent._sitToggle = false; }
+        else if (ent === selfEnt && ent._crouchHeld) want = 'crouch';
+        else if (ent === selfEnt && ent._sitToggle) want = 'sit';
+        else want = 'idle';
         ent.voxel.setState(want); ent.state = want;
       }
       ent.voxel.update(dt);

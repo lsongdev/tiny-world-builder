@@ -35,6 +35,30 @@
       return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 0x100000000; };
     }
 
+    // ---- planar 2-bone IK (sagittal Y-Z plane) -> {hip, knee} rotation.x angles ----
+    // Law-of-cosines, identical in-plane to voxel-poser's twoBone but emitting the
+    // X-hinge angles this FK rig consumes directly. `dy,dz` = foot target relative to
+    // the hip pivot (dy negative: foot below hip). U/F = thigh/shin lengths.
+    // At rest (dz=0, dy=-(U+F)) this returns hip≈0, knee≈0 (legs straight down).
+    function legIK(dy, dz, U, F) {
+      let d = Math.hypot(dy, dz);
+      d = Math.max(Math.abs(U - F) + 1e-4, Math.min(U + F - 1e-4, d));
+      // THIS rig's X-hinge convention (measured): +hip.rotation.x swings the foot toward
+      // -Z. So solve in the rig frame by negating dz: a forward foot target (dz>0) must
+      // yield a NEGATIVE hip angle. Without this flip the stance foot slides forward
+      // (the "moonwalk"); with it, the planted foot pushes back as the body advances.
+      const lineAng = Math.atan2(-dz, -dy);            // angle from straight-down, rig frame
+      const cosHip = Math.max(-1, Math.min(1, (U * U + d * d - F * F) / (2 * U * d)));
+      const hipInner = Math.acos(cosHip);
+      const cosKnee = Math.max(-1, Math.min(1, (U * U + F * F - d * d) / (2 * U * F)));
+      const kneeInner = Math.acos(cosKnee);
+      // thigh leads the foot-line by hipInner; knee then bends the shin (positive = the
+      // natural knee bend this rig already uses for its walk, so it folds the right way).
+      const hipRot = lineAng + hipInner;
+      const kneeRot = Math.PI - kneeInner;             // 0 = straight; >0 bends the shin
+      return { hip: hipRot, knee: kneeRot };
+    }
+
     // ---- voxel mesher: Map("x,y,z"->hex) -> BufferGeometry with baked vertex colors ----
     // Neighbor-aware beveled mesher ported verbatim from voxel-poser voxGeo; `bevel`
     // is a param (was global cfg.bevel). Output uses vertexColors materials.
@@ -165,13 +189,32 @@
       fill(H, ca, cb, -1, -1, 2, 5, shade(skin, 0.93));            // neck
       fill(H, -1, -1, 3, 4, 3, 4, shade(skin, 0.97));              // ears
       fill(H, HW, HW, 3, 4, 3, 4, shade(skin, 0.97));
+      // ----- face: 2-wide x 3-tall eyes; a dark band slides within pale sclera.
+      // Eye-state cases ported verbatim from voxel-poser.html (buildHeadMap, the
+      // `switch(cfg.eyes)` at ~line 1041) so blink + the directional gaze ("saccade")
+      // states render identically to the source rig. `Blink` hides the sclera (lids
+      // closed) and drops a dark lid line. `eyes` is read fresh every rebuild, so
+      // toggling cfg.eyes and re-meshing the head re-poses the gaze with no new code.
       const DARK = '#1d2028', LITE = '#dfe5ee';
-      const eL = [ex[0] - 1, ex[0]], eR = [ex[1], ex[1] + 1];
-      for (const c of [...eL, ...eR]) for (const y of [3, 4, 5]) H.set(c + ',' + y + ',7', LITE);  // sclera
+      const eL = [ex[0] - 1, ex[0]], eR = [ex[1], ex[1] + 1];   // eye columns, extending outward
+      const blink = cfg.eyes === 'Blink';
+      for (const c of [...eL, ...eR]) for (const y of [3, 4, 5])
+        H.set(c + ',' + y + ',7', blink ? skin : LITE);          // sclera (hidden when closed)
       const pup = (() => {
         switch (cfg.eyes) {
-          case 'Happy': return [[eL[0], 4], [eL[1], 4], [eR[0], 4], [eR[1], 4]];
-          default: return [[eL[1], 4], [eR[0], 4]];                // Focus
+          case 'Happy': return [[eL[0], 4], [eL[1], 4], [eR[0], 4], [eR[1], 4]]; // wide band looks
+          case 'Happy-Up': return [[eL[0], 5], [eL[1], 5], [eR[0], 5], [eR[1], 5]];
+          case 'Happy-Dn': return [[eL[0], 3], [eL[1], 3], [eR[0], 3], [eR[1], 3]];
+          case 'Up-C': return [[eL[1], 5], [eR[0], 5]];           // focused, looking up
+          case 'Low-C': return [[eL[1], 3], [eR[0], 3]];          // focused, looking down
+          case 'Up-L': return [[eL[1], 5], [eR[1], 5]];
+          case 'Up-R': return [[eL[0], 5], [eR[0], 5]];
+          case 'Mid-L': return [[eL[1], 4], [eR[1], 4]];
+          case 'Mid-R': return [[eL[0], 4], [eR[0], 4]];
+          case 'Low-L': return [[eL[1], 3], [eR[1], 3]];
+          case 'Low-R': return [[eL[0], 3], [eR[0], 3]];
+          case 'Blink': return [[eL[0], 3], [eL[1], 3], [eR[0], 3], [eR[1], 3]]; // closed slot, lids down
+          default: return [[eL[1], 4], [eR[0], 4]];               // Focus: inner squares
         }
       })();
       for (const [c, y] of pup) H.set(c + ',' + y + ',7', DARK);
@@ -361,6 +404,9 @@
       root.name = 'voxel-avatar';
       const body = grp(root, 0, 0, 0);                   // animated bob lives here
       const hips = grp(body, 0, 0, 0);
+      // capture rig-local base positions so the natural-walk gait can apply deltas
+      // (chest bob/sway, head bob/sway/chin) ON TOP of the rest layout, then restore.
+      const BASE = { chestY: 0, chestX: 0, chestZ: 0, headY: 0, headX: 0, headZ: 0, hipPivotY: 0 };
 
       const pelvis = meshPart('pelvis'); hips.add(pelvis);
       const pbb = pelvis.userData.bb;
@@ -370,18 +416,34 @@
       const cbb = chestMesh.userData.bb;
 
       const head = grp(chest, 0, cbb.max.y, 0);
-      head.add(meshPart('head'));
+      const headMesh = meshPart('head'); head.add(headMesh);
+      // Blink/gaze re-mesh the head ONLY (small ~8x8x8 map; everything else stays put).
+      // skin/hair match buildParts so the re-meshed head keeps the same wardrobe colors.
+      const headSkin = SKINS[cfg.skin], headHair = HAIRC[cfg.hairC];
+      const remeshHead = (eyesState) => {
+        cfg.eyes = eyesState;
+        const m = buildHeadMap(cfg, headSkin, headHair);   // [map, cx, cy, cz]
+        const g = voxGeo(m[0], m[1], m[2], m[3], cfg.bevel);
+        const old = headMesh.geometry;
+        const gi = geos.indexOf(old);                       // keep the owned-geometry list correct
+        if (gi >= 0) geos[gi] = g; else geos.push(g);
+        headMesh.geometry = g;
+        try { old.dispose(); } catch (_) {}
+      };
 
       // arms: shoulder pivots at the upper chest, just outside the torso edge
       const shY = cbb.max.y - 1.2;
       const shX = cbb.max.x + 0.2;
+      const ARM = { len: 0 };                            // total arm length, for swing-amp -> angle
       const arm = (side) => {
-        const sh = grp(chest, side * shX, shY, 0);
+        const tag = side < 0 ? 'L' : 'R';
+        const sh = grp(chest, side * shX, shY, 0); sh.name = 'arm' + tag + '_sh';
         const up = meshPart(side < 0 ? 'upperL' : 'upperR'); sh.add(up);
-        const elbow = grp(sh, 0, up.userData.bb.min.y, 0);
+        const elbow = grp(sh, 0, up.userData.bb.min.y, 0); elbow.name = 'arm' + tag + '_elbow';
         const fore = meshPart(side < 0 ? 'foreL' : 'foreR'); elbow.add(fore);
         const wrist = grp(elbow, 0, fore.userData.bb.min.y, 0);
         wrist.add(meshPart(side < 0 ? 'handL' : 'handR'));
+        ARM.len = -up.userData.bb.min.y + -fore.userData.bb.min.y;
         return { sh, elbow };
       };
       const armL = arm(-1), armR = arm(1);
@@ -389,16 +451,30 @@
       // legs: hip pivots under the pelvis
       const hipY = pbb.min.y;
       const hipX = Math.max(0.8, pbb.max.x * 0.5);
+      // segment lengths captured from the built bb's — fed to the planar leg IK so
+      // strideCore's foot targets (ported V->1) solve against THIS rig's true limbs.
+      const LEG = { U: 0, F: 0, ankleY: 0 };
       const leg = (side) => {
-        const hip = grp(hips, side * hipX, hipY, 0);
+        const tag = side < 0 ? 'L' : 'R';
+        const hip = grp(hips, side * hipX, hipY, 0); hip.name = 'leg' + tag + '_hip';
         const th = meshPart(side < 0 ? 'thighL' : 'thighR'); hip.add(th);
-        const knee = grp(hip, 0, th.userData.bb.min.y, 0);
+        const kneeY = th.userData.bb.min.y;             // thigh extends down (negative Y)
+        const knee = grp(hip, 0, kneeY, 0); knee.name = 'leg' + tag + '_knee';
         const shin = meshPart(side < 0 ? 'shinL' : 'shinR'); knee.add(shin);
-        const ankle = grp(knee, 0, shin.userData.bb.min.y, 0);
+        const ankleY = shin.userData.bb.min.y;
+        const ankle = grp(knee, 0, ankleY, 0);
         ankle.add(meshPart(side < 0 ? 'footL' : 'footR'));
+        LEG.U = -kneeY; LEG.F = -ankleY;                // upper/fore segment lengths (positive)
         return { hip, knee };
       };
       const legL = leg(-1), legR = leg(1);
+
+      // record rest-pose pivot bases (chest/head local positions, hip-pivot Y in `hips`)
+      BASE.chestY = chest.position.y; BASE.chestX = chest.position.x; BASE.chestZ = chest.position.z;
+      BASE.headY = head.position.y; BASE.headX = head.position.x; BASE.headZ = head.position.z;
+      BASE.hipPivotY = hipY;
+      // standing ankle height in `hips` frame (legs straight): the leg-IK datum.
+      const GROUND_ANKLE_Y = hipY - LEG.U - LEG.F;
 
       // anchor feet to y=0 and scale the whole rig to AVATAR_HEIGHT
       const fullBB = new THREE.Box3().setFromObject(body);
@@ -412,41 +488,383 @@
         // thin limbs don't fling far in z (which an iso camera projects as "scatter")
         walkLimb: 0.42, walkKnee: 0.55, idleArm: 0.05, attackArm: 1.3,
       };
+      // strideCore cadence/intensity knob. NOT the world move-speed (the drive doesn't
+      // pass one); a tuned constant — bots walk at a constant pace. Higher = faster
+      // cadence + longer stride; ~0.9 reads as a brisk natural human walk.
+      const WALK_SPD = 1.8;
+      // Jump pose (radians). Crouch loads the legs (hips fold, knees deep bend) and
+      // the arms swing back; launch throws the arms up and extends the legs; the
+      // landing re-bends the knees to absorb. Bends arms AND legs, per spec.
+      const JUMP_DUR = 0.46;                   // matches 47-worlds-room JUMP_MS (the vertical arc)
+      // Crouch + Sit poses ported from voxel-poser.html (ratios/intent, NOT raw coords —
+      // the poser is IK-on-world-positions at V=0.0175 scale; this rig is FK at 1u/voxel,
+      // so the poser's literal targets don't transfer. What transfers is the SHAPE):
+      //   CROUCH: poser locoStep (line 3839) standY=26*V, crouchY=18*V -> body height
+      //     blends to 18/26 = 0.692 of stand; knees fold deeper; head "dips into the
+      //     crouch" forward+down (poser lines 4020-4022). Feet stay planted at y=0.
+      //   SIT: poser POSES.Sit (line 1666) chest [0,16.5,-2], head [0,24,1],
+      //     foot [+-2.8,2,7] (forward), knee [+-2.8,18,8] (high+forward) vs Stand
+      //     chest y=26, foot z=0, knee y=9 -> chest 16.5/26 = 0.635 of stand, hips
+      //     folded ~90deg with feet forward, torso upright, slight back-lean (z=-2).
+      //     Realized on THIS rig via legIK forward+raised foot targets (measured to
+      //     fold cleanly, no clamp) + body group lowered to the 0.635 chest ratio.
+      const CROUCH_RATIO = 18 / 26;            // 0.692 — poser crouchY/standY
+      const SIT_RATIO = 16.5 / 26;             // 0.635 — poser Sit chest / Stand chest
+      // restY = the body-group Y that keeps feet at world 0 (set during assembly = bobBase).
+      // Lowering body.position.y lowers the whole figure; to keep feet planted in CROUCH
+      // we instead RAISE the foot IK targets in the hips frame by the same drop so the
+      // knees fold while the soles stay at y=0. SIT lets the feet leave straight-down
+      // (they slide forward), so SIT lowers the body group directly.
+      // Gaze states ported from voxel-poser: idle "saccades" pick a random look
+      // direction between blinks (the source drives these from a look-at target;
+      // worlds-room has no such target, so we wander idly — see report).
+      const GAZE_STATES = ['Focus', 'Mid-L', 'Mid-R', 'Up-C', 'Low-C', 'Up-L', 'Up-R'];
       const inst = {
         group: root, cfg, _mat: mat, _geos: geos,
-        _t: 0, _phase: 0, _state: 'idle', _attackT: 0, _heading: 0, _bobBase: bobBase,
+        _t: 0, _phase: 0, _state: 'idle', _attackT: 0, _swingType: -1, _jumpT: 0, _poseT: 0, _heading: 0, _bobBase: bobBase,
+        // strideCore gait phase + weight-sway tracker (mirrors voxel-poser st.gph/gswx)
+        _gph: 0, _gswx: 0, _walkSpd: 0,
+        // ---- climb cycle ----
+        // The climb is hand-over-hand and is driven by VERTICAL PROGRESS, not dt: the 47
+        // mechanic calls climbAdvance(dPhase) each frame with an amount proportional to
+        // how far up/down the avatar moved, so the limbs cycle while moving and HOLD a
+        // static hang when not (dPhase 0 -> phase frozen). _climbPhase accumulates that.
+        _climbPhase: 0, _climbAdv: 0,
+        // --- blink/gaze (ported timing from voxel-poser gazeStep) ---
+        _baseEyes: cfg.eyes,                   // the look to resume to after a blink
+        _blinking: 0,                          // >0 while lids are down
+        _nextBlink: 2.2 + Math.random() * 3.5, // first blink delay (source: 2.2 + rnd*3.5)
+        _nextGaze: 1.5 + Math.random() * 2.5,  // idle saccade timer
         setHeading(yaw) { if (typeof yaw === 'number') { this._heading = yaw; root.rotation.y = yaw; } },
         setHeadingFromDelta(dx, dz) { if (dx || dz) this.setHeading(Math.atan2(dx, dz)); },
         getState() { return this._state; },
+        // climb phase channel: 47 calls this each frame BEFORE update(dt) with a phase
+        // delta proportional to vertical distance moved. Positive = climbing up, negative
+        // = down; 0 = not moving (limbs hold the hang pose). Consumed once per update.
+        climbAdvance(dPhase) { if (typeof dPhase === 'number') this._climbAdv += dPhase; },
         setState(s) {
           if (s === this._state) return;
-          if (s === 'attack') this._attackT = 0;
-          this._state = (s === 'walk' || s === 'attack') ? s : 'idle';
+          if (s === 'attack') { this._attackT = 0; this._swingType = (this._swingType + 1) % 3; }
+          if (s === 'jump') this._jumpT = 0;
+          // crouch/sit are HOLD poses (not self-timed one-shots): the 47 drive keeps
+          // re-asserting them while the key is held / sit toggle is on, and switches
+          // to walk/idle to release. crouch blends in over _poseT so the squat eases
+          // down instead of snapping.
+          if (s === 'crouch' || s === 'sit') this._poseT = 0;
+          this._state = (s === 'walk' || s === 'attack' || s === 'jump' || s === 'crouch' || s === 'sit' || s === 'climb') ? s : 'idle';
+        },
+        // blink runs on its own clock, independent of walk/idle/jump, and re-meshes
+        // only the head (small map). Eyes also wander between blinks (idle saccade).
+        _faceStep(dt) {
+          if (this._blinking > 0) {
+            this._blinking -= dt;
+            if (this._blinking <= 0) remeshHead(this._baseEyes || 'Focus');  // open, resume gaze
+            return;
+          }
+          this._nextBlink -= dt;
+          if (this._nextBlink <= 0) {
+            this._nextBlink = 2.2 + Math.random() * 3.5;
+            this._blinking = 0.13;                          // source: GAZE.blinking = 0.13
+            this._baseEyes = this.cfg.eyes;
+            remeshHead('Blink');
+            return;
+          }
+          this._nextGaze -= dt;
+          if (this._nextGaze <= 0) {
+            this._nextGaze = 1.5 + Math.random() * 2.5;
+            const want = GAZE_STATES[(Math.random() * GAZE_STATES.length) | 0];
+            if (want !== this.cfg.eyes) { this._baseEyes = want; remeshHead(want); }
+          }
         },
         update(dt) {
           dt = Math.min(dt || 0, 0.05);
           this._t += dt;
+          this._faceStep(dt);
           const st = this._state;
+          if (st !== 'walk') {
+            // restore the chest/head pivot deltas the natural walk applies, so idle/
+            // attack/jump start from the rest layout (no leftover bob/sway/chin lean).
+            chest.position.set(BASE.chestX, BASE.chestY, BASE.chestZ);
+            head.position.set(BASE.headX, BASE.headY, BASE.headZ);
+          }
           if (st === 'walk') {
-            this._phase += dt * 9;
-            const s = Math.sin(this._phase);
-            armL.sh.rotation.x = s * A.walkLimb; armR.sh.rotation.x = -s * A.walkLimb;
-            legL.hip.rotation.x = -s * A.walkLimb; legR.hip.rotation.x = s * A.walkLimb;
-            legL.knee.rotation.x = Math.max(0, s) * A.walkKnee; legR.knee.rotation.x = Math.max(0, -s) * A.walkKnee;
-            armL.elbow.rotation.x = -Math.max(0, -s) * 0.3; armR.elbow.rotation.x = -Math.max(0, s) * 0.3;
-            body.position.y = bobBase + Math.abs(Math.cos(this._phase)) * 0.4;
-          } else if (st === 'attack') {
-            this._attackT += dt;
-            const a = Math.min(this._attackT / 0.35, 1);
-            const swing = Math.sin(a * Math.PI);              // raise then return
-            armR.sh.rotation.x = -A.attackArm * swing; armR.elbow.rotation.x = -1.1 * swing;
-            armL.sh.rotation.x = 0.2 * swing; legL.hip.rotation.x = 0; legR.hip.rotation.x = 0;
-            legL.knee.rotation.x = 0; legR.knee.rotation.x = 0;
+            // ---- voxel-poser strideCore, transcribed (constants ported V->1; the rig
+            // builds at 1 unit/voxel so poser's `*V` factors become bare numbers). The
+            // gait CURVES are literal; the rig bridge is: chest/head -> group position
+            // deltas, legs -> planar 2-bone IK angles, arms -> FK swing angles.
+            // body.position.y stays at the foot anchor — the natural bob lives on the
+            // CHEST so the planted feet don't float (poser bobs the upper mass).
             body.position.y = bobBase;
+            const spd = WALK_SPD;                          // cadence/intensity knob (see note)
+            this._walkSpd = spd;
+            const flutter = 1 + 0.05 * Math.sin(this._gph * 0.31 + 1.7);
+            this._gph += dt * (4.2 + 9 * spd) * flutter;
+            const gph = this._gph;
+            const spdF = Math.min(1, spd / 0.4);
+            // chest bob: weighted (pow 1.3) NOT a plain sine — the natural signature
+            const bob = -Math.pow(Math.abs(Math.sin(gph)), 1.3) * 0.75;
+            chest.position.y = BASE.chestY + bob;
+            // lateral weight-sway over the planted foot (chest; head inherits via parent)
+            const swayA = 0.8 * spdF;
+            const sway = Math.cos(gph) * swayA;
+            chest.position.x = BASE.chestX + sway;
+            this._gswx = sway;
+            // forward spine lean: realized by shifting the foot anchor BACK (poser does
+            // az -= lean); the leg IK then angles the body forward. chest stays put.
+            const lean = 1.7 * Math.min(1.5, spd / 0.4);
+            // ---- legs: strideCore foot targets -> planar IK angles ----
+            const stride = 4.5 * Math.min(1.45, spd / 1.5);
+            const liftH = 3 * Math.min(1.35, Math.max(spd, spd / 1.5));
+            for (const S of ['L', 'R']) {
+              const leg = S === 'L' ? legL : legR;
+              const p = gph + (S === 'L' ? 0 : Math.PI);
+              // foot target in `hips` frame, relative to this leg's hip pivot:
+              const dz = Math.sin(p) * stride - lean;     // forward/back + spine lean
+              const footY = GROUND_ANKLE_Y + Math.max(0, Math.cos(p)) * liftH;
+              const dy = footY - BASE.hipPivotY;          // negative: foot below hip
+              const a = legIK(dy, dz, LEG.U, LEG.F);
+              leg.hip.rotation.x = a.hip; leg.knee.rotation.x = a.knee;
+            }
+            // ---- arms: counter-swing (opposite the legs), L/R asymmetric amp.
+            // poser amp is a positional hand target; FK bridge: angle ~= amp/armLen.
+            for (const S of ['L', 'R']) {
+              const armg = S === 'L' ? armL : armR;
+              const p = gph + (S === 'L' ? Math.PI : 0);   // opposite phase to same-side leg
+              const amp = (S === 'L' ? 3.3 : 2.8) * Math.min(1.6, spd / 1.5);
+              // -sin: same X-hinge convention as the legs (+rotation.x swings toward -Z),
+              // so a forward arm target maps to a negative angle. Without the minus the
+              // arm swings WITH the same-side leg instead of counter-swinging.
+              const ang = -(Math.sin(p) * amp) / ARM.len;
+              armg.sh.rotation.x = ang;
+              armg.elbow.rotation.x = -Math.max(0, ang) * 0.4;
+            }
+            // ---- head: chest bob+sway already reach it via parenting; ADD ONLY the
+            // head-specific extra terms — vertical bob at 2x step freq, a small lateral
+            // sway offset, and the chin pushed forward (+z). (Avoids double-counting.)
+            head.position.y = BASE.headY + Math.sin(2 * gph + 0.6) * 0.45;
+            head.position.x = BASE.headX + Math.cos(gph - 0.5) * 0.35;
+            head.position.z = BASE.headZ + 0.8;            // chin ahead (forward = +z, yaw=0)
+          } else if (st === 'attack') {
+            // ---- SWORD SLASH: cycle 3 weighted swings on successive presses (the rig's
+            // _swingType advances in setState). Each is a 3-phase WINDUP -> SWING (fast) ->
+            // RECOVER, eased so the strike accelerates through impact (NOT a symmetric
+            // sine). Axes chosen from MEASURED wrist-world deltas (see report):
+            //   shoulder.z = lateral ABDUCTION (arm out to the side, +z = arm's-right)
+            //   shoulder.x = forward/back raise (+x = up-and-BACK; -x = down-and-forward)
+            //   chest.y    = torso TWIST (carries both arms across the body) -> horiz slash
+            //   chest.x    = torso BEND forward (+x) -> overhead chop
+            //   elbow.x    = -x extends the forearm through the strike
+            // Recover returns EVERY extra axis to exactly 0; idle/setState also hard-zero
+            // them, so no twist/abduction leaks into walk/idle after the swing.
+            this._attackT += dt;
+            const DUR = 0.45;
+            const a = Math.min(this._attackT / DUR, 1);
+            // phase weights: windup 0..0.30 (ease-in), swing 0.30..0.58 (fast), recover 0.58..1
+            const ease = (t) => t * t * (3 - 2 * t);             // smoothstep
+            // s = drive parameter 0(rest)->1(windup peak)->-1ish(strike)->0(rest), built
+            // piecewise so velocity peaks during the SWING window, not the midpoint.
+            let wph, sph;                                        // windup-amount, strike-amount (0..1)
+            if (a < 0.30) { wph = ease(a / 0.30); sph = 0; }
+            else if (a < 0.58) { wph = 1 - ease((a - 0.30) / 0.28); sph = ease((a - 0.30) / 0.28); }
+            else { wph = 0; sph = 1 - ease((a - 0.58) / 0.42); }
+            const ty = this._swingType;
+            if (ty === 2) {
+              // ---- OVERHEAD CHOP: arm up-and-back overhead -> down-and-forward; chest
+              // bends forward into the chop; knees dip on impact. ----
+              const shx = 2.55 * wph + (-0.55) * sph;            // +up/back overhead (windup, wrist above shoulder) -> -down/fwd (strike)
+              armR.sh.rotation.x = shx; armR.sh.rotation.z = 0; armR.sh.rotation.y = 0;
+              armR.elbow.rotation.x = (-0.25 * wph) + (-0.75 * sph); // tucked, then extends down
+              armL.sh.rotation.x = -0.25 * wph + 0.15 * sph;     // off arm braces back a touch
+              armL.sh.rotation.z = 0; armL.elbow.rotation.x = -0.2 * (wph + sph);
+              chest.rotation.x = 0.05 * wph + 0.6 * sph;         // upright windup -> bend forward on chop
+              chest.rotation.y = 0; chest.rotation.z = 0;
+              const cHip = -0.18 * sph, dip = 0.9 * sph;        // knees dip as the chop lands
+              legL.hip.rotation.x = cHip; legR.hip.rotation.x = cHip;
+              legL.knee.rotation.x = dip; legR.knee.rotation.x = dip;
+              // PLANT the feet during the dip: bending the knees while body.y is held
+              // would LIFT the soles (measured: ankle Y +0.02). Pin the body to the bent
+              // leg's ankle so the dip LOWERS the mass instead — same closed-form plant
+              // the crouch branch uses (body falls as knees fold; soles stay at y=0).
+              const aRelY = -LEG.U * Math.cos(cHip) - LEG.F * Math.cos(cHip + dip);
+              body.position.y = bobBase - (LEG.U + LEG.F) - aRelY;
+            } else {
+              // ---- HORIZONTAL SLASH: across-the-body. dir = +1 (R->L) for slashRL,
+              // -1 (L->R) for slashLR (mirrored twist). The lead (right) arm raises
+              // up-and-out to the lead shoulder in windup, then the chest WHIPS across
+              // (twist about y) sweeping the arm diagonally down to the far hip. ----
+              const dir = (ty === 0) ? 1 : -1;                   // RL: forehand; LR: backhand (mirror)
+              // The TORSO twist leads in both (wound to the lead side, whipped to the far
+              // side). The ARM is also made dir-aware so the two read as true mirrors, not
+              // the same swing with a flipped torso:
+              //   FOREHAND (dir +1): arm raises high+OUT to the right (big abduction), then
+              //     sweeps down-and-across; the chest whip carries it left.
+              //   BACKHAND (dir -1): arm winds up CROSSED in front of the body (less
+              //     abduction, raised forward), then the chest whip flings it out to the
+              //     right. shz is smaller and shx more forward so it visibly crosses.
+              const abdW = dir > 0 ? 1.35 : 0.55;                // backhand crosses (low abduction) vs forehand out-high
+              const abdS = dir > 0 ? 0.5 : 1.15;                 // ...and ends opposite (forehand in, backhand out)
+              armR.sh.rotation.z = (abdW * wph) + (abdS * sph);
+              armR.sh.rotation.x = ((dir > 0 ? 0.65 : 0.15) * wph) + (-0.7 * sph); // forehand raised, backhand fwd-cross
+              armR.sh.rotation.y = 0;
+              armR.elbow.rotation.x = (-0.15 * wph) + (-0.25 * sph); // extends through the strike
+              chest.rotation.y = dir * (0.5 * wph + (-0.75) * sph); // wound to lead side -> whipped across
+              chest.rotation.x = 0; chest.rotation.z = 0;
+              // off (left) arm counter-rotates slightly for balance.
+              armL.sh.rotation.z = -(0.4 * wph + 0.2 * sph);
+              armL.sh.rotation.x = -0.2 * wph + 0.1 * sph;
+              armL.elbow.rotation.x = -0.15 * (wph + sph);
+              legL.hip.rotation.x = 0; legR.hip.rotation.x = 0;
+              legL.knee.rotation.x = 0; legR.knee.rotation.x = 0;
+              body.position.y = bobBase;                         // horizontal: feet stay straight-down
+            }
+            // (overhead sets body.position.y itself to plant the dip — don't clobber it)
+            if (a >= 1) {
+              // hard-zero every axis the swing drove so nothing leaks into idle/walk.
+              armR.sh.rotation.set(0, 0, 0); armL.sh.rotation.set(0, 0, 0);
+              armR.elbow.rotation.x = 0; armL.elbow.rotation.x = 0;
+              chest.rotation.set(0, 0, 0);
+              legL.hip.rotation.x = 0; legR.hip.rotation.x = 0;
+              legL.knee.rotation.x = 0; legR.knee.rotation.x = 0;
+              body.position.y = bobBase;                         // restore body height (overhead lowered it)
+              this.setState('idle');
+            }
+          } else if (st === 'jump') {
+            // crouch (0..0.25) -> launch/air (0.25..0.8) -> land absorb (0.8..1)
+            this._jumpT += dt;
+            const a = Math.min(this._jumpT / JUMP_DUR, 1);
+            let legBend, armSwing, kneeBend, bob;
+            if (a < 0.25) {                                   // anticipation crouch
+              const u = a / 0.25;
+              legBend = -0.9 * u; kneeBend = 1.1 * u;         // fold hips back, deep knees
+              armSwing = 0.9 * u;                             // arms swing back (behind)
+              bob = -0.18 * u;                                // weight sinks
+            } else if (a < 0.8) {                             // launch + tuck in the air
+              const u = (a - 0.25) / 0.55;
+              legBend = -0.9 + 0.6 * u;                       // legs extend then tuck
+              kneeBend = 1.1 - 0.5 * u;
+              armSwing = 0.9 - 1.9 * u;                       // arms throw UP overhead (negative = forward/up)
+              bob = 0;
+            } else {                                          // landing absorb
+              const u = (a - 0.8) / 0.2;
+              legBend = -0.3 - 0.5 * u;                       // re-fold to cushion
+              kneeBend = 0.6 + 0.5 * u;
+              armSwing = -1.0 + 1.0 * u;                      // arms settle
+              bob = -0.12 * u;
+            }
+            legL.hip.rotation.x = legBend; legR.hip.rotation.x = legBend;
+            legL.knee.rotation.x = kneeBend; legR.knee.rotation.x = kneeBend;
+            armL.sh.rotation.x = armSwing; armR.sh.rotation.x = armSwing;
+            armL.elbow.rotation.x = -Math.max(0, kneeBend) * 0.4; armR.elbow.rotation.x = -Math.max(0, kneeBend) * 0.4;
+            body.position.y = bobBase + bob;
             if (a >= 1) this.setState('idle');
+          } else if (st === 'crouch') {
+            // ---- crouch: squat with feet PLANTED (poser locoStep, crouchY/standY) ----
+            // The whole figure sinks: lower the body group by D (rig units), and RAISE
+            // the foot IK targets toward the (now-lower) hip pivot by the SAME D so the
+            // soles stay at world y=0 while the knees fold. D is derived per-instance
+            // from this rig's own measured rest height (bobBase + chest-above-hips), not
+            // a baked constant — pelvis height differs Masc/Fem so the drop must scale.
+            // Verified by measurement: feet world-Y/X/Z unchanged idle->crouch; chest
+            // world-Y -> 0.692 of idle. chest/head were reset to BASE above.
+            // Bend the legs with DIRECT angles (NOT legIK: at deep folds legIK is non-
+            // metric — its +knee compounds with +hip and tucks the ankle up-and-back, so
+            // it can't keep feet planted; that defect never shows in walk because walk
+            // stays near full extension. legIK is shared with the verified walk — left
+            // untouched.) Feet are then planted EXACTLY by pinning body.y to wherever the
+            // bent leg's ankle lands (closed-form), so planting can't drift with the bend.
+            // CROUCH_HIP slightly negative -> knees forward (a squat, knees over feet);
+            // CROUCH_KNEE tuned by measurement so chest world-Y -> 0.692 of idle.
+            this._poseT = Math.min(1, this._poseT + dt * 6);
+            const u = this._poseT;
+            const CH = -0.5 * u, CK = 1.85 * u;                // hip/knee fold (rig X-hinge); CK tuned so chest->0.692
+            legL.hip.rotation.x = CH; legR.hip.rotation.x = CH;
+            legL.knee.rotation.x = CK; legR.knee.rotation.x = CK;
+            // ankle Y below the hip for this fold (thigh down at rest; +rot folds it):
+            const aRelY = -LEG.U * Math.cos(CH) - LEG.F * Math.cos(CH + CK);
+            // pin body so the ankle sits back at the idle ground line (feet planted):
+            body.position.y = bobBase - (LEG.U + LEG.F) - aRelY;
+            // head dips forward+down into the crouch (poser: head.lerp toward +z, lower y)
+            head.position.y = BASE.headY - 1.1 * u;
+            head.position.z = BASE.headZ + 0.9 * u;            // chin forward (+z = forward at yaw 0)
+            // arms: small forward rest, settle (no swing)
+            armL.sh.rotation.x = 0.25 * u; armR.sh.rotation.x = 0.25 * u;
+            armL.elbow.rotation.x = -0.35 * u; armR.elbow.rotation.x = -0.35 * u;
+          } else if (st === 'sit') {
+            // ---- sit: hips folded ~90deg, feet forward, torso upright (poser POSES.Sit) ----
+            // legIK is locked to one branch and +hip swings the thigh BACKWARD (the walk
+            // convention) — a forward-foot IK target folds the knee BEHIND/below the hip
+            // (a kneel, not a sit). So the SEATED leg fold uses DIRECT sign-checked angles
+            // (measured): hip = -PI/2 swings the thigh forward to horizontal (knee fwd,
+            // level with the hip); knee = 1.6 drops the shin so the foot lands forward on
+            // the ground. Verified: knee world-pos forward (+z) of the hip, ankle forward
+            // + below. This realizes poser POSES.Sit's shape (chest~0.635, feet fwd, knees
+            // up-forward, torso upright) on THIS FK rig.
+            this._poseT = Math.min(1, this._poseT + dt * 5);
+            const u = this._poseT;
+            // lower the whole figure to the seated chest ratio (0.635). Feet leave the
+            // straight-down line and slide forward (sit lets them), so lower the body
+            // group directly rather than holding feet planted.
+            const seatDrop = bobBase * (1 - SIT_RATIO) * u;
+            body.position.y = bobBase - seatDrop;
+            // torso upright but leaning slightly back (poser Sit chest z=-2): negative z.
+            chest.position.z = BASE.chestZ - 0.6 * u;
+            head.position.z = BASE.headZ + 0.4 * u;            // head looks slightly up/forward
+            const SIT_HIP = -1.571, SIT_KNEE = 1.6;            // -90deg fold + shin drop (measured)
+            legL.hip.rotation.x = SIT_HIP * u; legR.hip.rotation.x = SIT_HIP * u;
+            legL.knee.rotation.x = SIT_KNEE * u; legR.knee.rotation.x = SIT_KNEE * u;
+            // arms: FK approximation (this rig has NO arm IK) — hands rest toward the
+            // lap: shoulders forward a touch, elbows bent. NOT the poser's IK hand
+            // targets, which can't be reproduced without arm IK. See report.
+            armL.sh.rotation.x = 0.5 * u; armR.sh.rotation.x = 0.5 * u;
+            armL.elbow.rotation.x = -0.6 * u; armR.elbow.rotation.x = -0.6 * u;
+          } else if (st === 'climb') {
+            // ---- climb: vertical hand-over-hand up a ladder ----
+            // Phase is driven by VERTICAL PROGRESS (climbAdvance from 47), NOT dt, so the
+            // cycle loops while moving and FREEZES into a static hang when stopped. The
+            // two diagonal pairs are 180deg out of phase: left arm + right leg reach/step
+            // together, anti-phase to right arm + left leg (true ladder gait).
+            // Axes confirmed from this rig's measured conventions:
+            //   +shoulder.x raises the arm UP-and-back overhead (attack-overhead windup uses
+            //     shx=2.55 = "wrist above shoulder"); a small value below rest is the pull.
+            //   leg STEP-UP = -hip (thigh swings forward/up, as sit's -1.571 fold proves) +
+            //     +knee (bends the shin, walk/crouch convention). Anti-phase leg hangs near
+            //     straight (small bend) so one foot is always planted lower on a rung.
+            this._climbPhase += this._climbAdv;                // advance by the vertical-progress delta
+            this._climbAdv = 0;                                // consume it (hold pose if 47 sent 0)
+            const ph = this._climbPhase;
+            body.position.y = bobBase;                         // y is owned by 47 (group.position.y)
+            // slight forward lean toward the ladder so it reads as gripping, not floating.
+            chest.rotation.x = 0.12;
+            // arms: shoulder.x oscillates between a high reach (overhead) and a low pull.
+            // REACH amplitude is large (arm overhead), PULL brings it down past rest.
+            const REACH = 2.0, PULL = 0.15;                    // shoulder.x at top / bottom of a stroke
+            const mid = (REACH + PULL) / 2, amp = (REACH - PULL) / 2;
+            // left arm leads (sin), right arm trails (sin shifted PI) -> alternating reach.
+            const aL = mid + Math.sin(ph) * amp;
+            const aR = mid + Math.sin(ph + Math.PI) * amp;
+            armL.sh.rotation.x = aL; armR.sh.rotation.x = aR;
+            armL.sh.rotation.z = 0; armR.sh.rotation.z = 0;
+            armL.sh.rotation.y = 0; armR.sh.rotation.y = 0;
+            // forearms bend more when the arm is high (pulling the body up), less when low.
+            armL.elbow.rotation.x = -0.5 - 0.5 * Math.max(0, Math.sin(ph));
+            armR.elbow.rotation.x = -0.5 - 0.5 * Math.max(0, Math.sin(ph + Math.PI));
+            // legs: each leg steps UP (thigh forward/up + knee bend) on its own half-cycle,
+            // anti-phase to its same-side arm so the diagonal pairs (L-arm/R-leg) move
+            // together. legR steps with armL; legL steps with armR.
+            const STEP = 0.95;                                 // peak knee/hip fold on a step-up
+            const stepR = Math.max(0, Math.sin(ph));           // right leg steps with left arm
+            const stepL = Math.max(0, Math.sin(ph + Math.PI)); // left leg steps with right arm
+            legR.hip.rotation.x = -STEP * 0.8 * stepR; legR.knee.rotation.x = 0.4 + STEP * stepR;
+            legL.hip.rotation.x = -STEP * 0.8 * stepL; legL.knee.rotation.x = 0.4 + STEP * stepL;
           } else {                                             // idle: gentle breathing sway
             const b = Math.sin(this._t * 1.6);
             armL.sh.rotation.x = b * A.idleArm; armR.sh.rotation.x = -b * A.idleArm;
+            // hard-clear the slash-only axes so no torso twist / arm abduction can leak
+            // into idle (the swing eases these to 0 and zeroes them on finish, but idle
+            // is the resume state — keep it the single source of truth for "rest").
+            armL.sh.rotation.y = 0; armL.sh.rotation.z = 0;
+            armR.sh.rotation.y = 0; armR.sh.rotation.z = 0;
+            chest.rotation.set(0, 0, 0);
             legL.hip.rotation.x = 0; legR.hip.rotation.x = 0;
             legL.knee.rotation.x = 0; legR.knee.rotation.x = 0;
             armL.elbow.rotation.x = 0; armR.elbow.rotation.x = 0;

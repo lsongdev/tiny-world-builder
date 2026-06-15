@@ -171,6 +171,10 @@
     let activeBots = [];
 
     on('enter', (d) => {
+      // Canned-line bots are RETIRED: the LLM-driven AI bot-runner (tools/ai-bots.mjs)
+      // is the real path now. These no longer auto-spawn (they were masquerading as the
+      // AI bots and ignoring @mentions). Set window.__tinyworldCannedBots = true to revive.
+      if (window.__tinyworldCannedBots !== true) return;
       const world = d && d.world;
       if (!world) return;
       activeBots.forEach(b => b.disconnect());

@@ -68,6 +68,8 @@ const RATE_LIMITS = {
   'harvest.start': { refill: 3, burst: 6 },
   'harvest.cancel': { refill: 3, burst: 6 },
   'world.join': { refill: 2, burst: 4 },
+  // Lobby presentation: a presenter advancing slides is human-paced, like chat.
+  present: { refill: 4, burst: 10 },
 };
 
 function takeToken(buckets, type, now) {
@@ -427,7 +429,7 @@ function deriveWorldState(data, rng = Math.random) {
       const c = byXZ.get(x + ',' + z);
       const terrain = c ? cellTerrain(c) : 'grass';
       const kind = c ? cellKind(c) : null;
-      if (terrain === 'water' || terrain === 'lava' || terrain === 'stone') continue;
+      if (terrain === 'lava' || terrain === 'stone') continue;   // water is now walkable (players cross it)
       if (kind && blockedKinds.has(kind)) continue;
       grassCells.push(x + ',' + z);
     }
@@ -973,6 +975,9 @@ export default class TinyWorldParty {
       nodes,
       animals: this.animals,
       peers: Array.from(this.presence.values()).filter(pr => pr.id !== id),
+      // Standable cells, so any joiner (incl. the AI bot-runner) knows where it can
+      // walk without trial-and-error against the move validator. Bounded by grid size.
+      grassCells: this.worldState ? this.worldState.grassCells : [],
     };
   }
 
@@ -1061,6 +1066,18 @@ export default class TinyWorldParty {
       if (!this.admitted.has(id)) return;
       const p = this.getPlayer(id);
       this.broadcastToAdmitted({ type: 'chat.typing', id, name: p.name, typing: data.typing === true }, id);
+      return;
+    }
+    if (type === 'present') {
+      // Lobby presentation control: an admitted peer advances the shared slide and
+      // the server relays the index to EVERYONE (incl. sender) so all clients show
+      // the same slide, server-ordered like chat. Just a clamped integer — no
+      // economy state — so a guest presenting only changes what's on the screen.
+      if (!this.admitted.has(id)) return;
+      const slide = Math.round(Number(data.slide));
+      if (!Number.isFinite(slide) || slide < 0 || slide > 999) return;
+      const p = this.getPlayer(id);
+      this.broadcastToAdmitted({ type: 'present', slide, id, name: p.name });
       return;
     }
   }
