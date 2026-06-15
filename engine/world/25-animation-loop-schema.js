@@ -158,6 +158,11 @@
     repaintProfileEnd('tick.runtime', tickStart);
 
     if (window.tickFlight) window.tickFlight(dt);
+    // CCTV/Truman feeds capture to their render targets BEFORE the main render so
+    // the freshly-captured surveillance picture appears in the same frame.
+    if (window.__tinyworldCCTV && typeof window.__tinyworldCCTV.tick === 'function') {
+      try { window.__tinyworldCCTV.tick(t, dt); } catch (_) {}
+    }
     renderScene();
   }
 
