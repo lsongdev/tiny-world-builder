@@ -553,6 +553,9 @@
     let _srCamDist = 5.0;          // live chase-cam distance (wheel-adjustable)
     let _srFirstPerson = false;    // true once zoomed all the way in
     let _srEyeH = 1.6;             // eye height above feet (measured at activate)
+    let _srPrevFov = 28;           // persCam fov to restore when leaving first-person
+    let _srFovSaved = false;
+    const SR_FP_FOV = 75;          // natural first-person field of view (game default is a 28° telephoto)
     // jump arc (visible hop while grounded)
     let _srJumping = false;
     let _srJumpT = 0;
@@ -625,7 +628,7 @@
       try {
         const box = new THREE.Box3().setFromObject(selfEnt.sprite);
         const h = box.max.y - box.min.y;
-        if (isFinite(h) && h > 0) _srEyeH = h * 0.92;
+        if (isFinite(h) && h > 0.3) _srEyeH = Math.max(1.0, Math.min(2.6, h * 0.9));
       } catch (_) {}
       if (selfEnt.voxel) {
         selfEnt.voxel.setBodyPitch(0);
@@ -650,6 +653,8 @@
         }
       }
       _srFirstPerson = false;
+      try { if (_srFovSaved && typeof persCam !== 'undefined' && persCam) { persCam.fov = _srPrevFov; persCam.updateProjectionMatrix(); } } catch (_) {}
+      _srFovSaved = false;
       _srGatePos = null; _srGateArmed = false; _srAscending = false;
       document.body.classList.remove('surface-roam-fp');
       // restore grid position
@@ -776,6 +781,15 @@
       _srFirstPerson = on;
       if (selfEnt && selfEnt.voxel && selfEnt.voxel.setFirstPerson) selfEnt.voxel.setFirstPerson(on);
       if (typeof document !== 'undefined') document.body.classList.toggle('surface-roam-fp', on);
+      // Widen the FOV: the game's persCam is a 28° telephoto (looks orthographic). At that FOV a
+      // first-person view is a claustrophobic zoom; ~75° reads as natural through-the-eyes.
+      try {
+        if (typeof persCam !== 'undefined' && persCam) {
+          if (on) { if (!_srFovSaved) { _srPrevFov = persCam.fov; _srFovSaved = true; } persCam.fov = SR_FP_FOV; }
+          else if (_srFovSaved) { persCam.fov = _srPrevFov; _srFovSaved = false; }
+          persCam.updateProjectionMatrix();
+        }
+      } catch (_) {}
       if (!on) _srPitch = Math.max(SR_PITCH_MIN, Math.min(SR_PITCH_MAX, _srPitch));
       _srUpdateHudText();
     }
@@ -799,7 +813,7 @@
       const view = _srFirstPerson ? '1ST-PERSON' : (_srFlying ? 'FLYING' : 'SURFACE');
       _srHudEl.textContent = view + '  ·  WASD Move  ·  Drag Look  ·  Scroll Zoom  ·  '
         + (_srFlying ? 'Space Up / C Down' : 'Space Jump (2× = Fly)')
-        + '  ·  F Swing  ·  Gate or J to Ascend';
+        + '  ·  F Swing  ·  V 1st-Person  ·  Gate or J to Ascend';
     }
 
     function _srHideHud() { if (_srHudEl) _srHudEl.style.display = 'none'; }
@@ -831,6 +845,12 @@
       else if (k === 'c')                        _srKeys.sink  = true;
       else if (k === 'shift')                    _srKeys.sprint = true;
       else if (k === 'f') { if (!e.repeat) _srTryAttack(); }  // swing / fight
+      else if (k === 'v') {                                   // toggle first-person view
+        if (!e.repeat) {
+          if (_srFirstPerson) { _srCamDist = 5.0; _srSetFirstPerson(false); }
+          else { _srCamDist = SR_CAM_MIN; _srSetFirstPerson(true); }
+        }
+      }
       else handled = false;
       if (handled) e.stopPropagation();
     }

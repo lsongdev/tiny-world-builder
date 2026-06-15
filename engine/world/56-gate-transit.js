@@ -63,8 +63,8 @@
       c.save(); c.translate(98, 39); c.rotate(0.6); c.fillRect(0, 0, 7, 15); c.restore();
       c.save(); c.translate(158, 39); c.rotate(-0.6); c.fillRect(0, 0, 7, 15); c.restore();
       c.fillStyle = '#dfe9ff'; c.textAlign = 'center';
-      c.font = '700 27px "Space Grotesk", system-ui, sans-serif';
-      c.fillText('CYBERGATE', 128, 134);
+      c.font = '700 23px "Space Grotesk", system-ui, sans-serif';
+      c.fillText('GROUND LEVEL', 128, 134);
       const tex = new THREE.CanvasTexture(cv);
       if ('colorSpace' in tex && THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
       const W = 0.7, H = W * 160 / 256, bottom = 0.55, cy = bottom + H / 2;
@@ -88,7 +88,7 @@
       const gy = groundYAt(ex, ez);
       gate = SG.build('nested');
       gate.group.position.set(p.x, gy, p.z);
-      gate.group.rotation.y = 0;                                           // opening faces +z (toward board)
+      gate.group.rotation.y = Math.PI;                                     // opening faces -z (flipped per request)
       gate.group.userData.gateTransit = true;
       gate.group.userData.gateRole = 'sky-edge';
       gate.group.name = 'stargate-sky-edge';
@@ -100,7 +100,7 @@
         const bb = new THREE.Box3().setFromObject(gate.group);
         const halfW = isFinite(bb.max.x) ? (bb.max.x - bb.min.x) / 2 : 1.2;
         sign.position.set(p.x + halfW + 0.35, gy, p.z);
-        sign.rotation.y = 0;
+        sign.rotation.y = Math.PI;
         par.add(sign);
       } catch (_) {}
       startTick();
@@ -161,6 +161,12 @@
       const lx = 0, lz = 0;
       const ly = localGroundY(grp, lx, lz);
       landGate = SG.build('nested');
+      // The surface group is scaled (SCALE, SCALE*Y_BOOST, SCALE); a child gate inherits that
+      // and renders huge + vertically stretched. Counter the parent scale so the gate is a
+      // normal walk-through size (~1 world unit, matching the sky-edge gate) and circular.
+      const gs = grp.scale;
+      const NET = 1.0;
+      landGate.group.scale.set(NET / (gs.x || 1), NET / (gs.y || 1), NET / (gs.z || 1));
       landGate.group.position.set(lx, ly, lz);
       landGate.group.userData.gateTransit = true;
       landGate.group.userData.gateRole = 'mainland';

@@ -6,11 +6,14 @@ Surface-roam free movement on the Skybound procedural poser planet surface.
 
 When the player descends via J (module `54-fly-down.js`) and the fly-down animation finishes, module `47-worlds-room.js` automatically activates **surface roam mode**:
 
-- **Camera-relative WASD** walk + **drag-look** mouse look (capture-phase so it beats grid handlers).
-- **Space** = rise (fly up), **C** = sink (fly down); both enter fly mode that disables ground gravity.
+- **Camera-relative WASD** walk + **drag-look** mouse look (capture-phase so it beats grid handlers). Screen-right = `cross(forward, up)` = `(-cosYaw, sinYaw)` — pressing D moves screen-right.
+- **Scroll wheel** zooms the chase cam (`_srCamDist`, range `SR_CAM_MIN`..`SR_CAM_MAX`). Zoom in past `SR_FP_THRESH` → **first-person**: camera at the eye (`_srEyeH`), `setFirstPerson(true)` hides the avatar head, arms/torso stay (Minecraft-style); pitch range widens (`SR_FP_PITCH_*`) so you can look up.
+- **Space** = tap to **jump** (parabolic arc, rig `jump`); **double-tap** Space (`SR_DBL_MS`) toggles **fly mode**. In fly mode: Space = rise, **C** = sink.
+- **F** = **attack/swing** (rig `attack`, cycles 3 swings). `_srStep` never stomps an in-flight `attack`/`jump` (the rig auto-reverts to idle).
 - **Shift** doubles walk speed (sprint).
-- **J** while down → `ascend()` → surface roam deactivates automatically once the ascend transition ends.
-- A compact HUD (`#tw-surface-roam-hud`) shows the mode and key hints.
+- **Stargate round-trip**: walk onto the **sky-edge gate** cell (`__tinyworldGateTransit.skyGateCell()`) → `FlyDown.descend()`; on the surface, walk into the **mainland gate** (placed at surface-local 0,0; you spawn `SR_GATE_SPAWN` in front of it) → `FlyDown.ascend()`. `SR_GATE_R` is the trigger radius; `_srGateArmed` blocks re-trigger until you've stepped clear. **J** still toggles descend/ascend as a shortcut.
+- The floating-island edge is **solid** (the old walk-off-edge skyfall + its rings are retired — `startSkyfall()` returns false).
+- A compact HUD (`#tw-surface-roam-hud`) shows the mode (SURFACE/FLYING/1ST-PERSON) and key hints.
 
 ## Polling pattern
 

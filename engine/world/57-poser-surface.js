@@ -597,7 +597,7 @@
     // up and dropped to where fly-down points the descent gaze. Y is boosted only
     // slightly so the islands stay low + gentle like the poser (not tall cliffs).
     // Tune SCALE/Y_BOOST/DROP if the framing needs it.
-    const SCALE = 1.6, Y_BOOST = 3, DROP = 60;
+    const SCALE = 1.6, Y_BOOST = 1, DROP = 60;   // Y_BOOST 1 = cubic voxels (was 3: terrain looked stretched when walking on it)
     const FAR_FOR_BACKDROP = 700;   // camera far plane while the surface (+ mountain ring) is shown
     // Distance fog so the sea + land dissolve into the haze BEFORE their hard edges
     // are visible, blending the world into the (unfogged) mountain backdrop. World
