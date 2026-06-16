@@ -31,3 +31,9 @@ test('community page consumes backend capability flags for moderator UI', () => 
   assert.match(communityHtml, /grantRole/);
   assert.match(communityHtml, /revokeRole/);
 });
+
+test('community member directory only renders online members', () => {
+  assert.match(communityHtml, /const onlineMembers = state\.members\.filter\(m => m && m\.online\)/);
+  assert.match(communityHtml, /onlineMembers\.map\(m =>/);
+  assert.match(communityHtml, /No members online\./);
+});

@@ -820,9 +820,10 @@
 
     function renderMembers() {
       const el = byId('members-body');
-      byId('member-count').textContent = state.members.length ? String(state.members.length) : '';
-      if (!state.members.length) { el.innerHTML = '<div style="padding:12px;color:var(--muted);font-size:13px">No members yet.</div>'; return; }
-      el.innerHTML = '<ul class="c-list">' + state.members.map(m =>
+      const onlineMembers = state.members.filter(m => m && m.online);
+      byId('member-count').textContent = onlineMembers.length ? String(onlineMembers.length) : '';
+      if (!onlineMembers.length) { el.innerHTML = '<div style="padding:12px;color:var(--muted);font-size:13px">No members online.</div>'; return; }
+      el.innerHTML = '<ul class="c-list">' + onlineMembers.map(m =>
         '<li><button class="member-row" data-member="' + m.id + '">' +
           '<span class="avatar-wrap">' + avatarHTML(m) + '<span class="presence-dot ' + (m.online ? 'online' : '') + '"></span></span>' +
           '<span class="mname"><b>' + esc(m.displayName || m.username) + '</b><small>' + (m.online ? 'Online' : 'Offline') + '</small></span>' +
