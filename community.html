@@ -36,11 +36,13 @@
   .community-main {
     width: min(1680px, calc(100vw - 32px));
     max-width: none;
-    min-height: 100vh;
+    height: 100vh;
+    height: 100dvh;        /* dvh handles mobile browser chrome; vh is the fallback above */
     margin: 0 auto;
     padding: 116px 16px 24px;
     display: flex;
     flex-direction: column;
+    overflow: hidden;      /* outer page never scrolls on desktop; chat scrolls internally */
   }
   .community-headline {
     display: flex;
@@ -124,7 +126,7 @@
     gap: 18px;
     align-items: stretch;
     flex: 1 1 auto;
-    min-height: calc(100vh - 258px);
+    min-height: 0;
   }
   .c-panel {
     background: rgba(255,255,255,0.72);
@@ -334,7 +336,7 @@
     .members-panel { display: none; }
   }
   @media (max-width: 720px) {
-    .community-main { width: min(100vw, calc(100vw - 16px)); padding: 104px 8px 18px; }
+    .community-main { width: min(100vw, calc(100vw - 16px)); padding: 104px 8px 18px; height: auto; min-height: 100dvh; overflow: visible; }
     .community-shell { grid-template-columns: 1fr; min-height: auto; }
     .rooms-panel { order: 1; max-height: 220px; }
     .chat-panel { order: 2; min-height: min(560px, calc(100vh - 260px)); }
