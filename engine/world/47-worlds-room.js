@@ -12,7 +12,43 @@
     const WS = (window.__tinyworldWorlds = window.__tinyworldWorlds || {});
     function T(k, p) { return typeof window.t === 'function' ? window.t(k, p) : k; }
     function toast(m) { if (typeof twToast === 'function') twToast(m); else console.log('[worlds]', m); }
-  
+
+    // ---- chat emotes -------------------------------------------------------
+    // Single source of truth: command token -> rig state + duration + hold flag.
+    // `ms` for jump/attack matches the rig's own clock (JUMP_DUR 0.46s, attack
+    // DUR 0.45s) so the emote field clears about when the one-shot rig pose ends.
+    // `hold:true` poses (sit/crouch/dance) are re-asserted each frame by the
+    // emote layer until the timer expires; `hold:false` one-shots are set once
+    // and left to the rig's own clock. Server allowlist (EMOTE_CMDS in
+    // party/index.js) must list the same six tokens.
+    const EMOTES = {
+      wave:   { state: 'wave',   ms: 1600, hold: false },
+      dance:  { state: 'dance',  ms: 3000, hold: true  },
+      jump:   { state: 'jump',   ms: 460,  hold: false },
+      sit:    { state: 'sit',    ms: 4000, hold: true  },
+      crouch: { state: 'crouch', ms: 2500, hold: true  },
+      attack: { state: 'attack', ms: 460,  hold: false },
+    };
+    // Classify a chat input: an emote command, an unknown slash command, or a
+    // plain chat line. Pure (no side effects) so it is unit-testable.
+    function resolveChatInput(text) {
+      const t = String(text == null ? '' : text).trim();
+      if (t[0] === '/') {
+        const cmd = t.slice(1).split(/\s+/)[0].toLowerCase();
+        return EMOTES[cmd] ? { kind: 'emote', cmd } : { kind: 'unknown', cmd };
+      }
+      return { kind: 'chat', text: t };
+    }
+    // Set the per-entity emote field that animVoxel consumes (self or peer).
+    // _emoteFresh marks the rising edge so one-shot poses are set exactly once.
+    function applyEmote(ent, cmd) {
+      if (!ent) return;
+      const def = EMOTES[cmd];
+      if (!def) return;
+      ent.emote = { state: def.state, until: Date.now() + def.ms, hold: def.hold };
+      ent._emoteFresh = true;
+    }
+
     // ---- tiny event emitter ----
     const listeners = {};
     function on(ev, cb) { (listeners[ev] = listeners[ev] || []).push(cb); }
@@ -1241,7 +1277,16 @@
     }
     WS.harvest = harvest;
     WS.sendChat = (text, replyTo) => {
-      const t2 = String(text || '').slice(0, 280).trim();
+      const r = resolveChatInput(text);
+      if (r.kind === 'emote') {
+        // Instant local pose (responsive); the action line + peer replication
+        // arrive when the server echoes {emote,id,name,cmd} back through onMessage.
+        applyEmote(selfEnt, r.cmd);
+        send({ type: 'emote', cmd: r.cmd });
+        return;
+      }
+      if (r.kind === 'unknown') { toast(T('worlds.unknownCommand')); return; }
+      const t2 = r.text.slice(0, 280).trim();
       if (!t2) return;
       const msg = { type: 'chat', text: t2 };
       if (replyTo && typeof replyTo === 'object' && replyTo.id) {
