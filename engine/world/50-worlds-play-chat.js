@@ -640,19 +640,23 @@
       timeEl.textContent = fmtTime(d.ts);
       meta.appendChild(timeEl);
 
-      // Reply affordance (appears on row hover; needs a stable message id).
-      const replyBtn = document.createElement('button');
-      replyBtn.type = 'button';
-      replyBtn.className = 'tw-chat-reply-btn';
-      replyBtn.setAttribute('aria-label', 'Reply');
-      replyBtn.title = 'Reply';
-      replyBtn.appendChild(ic('reply', 13));
-      replyBtn.addEventListener('click', () => setPendingReply(d));
-      meta.appendChild(replyBtn);
+      // Reply affordance (appears on row hover; needs a stable message id). Action
+      // lines (chat emotes) are system text — no reply target — so skip it.
+      if (!d.action) {
+        const replyBtn = document.createElement('button');
+        replyBtn.type = 'button';
+        replyBtn.className = 'tw-chat-reply-btn';
+        replyBtn.setAttribute('aria-label', 'Reply');
+        replyBtn.title = 'Reply';
+        replyBtn.appendChild(ic('reply', 13));
+        replyBtn.addEventListener('click', () => setPendingReply(d));
+        meta.appendChild(replyBtn);
+      }
 
       const textEl = document.createElement('div');
       textEl.className = 'mp-chat-text';
       textEl.textContent = d.text;
+      if (d.action) { textEl.style.fontStyle = 'italic'; textEl.style.opacity = '0.85'; }
 
       row.appendChild(meta);
       row.appendChild(textEl);
