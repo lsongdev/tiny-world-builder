@@ -40,6 +40,16 @@
     ];
 
     let idx = 0, group = null, canvas = null, ctx = null, tex = null, built = false, controls = null;
+    let screenMesh = null, slideMat = null;       // the display plane + its slide material
+    // ---- live-feed cycling (Truman-style auto-cut between slides and cam feeds) ----
+    // When cameras are mounted, the screen alternates: a run of slides, then it cuts
+    // to whichever CCTV feed currently has the most ACTIVITY (a moving subject), then
+    // back to slides. A brief signal glitch sells each cut.
+    let cycleOn = true, cyclePhase = 'slides', cycleT = 0, liveFeedId = null, liveMat = null;
+    const SLIDE_DWELL = 9.0;      // seconds of slides before considering a cam cut
+    const FEED_DWELL = 6.0;       // seconds to hold a live cam feed
+    let _autoAdvT = 0;
+    const AUTO_ADVANCE = 7.0;     // auto-advance slides while presenting (host-free ambience)
 
     function parentNode() {
       if (typeof worldGroup !== 'undefined' && worldGroup) return worldGroup;
@@ -124,6 +134,8 @@
       screen.position.y = cy;
       screen.name = 'lobbyScreen';
       group.add(screen);
+      screenMesh = screen;
+      slideMat = screen.material;
 
       const frame = new THREE.Mesh(
         new THREE.BoxGeometry(W + 0.34, H + 0.34, 0.16),
@@ -208,12 +220,12 @@
       ensureControls(true);
       return true;
     }
-    function hide() { if (group) group.visible = false; ensureControls(false); }
+    function hide() { if (group) group.visible = false; ensureControls(false); showSlides(); }
 
     function clamp(i) { return Math.max(0, Math.min(SLIDES.length - 1, i)); }
     function applySlide(i) { idx = clamp(i); renderSlide(); }    // local render only (incoming sync path)
     function broadcast() { if (typeof WS.present === 'function') { try { WS.present(idx); } catch (_) {} } }
-    function go(i) { applySlide(i); broadcast(); }               // user action -> apply + sync to room
+    function go(i) { showSlides(); _autoAdvT = 0; applySlide(i); broadcast(); }   // user action -> slides + apply + sync
     function next() { if (idx < SLIDES.length - 1) go(idx + 1); }
     function prev() { if (idx > 0) go(idx - 1); }
     function setSlides(arr) {
@@ -265,6 +277,59 @@
       if (e.key === '[') { prev(); } else if (e.key === ']') { next(); }
     });
 
+    // ---- show slides vs. a live CCTV feed on the big screen ------------------
+    function showSlides() {
+      if (!screenMesh || !slideMat) return;
+      if (screenMesh.material !== slideMat) screenMesh.material = slideMat;
+      liveFeedId = null;
+      cyclePhase = 'slides'; cycleT = 0;
+    }
+    function showFeed(feedId) {
+      const cc = window.__tinyworldCCTV;
+      if (!cc || !screenMesh) return false;
+      const mat = cc.monitorMaterialFor(feedId, { tint: 1 });
+      if (!mat) return false;
+      if (liveMat) { try { liveMat.dispose(); } catch (_) {} }
+      liveMat = mat;
+      screenMesh.material = mat;
+      liveFeedId = feedId;
+      if (typeof cc.glitch === 'function') cc.glitch(feedId, 0.7);   // sell the cut
+      cyclePhase = 'feed'; cycleT = 0;
+      return true;
+    }
+    function setCycle(on) { cycleOn = !!on; if (!cycleOn) showSlides(); }
+
+    // Called each frame from the animation loop (wired in 25). Auto-advances the
+    // deck and, when cameras exist, cuts to the hottest feed then back to slides.
+    function tick(t, dt) {
+      if (!group || !group.visible) return;
+      const cc = window.__tinyworldCCTV;
+      const haveFeeds = cc && cc.feeds && cc.feeds().length;
+      // gentle auto-advance of slides for host-free ambience (only in slides phase)
+      if (cyclePhase === 'slides') {
+        _autoAdvT += dt;
+        if (_autoAdvT >= AUTO_ADVANCE) {
+          _autoAdvT = 0;
+          applySlide((idx + 1) % SLIDES.length);   // local-only advance; presenter sync still uses go()
+        }
+      }
+      if (!cycleOn || !haveFeeds) { if (liveFeedId) showSlides(); return; }
+      cycleT += dt;
+      if (cyclePhase === 'slides') {
+        if (cycleT >= SLIDE_DWELL) {
+          // cut to the most active camera, or the live-feed material's own feed
+          const hot = (typeof cc.activeFeed === 'function') ? cc.activeFeed(0.2) : null;
+          const pick = hot || (cc.feedsByActivity ? cc.feedsByActivity()[0] : cc.feeds()[0]);
+          if (pick) showFeed(pick.id); else cycleT = 0;
+        }
+      } else if (cyclePhase === 'feed') {
+        // while on a feed, keep following the hottest camera if a hotter one appears
+        const hot = (typeof cc.activeFeed === 'function') ? cc.activeFeed(0.35) : null;
+        if (hot && hot.id !== liveFeedId) showFeed(hot.id);
+        if (cycleT >= FEED_DWELL) showSlides();
+      }
+    }
+
     if (typeof WS.on === 'function') {
       WS.on('enter', () => { try { show(); } catch (_) {} });
       WS.on('leave', () => { try { hide(); } catch (_) {} });
@@ -273,5 +338,5 @@
       WS.on('present', (d) => { if (d && typeof d.slide === 'number') applySlide(d.slide); });
     }
 
-    window.__tinyworldLobby = { show, hide, build, setSlides, next, prev, go, group: () => group, slideCount: () => SLIDES.length, current: () => idx };
+    window.__tinyworldLobby = { show, hide, build, setSlides, next, prev, go, group: () => group, slideCount: () => SLIDES.length, current: () => idx, tick, setCycle, showSlides, showFeed, liveFeed: () => liveFeedId };
   })();

@@ -163,6 +163,10 @@
     if (window.__tinyworldCCTV && typeof window.__tinyworldCCTV.tick === 'function') {
       try { window.__tinyworldCCTV.tick(t, dt); } catch (_) {}
     }
+    // Lobby presentation screen: auto-advance slides and cut to the hottest cam feed.
+    if (window.__tinyworldLobby && typeof window.__tinyworldLobby.tick === 'function') {
+      try { window.__tinyworldLobby.tick(t, dt); } catch (_) {}
+    }
     renderScene();
   }
 
