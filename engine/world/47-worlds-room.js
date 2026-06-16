@@ -12,7 +12,23 @@
     const WS = (window.__tinyworldWorlds = window.__tinyworldWorlds || {});
     function T(k, p) { return typeof window.t === 'function' ? window.t(k, p) : k; }
     function toast(m) { if (typeof twToast === 'function') twToast(m); else console.log('[worlds]', m); }
-  
+    // Forward a presence/chat event to the notifications module (68). Null-guarded so
+    // the room degrades silently if that module is absent.
+    function notify(kind, name, text) {
+      try {
+        if (window.twNotify && typeof window.twNotify.event === 'function') {
+          window.twNotify.event({ kind: kind, name: name, text: text });
+        }
+      } catch (_) { /* notifications are non-critical */ }
+    }
+    function isBotPeer(p) {
+      if (!p) return false;
+      return String(p.profileId || '').indexOf('bot:') === 0 || String(p.id || '').indexOf('bot-') === 0;
+    }
+    function peerLabel(p) {
+      return (p && p.name != null && String(p.name).trim()) ? String(p.name) : '';
+    }
+
     // ---- tiny event emitter ----
     const listeners = {};
     function on(ev, cb) { (listeners[ev] = listeners[ev] || []).push(cb); }
@@ -33,6 +49,13 @@
     let you = { x: 0, z: 0, hearts: 10, role: 'play' };
     let myId = '';
     const peers = new Map();
+    // Notification bookkeeping (68-notifications consumes the events): track which
+    // peer ids we've already seen so implicit joins fire exactly once, and remember
+    // names so a 'leave' can still be labelled after the peer is gone. `peersSeeded`
+    // is set by the initial world.state so entering a populated world stays silent.
+    const knownPeerIds = new Set();
+    const peerNames = new Map();
+    let peersSeeded = false;
     let nodes = {};
     let animals = [];
     let cells = [];           // tile cells for minimap (from world.data)
@@ -153,6 +176,7 @@
       } catch (_) {}
       if (socket) { try { socket.close(); } catch (_) {} socket = null; }
       connected = false; peers.clear(); nodes = {}; animals = [];
+      knownPeerIds.clear(); peerNames.clear(); peersSeeded = false;
       unbindInput(); hideMinimap();
       setAmbientCrowdVisibleForRoom(true);
       hideBaseMinimap(false);
@@ -211,7 +235,9 @@
           you = Object.assign(you, d.you || {});
           if (typeof you.role === 'string') role = you.role;
           nodes = d.nodes || {}; animals = d.animals || [];
-          peers.clear(); (d.peers || []).forEach(p => { if (p.id && p.id !== myId) { p._t = Date.now(); peers.set(p.id, p); } });
+          peers.clear(); knownPeerIds.clear(); peerNames.clear();
+          (d.peers || []).forEach(p => { if (p.id && p.id !== myId) { p._t = Date.now(); peers.set(p.id, p); knownPeerIds.add(p.id); peerNames.set(p.id, peerLabel(p)); } });
+          peersSeeded = true;  // peers already here when we arrived are not "joins"
           emit('state', snapshot()); drawMinimap(); updateSelfAvatar(); updatePeerAvatars(); break;
         case 'presence': {
           const p = d.presence; if (!p || !p.id) break;
@@ -222,11 +248,19 @@
             emit('you', you); updateSelfAvatar();
           } else {
             p._t = Date.now(); peers.set(p.id, p);
+            // Joins are implicit (no join message) — a peer id we haven't seen, once
+            // seeded, is a fresh arrival. Repeated presence (movement) is ignored.
+            if (peersSeeded && !knownPeerIds.has(p.id)) notify(isBotPeer(p) ? 'bot-join' : 'join', peerLabel(p), null);
+            knownPeerIds.add(p.id); peerNames.set(p.id, peerLabel(p));
             emit('peers', Array.from(peers.values())); updatePeerAvatars();
           }
           drawMinimap(); break;
         }
-        case 'leave': peers.delete(d.id); emit('peers', Array.from(peers.values())); updatePeerAvatars(); drawMinimap(); break;
+        case 'leave': {
+          if (peersSeeded && knownPeerIds.has(d.id)) notify('leave', peerNames.get(d.id) || '', null);
+          peers.delete(d.id); knownPeerIds.delete(d.id); peerNames.delete(d.id);
+          emit('peers', Array.from(peers.values())); updatePeerAvatars(); drawMinimap(); break;
+        }
         case 'node.update': if (d.node && d.node.id) { if (d.node.gone) delete nodes[d.node.id]; else nodes[d.node.id] = d.node; emit('nodes', nodes); drawMinimap(); } break;
         case 'animal.spawn': if (d.animal) { animals.push(d.animal); drawMinimap(); } break;
         case 'animal.remove': animals = animals.filter(a => a.id !== d.id); drawMinimap(); break;
@@ -238,7 +272,7 @@
           addLocalResource(d.resource, Math.floor((d.harvesterMilli || 0) / 1000));
           break;
         case 'harvest.deny': emit('deny', d); break;
-        case 'chat': emit('chat', d); if (d && d.text != null) showChatBubble(d.id, d.text); break;
+        case 'chat': emit('chat', d); if (d && d.text != null) { showChatBubble(d.id, d.text); if (d.id !== myId) notify('chat', peerNames.get(d.id) || d.name || '', d.text); } break;
         case 'chat.typing': emit('typing', d); break;
         case 'present': emit('present', d); break;   // lobby slide sync (58-lobby-presentation)
         case 'world.refresh':
@@ -1385,6 +1419,7 @@
       const title = document.createElement('span'); title.textContent = T('worlds.minimap');
       mapScaleBadge = document.createElement('span'); mapScaleBadge.className = 'tw-map-scale';
       h.appendChild(title); h.appendChild(mapScaleBadge);
+      if (window.twNotify && typeof window.twNotify.mountToggle === 'function') window.twNotify.mountToggle(h);
       canvas = document.createElement('canvas');
       canvas.addEventListener('click', onMapClick);
       mapResizeHandle = document.createElement('div');
