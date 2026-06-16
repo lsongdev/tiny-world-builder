@@ -2049,6 +2049,7 @@
     function disposeEntity(ent) {
       if (!ent) return; ent.disposed = true;
       removeBubble(ent);
+      removeNameLabel(ent);
       if (ent.voxel) {
         try { ent.voxel.dispose(); } catch (_) {}        // disposes own geometry + material, removes from parent
         ent.voxel = null; ent.sprite = null;
@@ -2368,6 +2369,78 @@
     }
     WS.showChatBubble = showChatBubble;
 
+    // ---- name labels: a persistent pill with the player's name floating above the
+    // avatar's head. Rendered to a CanvasTexture on a THREE.Sprite, so it always
+    // faces the camera (the viewer) without any per-frame rotation. Same visual as
+    // the 2D-map peer labels (makeNameSprite in 38-multiplayer-partykit). ----
+    const NAME_HEAD_Y = 1.46;   // world-units above the avatar's feet; pill center clears the head
+    function roundRectLabel(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+    }
+    function makeNameLabel(name, color) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.font = '700 24px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
+      const label = String(name || 'Builder').slice(0, 28);
+      const width = Math.min(230, Math.max(72, ctx.measureText(label).width + 28));
+      ctx.fillStyle = 'rgba(24, 28, 38, 0.84)';
+      roundRectLabel(ctx, (256 - width) / 2, 12, width, 36, 12);
+      ctx.fill();
+      ctx.fillStyle = color || '#3c82f7';
+      ctx.beginPath();
+      ctx.arc((256 - width) / 2 + 18, 30, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, 128, 31);
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
+      const sprite = new THREE.Sprite(material);
+      sprite.scale.set(1.55, 0.38, 1);
+      sprite.renderOrder = 13;   // above avatars (10) and chat bubbles (12)
+      return sprite;
+    }
+    function ensureNameLabel(ent, name, color) {
+      if (!ent || !ent.sprite || typeof THREE === 'undefined') return;
+      const text = String(name == null ? '' : name).trim() || 'Builder';
+      const col = color || '#3c82f7';
+      ent.name = text;
+      if (ent.nameTag && ent.nameTag.text === text && ent.nameTag.color === col) return;  // unchanged — keep texture
+      removeNameLabel(ent);
+      const sprite = makeNameLabel(text, col);
+      const par = avatarParent(); if (par) par.add(sprite);
+      ent.nameTag = { sprite: sprite, text: text, color: col };
+    }
+    function updateNameLabel(ent) {
+      if (!ent || !ent.nameTag || !ent.nameTag.sprite) return;
+      const s = ent.nameTag.sprite;
+      // Hide while the avatar is hidden (travel/skyfall) or a chat bubble is showing,
+      // so the pill never floats over empty space or collides with the bubble.
+      const bubbleUp = !!(ent.bubble && ent.bubble.sprite && ent.bubble.sprite.visible);
+      const show = !!ent.sprite && ent.sprite.visible !== false && !bubbleUp;
+      s.visible = show;
+      if (show) s.position.set(ent.sprite.position.x, ent.sprite.position.y + NAME_HEAD_Y, ent.sprite.position.z);
+    }
+    function removeNameLabel(ent) {
+      if (!ent || !ent.nameTag) return;
+      const s = ent.nameTag.sprite; ent.nameTag = null;
+      if (s && s.parent) s.parent.remove(s);
+      if (s && s.material) { if (s.material.map) s.material.map.dispose(); s.material.dispose(); }
+    }
+
     // Live subject feed for the CCTV/Truman cameras: every avatar currently in the
     // room (self + peers) as { pos, name }. The cameras use this to pan and look at
     // whoever is moving — the hidden-camera "show" tracking its subject. Positions
@@ -2396,6 +2469,7 @@
       // is shared with the peer path, so the pet must never be applied there).
       if (avatarPetId && PETS[avatarPetId] && (!selfEnt.pet || selfEnt.pet.id !== avatarPetId)) loadPetTextures(selfEnt, PETS[avatarPetId]);
       if (avatarStripId && STRIPS[avatarStripId] && (!selfEnt.strip || selfEnt.strip.id !== avatarStripId)) loadStripTextures(selfEnt, STRIPS[avatarStripId]);
+      ensureNameLabel(selfEnt, (typeof playerName === 'function' ? playerName() : 'You'), (typeof playerColor === 'function' ? playerColor() : null));
       if (selfEnt._srActive) return;   // surface roam owns position; don't let presence echoes yank us back
       moveEntity(selfEnt, you.x, you.z);
     }
@@ -2421,6 +2495,7 @@
           peerEnts.set(p.id, ent);
         }
         moveEntity(ent, pos.x, pos.z);
+        ensureNameLabel(ent, p.name, p.color);
       });
       peerEnts.forEach((ent, id) => { if (!seen.has(id)) { disposeEntity(ent); peerEnts.delete(id); } });
     }
@@ -2432,8 +2507,8 @@
         const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
         const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
         _srPollFlyDown();   // detect fly-down transitions, activate/deactivate surface roam
-        if (selfEnt) animEntity(selfEnt, dt);
-        peerEnts.forEach((e) => animEntity(e, dt));
+        if (selfEnt) { animEntity(selfEnt, dt); updateNameLabel(selfEnt); }
+        peerEnts.forEach((e) => { animEntity(e, dt); updateNameLabel(e); });
         // Sweep stale/ghost peers ~every 1.5s even when no messages arrive, so a peer
         // that hard-disconnected (missed 'leave') stops rendering as a phantom avatar.
         if (now - prunePrev > 1500) { prunePrev = now; if (peerEnts.size) updatePeerAvatars(); }
