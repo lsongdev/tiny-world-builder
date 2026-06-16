@@ -64,7 +64,7 @@ export default async function worldsFunction(request) {
 
   try {
     const sql = getSql();
-    // Browsing the universe is allowed for guests (no wallet); writes require auth.
+    // Browsing the universe is account-gated; writes require auth too.
     const user = await getAuthUser(request);
     const profile = (user && user.id) ? await ensureProfile(user) : null;
     // God-admin: a small email allowlist may edit ANY world live (incl. the
@@ -122,6 +122,13 @@ export default async function worldsFunction(request) {
           token = signJoinToken({ w: dto.id, slug: dto.slug, p: profile ? Number(profile.id) : null, r: role }, joinSecret());
         }
         return jsonResponse({ world: dto, role, token, suspendedUntil, canAdminEdit: isWorldAdmin, me: profile ? profileDto(profile) : null }, origin);
+      }
+
+      if (!profile) {
+        return jsonResponse({ worlds: [], me: null, economy: {
+          claimed: Number(economy.claimed_count) || 0,
+          perTileBase: String(economy.per_tile_base || '0'),
+        } }, origin);
       }
 
       const rows = await sql`

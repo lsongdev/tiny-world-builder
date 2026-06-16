@@ -11,6 +11,23 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap" />
 <link rel="stylesheet" href="styles/landing.css" />
 <link rel="preload" as="image" href="assets/landing-hero.png" />
+<script>
+  (function landingAuthBootstrap() {
+    window.__tinyworldAuthReady = new Promise(function (resolve) {
+      window.__resolveTinyWorldAuthReady = resolve;
+      setTimeout(function () { resolve(false); }, 2500);
+    });
+  })();
+</script>
+<script id="tinyworld-auth-importmap" type="importmap">
+{
+  "imports": {
+    "@netlify/identity": "./vendor/netlify/identity.js",
+    "gotrue-js": "./vendor/netlify/gotrue.js"
+  }
+}
+</script>
+<script type="module" src="vendor/tinyworld-auth.js"></script>
 </head>
 <body class="landing-page">
   <header class="site-header" aria-label="Tiny World Builder">

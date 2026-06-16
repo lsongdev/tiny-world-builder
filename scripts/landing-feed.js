@@ -1,7 +1,7 @@
 // -------- landing hero "Live worlds" feed --------
-// Reads the public /api/worlds list (the only feed that works for anonymous
-// marketing visitors — community is auth-gated) and renders a compact panel
-// overlaid on the right of the hero. No bundler, no deps — matches house style.
+// Reads the signed-in /api/worlds list and renders a compact panel overlaid on
+// the right of the hero. Anonymous visitors must not see world previews here.
+// No bundler, no deps — matches house style.
 (function () {
   'use strict';
 
@@ -42,6 +42,46 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
+  }
+
+  function walletSessionToken() {
+    try { return localStorage.getItem('tinyworld:auth:wallet-session.v1') || ''; } catch (_) { return ''; }
+  }
+
+  function identityCookieToken() {
+    try {
+      var m = document.cookie.match(/(?:^|; )nf_jwt=([^;]*)/);
+      return m ? decodeURIComponent(m[1]) : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function accessToken() {
+    var Auth = window.TinyWorldAuth;
+    if (Auth && typeof Auth.getUser === 'function') {
+      return Promise.resolve(Auth.getUser()).then(function (user) {
+        if (!user) return walletSessionToken() || identityCookieToken() || '';
+        if (typeof user.jwt === 'function') {
+          return Promise.resolve(user.jwt()).catch(function () { return ''; }).then(function (jwt) {
+            return jwt || (user.token && user.token.access_token) || walletSessionToken() || identityCookieToken() || '';
+          });
+        }
+        return (user.token && user.token.access_token) || walletSessionToken() || identityCookieToken() || '';
+      }).catch(function () {
+        return walletSessionToken() || identityCookieToken() || '';
+      });
+    }
+    return Promise.resolve(walletSessionToken() || identityCookieToken() || '');
+  }
+
+  function hideFeed() {
+    clearCctvTimers();
+    selectedSlug = null;
+    worldsCache = [];
+    list.textContent = '';
+    panel.classList.remove('is-expanded');
+    panel.hidden = true;
   }
 
   function slugOf(w) {
@@ -286,9 +326,13 @@
   }
 
   function load() {
-    fetch('/api/worlds', { headers: { Accept: 'application/json' } })
-      .then(function (r) { return r.ok ? r.json() : null; })
+    accessToken().then(function (token) {
+      if (!token) { hideFeed(); return null; }
+      return fetch('/api/worlds', { headers: { Accept: 'application/json', Authorization: 'Bearer ' + token } });
+    })
+      .then(function (r) { if (!r) return null; return r.ok ? r.json() : null; })
       .then(function (data) {
+        if (!data) return;
         var worlds = data && Array.isArray(data.worlds) ? data.worlds : [];
         if (render(worlds)) panel.hidden = false;
       })
@@ -296,7 +340,15 @@
   }
 
   window.addEventListener('pagehide', clearCctvTimers);
-  load();
+  if (window.__tinyworldAuthReady && typeof window.__tinyworldAuthReady.then === 'function') {
+    window.__tinyworldAuthReady.then(load).catch(load);
+  } else {
+    load();
+  }
+  window.addEventListener('storage', function (event) {
+    if (!event || event.key === 'gotrue.user' || event.key === 'tinyworld:auth:wallet-session.v1') load();
+  });
+  window.addEventListener('tinyworld:auth-change', load);
   // Light refresh so player counts feel live without hammering the API.
   setInterval(load, 30000);
 })();
