@@ -390,7 +390,9 @@
       rememberFreeform();
       closeOverlay();
       if (typeof WS.enterRoom === 'function') {
-        WS.enterRoom(full.world, full.token || '', full.role || 'play');
+        // CCTV-only view (?view=cctv) forces a passive observer join.
+        const role = window.__tinyworldForceRole || full.role || 'play';
+        WS.enterRoom(full.world, full.token || '', role);
         return true;
       }
       toast(T('worlds.error'));

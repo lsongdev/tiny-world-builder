@@ -167,7 +167,16 @@
     if (window.__tinyworldLobby && typeof window.__tinyworldLobby.tick === 'function') {
       try { window.__tinyworldLobby.tick(t, dt); } catch (_) {}
     }
-    renderScene();
+    // CCTV-only view mode (?view=cctv): draw the feed wall to the canvas instead
+    // of the world. Falls back to renderScene() until the feeds are mounted.
+    const cv = window.__tinyworldCctvView;
+    if (cv && cv.active) {
+      let drew = false;
+      try { drew = cv.renderWall(); } catch (_) {}
+      if (!drew) renderScene();
+    } else {
+      renderScene();
+    }
   }
 
   // -------- resize --------

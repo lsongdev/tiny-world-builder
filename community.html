@@ -147,6 +147,14 @@
   }
   .c-panel-body { overflow-y: auto; padding: 10px; flex: 1 1 auto; min-height: 0; }
 
+  /* right rail: members (capped, scrolls inside) + live CCTV feeds below */
+  .right-rail { display: flex; flex-direction: column; gap: 18px; min-height: 0; }
+  .right-rail .members-panel { flex: 0 1 auto; max-height: 340px; }
+  .right-rail .cctv-panel { flex: 1 1 auto; min-height: 160px; }
+  .cctv-panel .c-panel-body { padding: 0; display: flex; }
+  .cctv-panel iframe { width: 100%; height: 100%; border: 0; display: block; background: #0b0c10; }
+  .cctv-empty { margin: auto; padding: 18px; text-align: center; color: var(--muted); font-size: 13px; }
+
   .icon-btn {
     display: inline-flex; align-items: center; justify-content: center;
     width: 28px; height: 28px; border-radius: var(--radius-sm);
@@ -333,7 +341,7 @@
 
   @media (max-width: 1040px) {
     .community-shell { grid-template-columns: 220px minmax(0,1fr); }
-    .members-panel { display: none; }
+    .right-rail { display: none; }
   }
   @media (max-width: 720px) {
     .community-main { width: min(100vw, calc(100vw - 16px)); padding: 104px 8px 18px; height: auto; min-height: 100dvh; overflow: visible; }
@@ -424,18 +432,27 @@
         </div>
       </section>
 
-      <!-- Members -->
-      <aside class="c-panel members-panel" aria-label="Members">
-        <div class="c-panel-head">
-          <h2>Members</h2>
-          <span id="member-count" style="font-size:12px;color:var(--muted);font-weight:600"></span>
-        </div>
-        <div class="c-panel-body" id="members-body">
-          <div class="skeleton-line" style="width:80%"></div>
-          <div class="skeleton-line" style="width:65%"></div>
-          <div class="skeleton-line" style="width:72%"></div>
-        </div>
-      </aside>
+      <!-- Right rail: members (top) + live CCTV feeds (below) -->
+      <div class="right-rail">
+        <aside class="c-panel members-panel" aria-label="Members">
+          <div class="c-panel-head">
+            <h2>Members</h2>
+            <span id="member-count" style="font-size:12px;color:var(--muted);font-weight:600"></span>
+          </div>
+          <div class="c-panel-body" id="members-body">
+            <div class="skeleton-line" style="width:80%"></div>
+            <div class="skeleton-line" style="width:65%"></div>
+            <div class="skeleton-line" style="width:72%"></div>
+          </div>
+        </aside>
+        <aside class="c-panel cctv-panel" aria-label="Live feeds">
+          <div class="c-panel-head">
+            <h2>Live feeds</h2>
+            <span id="cctv-world-label" style="font-size:12px;color:var(--muted);font-weight:600"></span>
+          </div>
+          <div class="c-panel-body" id="cctv-body"></div>
+        </aside>
+      </div>
     </div>
 
     <footer class="c-panel community-policy-footer" aria-label="Community policy links">
@@ -513,6 +530,10 @@
         <input type="text" id="room-topic" maxlength="200" placeholder="What's this room about?" />
       </div>
       <div class="field">
+        <label for="room-world">Linked world slug (optional)</label>
+        <input type="text" id="room-world" maxlength="60" placeholder="e.g. tidewater-bay" />
+      </div>
+      <div class="field">
         <label style="display:flex;align-items:center;gap:8px;font-weight:500;cursor:pointer">
           <input type="checkbox" id="room-private" style="width:auto" /> Invite-only (private)
         </label>
@@ -521,6 +542,22 @@
       <div class="modal-actions">
         <button class="btn" id="room-cancel">Cancel</button>
         <button class="btn primary" id="room-create">Create room</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Link world modal -->
+  <div class="c-modal-back" id="linkworld-modal-back" role="dialog" aria-modal="true" aria-labelledby="linkworld-modal-title">
+    <div class="c-modal">
+      <h2 id="linkworld-modal-title">Link a world</h2>
+      <div class="field">
+        <label for="linkworld-slug">World slug</label>
+        <input type="text" id="linkworld-slug" maxlength="60" placeholder="e.g. tidewater-bay (blank to unlink)" />
+      </div>
+      <div class="modal-error" id="linkworld-error" hidden></div>
+      <div class="modal-actions">
+        <button class="btn" id="linkworld-cancel">Cancel</button>
+        <button class="btn primary" id="linkworld-save">Save</button>
       </div>
     </div>
   </div>
@@ -834,6 +871,32 @@
     }
 
     function currentRoom() { return state.sel && state.sel.type === 'room' ? state.rooms.find(r => r.id === state.sel.id) : null; }
+
+    // Live CCTV feeds for the active room's linked world. Mounts a single lazy
+    // iframe into the right rail; only rebuilds when the linked slug changes so
+    // the 3D engine isn't reloaded on every poll/room switch.
+    let cctvSlug = undefined;
+    function renderCctv() {
+      const body = byId('cctv-body'); if (!body) return;
+      const label = byId('cctv-world-label');
+      const r = currentRoom();
+      const slug = (r && r.worldSlug) ? r.worldSlug : null;
+      if (slug === cctvSlug) return;
+      cctvSlug = slug;
+      if (!slug) {
+        body.innerHTML = '<div class="cctv-empty">No world linked to this channel.</div>';
+        if (label) label.textContent = '';
+        return;
+      }
+      if (label) label.textContent = slug;
+      const ifr = document.createElement('iframe');
+      ifr.src = 'tiny-world-builder.html?world=' + encodeURIComponent(slug) + '&view=cctv';
+      ifr.loading = 'lazy';
+      ifr.title = 'Live feeds — ' + slug;
+      ifr.allow = 'autoplay';
+      body.innerHTML = '';
+      body.appendChild(ifr);
+    }
     function memberById(id) { return state.members.find(m => m.id === id) || null; }
     function hasCap(name) { return !!(state.admin || (state.caps && state.caps[name])); }
     function canModerateCurrentConversation() {
@@ -851,11 +914,13 @@
         const isOwnerMod = r.role === 'owner' || r.role === 'mod';
         let actions = '';
         if (isOwnerMod || state.admin) actions += '<button class="icon-btn" id="room-invite-btn" title="Create invite" aria-label="Invite"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg></button>';
+        if (r.role === 'owner' || hasCap('canModerate')) actions += '<button class="icon-btn" id="room-linkworld-btn" title="Link world (live feeds)" aria-label="Link world"><svg viewBox="0 0 24 24"><path d="M15 10l4.55-2.28A1 1 0 0 1 21 8.62v6.76a1 1 0 0 1-1.45.9L15 14"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg></button>';
         if (r.role && r.role !== 'owner') actions += '<button class="icon-btn" id="room-leave-btn" title="Leave room" aria-label="Leave"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></button>';
         else if (!r.role) actions += '<button class="btn sm primary" id="room-join-btn">Join</button>';
         if (r.role === 'owner' || hasCap('canModerate')) actions += '<button class="icon-btn danger-icon" id="room-delete-btn" title="Delete channel" aria-label="Delete channel"><svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>';
         head.innerHTML = '<div class="title"><strong>' + (r.isPrivate ? '' : '# ') + esc(r.name) + (r.role ? ' <span class="pill role">' + esc(r.role) + '</span>' : '') + '</strong><span>' + esc(r.topic || 'No topic set') + '</span></div><div class="head-actions">' + actions + '</div>';
         const ib = byId('room-invite-btn'); if (ib) ib.addEventListener('click', () => openInvite(r));
+        const wb = byId('room-linkworld-btn'); if (wb) wb.addEventListener('click', () => openLinkWorld(r));
         const lb = byId('room-leave-btn'); if (lb) lb.addEventListener('click', () => leaveRoom(r.id));
         const jb = byId('room-join-btn'); if (jb) jb.addEventListener('click', () => joinRoom(r.id));
         const db = byId('room-delete-btn'); if (db) db.addEventListener('click', () => deleteRoom(r));
@@ -921,7 +986,7 @@
 
     async function selectRoom(id) {
       state.sel = { type: 'room', id };
-      renderRooms(); renderChatHead(); composerError('');
+      renderRooms(); renderChatHead(); renderCctv(); composerError('');
       byId('chat-scroll').innerHTML = '<div class="chat-empty">Loading…</div>';
       const r = currentRoom();
       showComposer(!!(r && (r.role || !r.isPrivate)));
@@ -929,7 +994,7 @@
     }
     async function selectDm(otherId) {
       state.sel = { type: 'dm', id: otherId };
-      renderRooms(); renderChatHead(); composerError('');
+      renderRooms(); renderChatHead(); renderCctv(); composerError('');
       byId('chat-scroll').innerHTML = '<div class="chat-empty">Loading…</div>';
       showComposer(true);
       await loadMessages(false); startPolling();
@@ -1029,7 +1094,7 @@
     });
 
     // create room
-    byId('create-room-btn').addEventListener('click', () => { byId('room-error').hidden = true; byId('room-name').value=''; byId('room-topic').value=''; byId('room-private').checked=false; openModal('room-modal-back'); });
+    byId('create-room-btn').addEventListener('click', () => { byId('room-error').hidden = true; byId('room-name').value=''; byId('room-topic').value=''; byId('room-world').value=''; byId('room-private').checked=false; openModal('room-modal-back'); });
     byId('room-name').addEventListener('input', e => { const p = e.target.selectionStart; e.target.value = e.target.value.toLowerCase(); try { e.target.setSelectionRange(p, p); } catch (_) {} });
     byId('room-cancel').addEventListener('click', () => closeModal('room-modal-back'));
     byId('room-create').addEventListener('click', async () => {
@@ -1037,11 +1102,32 @@
       const err = byId('room-error');
       if (!name) { err.textContent = 'Room name is required.'; err.hidden = false; return; }
       try {
-        const d = await api('/api/community', 'POST', { action: 'createRoom', name, topic: byId('room-topic').value.trim(), isPrivate: byId('room-private').checked });
+        const d = await api('/api/community', 'POST', { action: 'createRoom', name, topic: byId('room-topic').value.trim(), worldSlug: byId('room-world').value.trim(), isPrivate: byId('room-private').checked });
         closeModal('room-modal-back');
         await refresh(true);
         if (d.room) selectRoom(d.room.id);
       } catch (e2) { err.textContent = e2.error || 'Could not create room.'; err.hidden = false; }
+    });
+
+    // link a room to a world (owner/mod) — drives the live CCTV feeds panel
+    let linkWorldRoom = null;
+    function openLinkWorld(room) {
+      linkWorldRoom = room;
+      byId('linkworld-error').hidden = true;
+      byId('linkworld-slug').value = room.worldSlug || '';
+      openModal('linkworld-modal-back');
+    }
+    byId('linkworld-cancel').addEventListener('click', () => closeModal('linkworld-modal-back'));
+    byId('linkworld-save').addEventListener('click', async () => {
+      if (!linkWorldRoom) return;
+      const err = byId('linkworld-error');
+      const worldSlug = byId('linkworld-slug').value.trim();
+      try {
+        await api('/api/community', 'POST', { action: 'editRoom', roomId: linkWorldRoom.id, worldSlug });
+        closeModal('linkworld-modal-back');
+        await refresh(true);
+        renderChatHead(); renderCctv();
+      } catch (e2) { err.textContent = e2.error || 'Could not link world.'; err.hidden = false; }
     });
 
     // invite
@@ -1480,6 +1566,7 @@
         renderVerifyBanner();
         renderRooms(); renderMembers();
         if (!silent && state.sel) renderChatHead();
+        renderCctv();
         return true;
       } catch (err) {
         if (err.status === 401) { showGate('Sign in to join the community', 'Connect your wallet or sign in via the builder to chat in rooms, send direct messages, and see other builders.', true); return false; }

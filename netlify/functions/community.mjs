@@ -244,8 +244,25 @@ function roomDto(row) {
     isPrivate: !!row.is_private,
     role: row.member_role || null,
     joined: !!row.member_role,
+    worldSlug: row.world_slug || null,
     createdAt: row.created_at,
   };
+}
+
+// Validate an optional room->world link. Returns { ok, slug } or { ok:false, msg }.
+// Empty input clears the link (slug:null). Format must match the worlds table
+// slug constraint; existence is checked best-effort (a missing worlds table in a
+// legacy DB does not block a format-valid slug).
+const WORLD_SLUG_RE = /^[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$/;
+async function validateWorldSlug(sql, raw) {
+  const s = cleanText(raw, 60).toLowerCase();
+  if (!s) return { ok: true, slug: null };
+  if (!WORLD_SLUG_RE.test(s)) return { ok: false, msg: 'That world slug is not valid' };
+  try {
+    const rows = await sql`SELECT 1 FROM worlds WHERE slug = ${s} LIMIT 1`;
+    if (!rows.length) return { ok: false, msg: 'That world does not exist' };
+  } catch (_) { /* worlds table unavailable — accept a format-valid slug */ }
+  return { ok: true, slug: s };
 }
 
 function messageDto(row) {
@@ -298,6 +315,9 @@ async function ensureTables(sql) {
       created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
+  // Optional link from a chat room to a 3D world slug. Drives the community
+  // page's live CCTV feeds panel. Idempotent so the page works pre-migration.
+  await sql`ALTER TABLE community_rooms ADD COLUMN IF NOT EXISTS world_slug TEXT`;
   await sql`
     CREATE TABLE IF NOT EXISTS community_memberships (
       id          SERIAL PRIMARY KEY,
@@ -1082,11 +1102,13 @@ export default async function communityFunction(request) {
       if (!name) return errorResponse('Room name is required', 400, origin);
       const isPrivate = !!(body && body.isPrivate);
       const topic = cleanText(body && body.topic, 200);
+      const worldCheck = await validateWorldSlug(sql, body && body.worldSlug);
+      if (!worldCheck.ok) return errorResponse(worldCheck.msg, 400, origin);
       const slugBase = name.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'room';
       const slug = (slugBase + '-' + randomBytes(3).toString('hex')).slice(0, 60);
       const rows = await sql`
-        INSERT INTO community_rooms (slug, name, topic, is_private, created_by)
-        VALUES (${slug}, ${name}, ${topic}, ${isPrivate}, ${profile.id})
+        INSERT INTO community_rooms (slug, name, topic, is_private, created_by, world_slug)
+        VALUES (${slug}, ${name}, ${topic}, ${isPrivate}, ${profile.id}, ${worldCheck.slug})
         RETURNING *
       `;
       await sql`
@@ -1109,6 +1131,23 @@ export default async function communityFunction(request) {
       }
       // Cascades to memberships, messages, bans, and invites via ON DELETE CASCADE.
       await sql`DELETE FROM community_rooms WHERE id = ${roomId}`;
+      return jsonResponse({ ok: true, rooms: await listRooms(sql, profile.id) }, origin);
+    }
+
+    if (action === 'editRoom') {
+      const roomId = cleanProfileId(body && body.roomId);
+      if (!roomId) return errorResponse('roomId is required', 400, origin);
+      // Permission: community moderators/admins, OR the room's owner. Also lets
+      // owners/mods link the seeded default rooms (which bypass createRoom).
+      const role = await roomRole(sql, roomId, profile.id);
+      if (!caps.canModerate && role !== 'owner') {
+        return errorResponse('You do not have permission to edit this channel', 403, origin);
+      }
+      if (body && Object.prototype.hasOwnProperty.call(body, 'worldSlug')) {
+        const worldCheck = await validateWorldSlug(sql, body.worldSlug);
+        if (!worldCheck.ok) return errorResponse(worldCheck.msg, 400, origin);
+        await sql`UPDATE community_rooms SET world_slug = ${worldCheck.slug} WHERE id = ${roomId}`;
+      }
       return jsonResponse({ ok: true, rooms: await listRooms(sql, profile.id) }, origin);
     }
 
