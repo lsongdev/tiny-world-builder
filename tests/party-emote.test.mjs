@@ -58,8 +58,8 @@ test('unknown emote command is rejected (no broadcast)', () => {
 
 test('non-admitted peer emote is ignored', () => {
   const { party, connect, send } = setup();
-  connect('host');                        // First peer becomes host (admitted)
-  const guest = connect('guest');         // Second peer is NOT admitted (in lobby)
+  connect('host');                        // First peer connected but NOT admitted
+  const guest = connect('guest');         // Second peer connected but NOT admitted
   guest.received.length = 0;
   send({ id: 'guest' }, { type: 'emote', cmd: 'wave' });
   assert.equal(guest.received.find(m => m.type === 'emote'), undefined);
