@@ -65,6 +65,15 @@ stamp at `enterFlight`. Ground is a flat sim plane at spawn height.
   close chase/cockpit feed, and the swap button can make either feed primary.
 - `Escape` → `exitFlight()`: restores the previous camera, calls `updateCamera()`,
   re-renders the cell to re-park the stamp.
+- Lobby vehicles are self-replenishing: `enterFlight()` detaches the clicked
+  stamp mesh as the active flyer, clears `entry.object`, and immediately
+  `renderCellObject()`s a fresh parked copy in the same cell. Do not mutate the
+  world cell or broadcast a cell edit for this handoff; the placed stamp remains
+  the shared lobby spawn so every player can take a plane independently.
+- Flight combat has finite gun and missile ammo. `41-flight-combat.js` owns the
+  ammo counters plus the `tw_flight_resupply_rewards` pool: glowing airborne
+  rings placed ahead of the flyer that refill guns and missiles when flown
+  through, then respawn farther ahead.
 
 ## Gotchas
 - Module 34 shares the global scope with every other `engine/world` module — all

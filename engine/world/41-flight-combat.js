@@ -74,6 +74,7 @@
     if (jet) { jet.getWorldPosition(_fcSparkTmp); spawnExplosionFX(_fcSparkTmp); }
     health = MAX_HEALTH;
     missilesAmmo = MISSILE_COUNT;
+    gunAmmo = GUN_AMMO_MAX;
     missileCooldown = 0;
     missileSide = -1;
     _fcXPrev = false;
@@ -101,6 +102,9 @@
   const TRACER_SPEED = 46;     // scene units/sec
   const TRACER_LIFE = 0.55;
   const FIRE_COOLDOWN = 0.11;
+  const GUN_AMMO_MAX = 220;
+  const GUN_REWARD_AMMO = 120;
+  let gunAmmo = GUN_AMMO_MAX;
   let tracerGroup = null;
   const tracers = [];
   let fireCooldown = 0;
@@ -153,7 +157,7 @@
   }
 
   function fireGuns() {
-    if (!jet) return;
+    if (!jet || gunAmmo <= 0) return;
     const dir = window.__flightSceneForward
       ? window.__flightSceneForward(_fireDir)
       : _fireDir.set(0, 0, -1);
@@ -163,6 +167,7 @@
       spawnTracer(_muzzleWorld, dir);
       attemptInstantHit(_muzzleWorld, dir);
     }
+    gunAmmo = Math.max(0, gunAmmo - 2);
     shotsFired++;
   }
 
@@ -688,6 +693,7 @@
 
   // ---- missiles ----
   const MISSILE_COUNT = 6;
+  const MISSILE_REWARD_COUNT = 2;
   let missilesAmmo = MISSILE_COUNT;
   let missileGroup = null;
   const missiles = [];
@@ -738,6 +744,96 @@
     spawnHitSparks(m.pos); // launch puff
   }
   function deactivateMissile(m) { m.active = false; m.mesh.visible = false; m.targetId = ''; }
+
+  // ---- airborne resupply rewards ----
+  const RESUPPLY_COUNT = 7;
+  const RESUPPLY_RADIUS = 1.05;
+  let resupplyGroup = null;
+  const resupplies = [];
+  const _fcRewardPos = new THREE.Vector3();
+  const _fcRewardJetPos = new THREE.Vector3();
+  const _fcRewardForward = new THREE.Vector3();
+  const _fcRewardRight = new THREE.Vector3();
+  const _fcRewardUp = new THREE.Vector3(0, 1, 0);
+  function makeResupplyRing(index) {
+    const g = new THREE.Group();
+    const hue = index % 2 ? 0xffc85a : 0x6ee7ff;
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.36, 0.035, 8, 28),
+      new THREE.MeshBasicMaterial({ color: hue, transparent: true, opacity: 0.9, toneMapped: false })
+    );
+    const core = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.18, 0),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, toneMapped: false })
+    );
+    ring.rotation.x = Math.PI / 2;
+    g.add(ring, core);
+    g.userData.ring = ring;
+    g.userData.core = core;
+    g.raycast = () => {};
+    g.visible = false;
+    return g;
+  }
+  function ensureResupplyPool() {
+    if (resupplyGroup) return;
+    resupplyGroup = new THREE.Group();
+    resupplyGroup.name = 'tw_flight_resupply_rewards';
+    scene.add(resupplyGroup);
+    for (let i = 0; i < RESUPPLY_COUNT; i++) {
+      const mesh = makeResupplyRing(i);
+      resupplyGroup.add(mesh);
+      resupplies.push({ mesh, active: false, collected: 0, seed: i * 19 + 3 });
+    }
+  }
+  function placeResupply(slot, distance, side, lift) {
+    if (!jet) return;
+    jet.getWorldPosition(_fcRewardJetPos);
+    const forward = window.__flightSceneForward
+      ? window.__flightSceneForward(_fcRewardForward)
+      : _fcRewardForward.set(0, 0, -1);
+    _fcRewardRight.copy(forward).cross(_fcRewardUp).normalize();
+    if (_fcRewardRight.lengthSq() < 0.001) _fcRewardRight.set(1, 0, 0);
+    _fcRewardPos.copy(_fcRewardJetPos)
+      .addScaledVector(forward, distance)
+      .addScaledVector(_fcRewardRight, side)
+      .addScaledVector(_fcRewardUp, lift);
+    slot.mesh.position.copy(_fcRewardPos);
+    slot.mesh.visible = true;
+    slot.active = true;
+  }
+  function spawnResupplyField() {
+    ensureResupplyPool();
+    for (let i = 0; i < resupplies.length; i++) {
+      placeResupply(resupplies[i], 34 + i * 18, ((i % 3) - 1) * 4.6, 1.1 + ((i * 7) % 5) * 0.48);
+    }
+  }
+  function grantResupply(slot) {
+    gunAmmo = Math.min(GUN_AMMO_MAX, gunAmmo + GUN_REWARD_AMMO);
+    missilesAmmo = Math.min(MISSILE_COUNT, missilesAmmo + MISSILE_REWARD_COUNT);
+    slot.active = false;
+    slot.collected = 1.6;
+    slot.mesh.visible = false;
+    placeResupply(slot, 105 + (slot.seed % 5) * 16, ((slot.seed % 3) - 1) * 6.2, 1.4 + (slot.seed % 4) * 0.55);
+    slot.seed += 11;
+  }
+  function updateResupplies(dt) {
+    if (!jet) return;
+    jet.getWorldPosition(_fcRewardJetPos);
+    for (const slot of resupplies) {
+      if (slot.collected > 0) {
+        slot.collected = Math.max(0, slot.collected - dt);
+        continue;
+      }
+      if (!slot.active) continue;
+      slot.mesh.rotation.y += dt * 1.8;
+      if (slot.mesh.userData.ring) slot.mesh.userData.ring.rotation.z += dt * 2.4;
+      if (slot.mesh.userData.core) slot.mesh.userData.core.rotation.y -= dt * 2.2;
+      if (slot.mesh.position.distanceToSquared(_fcRewardJetPos) <= RESUPPLY_RADIUS * RESUPPLY_RADIUS) {
+        grantResupply(slot);
+      }
+    }
+  }
+
   function updateMissiles(dt) {
     for (const m of missiles) {
       if (!m.active) continue;
@@ -783,8 +879,10 @@
     ensureSparkPool();
     ensureExplosionPool();
     ensureMissilePool();
+    ensureResupplyPool();
     for (const m of missiles) deactivateMissile(m);
     missilesAmmo = MISSILE_COUNT; missileCooldown = 0; missileSide = -1; _fcXPrev = false;
+    gunAmmo = GUN_AMMO_MAX;
     window.__flightMissilePressed = false;
     window.__flightMissileHeld = false;
     ensureOverlay();
@@ -794,6 +892,7 @@
     lockAmount = 0; lockCandidateId = ''; lockId = '';
     health = MAX_HEALTH;
     cellHealth.clear();
+    spawnResupplyField();
   }
 
   function onExit() {
@@ -806,6 +905,7 @@
     for (const tr of tracers) { tr.active = false; if (tr.mesh) tr.mesh.visible = false; }
     for (const sp of sparks) { sp.active = false; if (sp.sprite) sp.sprite.visible = false; }
     for (const ex of explosions) { ex.active = false; if (ex.sprite) ex.sprite.visible = false; }
+    for (const slot of resupplies) { slot.active = false; slot.collected = 0; if (slot.mesh) slot.mesh.visible = false; }
     window.__flightMissilePressed = false;
     window.__flightMissileHeld = false;
   }
@@ -829,13 +929,14 @@
     window.__flightMissilePressed = false;
     missileCooldown = Math.max(0, missileCooldown - dt);
     updateMissiles(dt);
+    updateResupplies(dt);
     updateTracers(dt);
     updateSparks(dt);
     updateExplosionFX(dt);
     updateReticle(dt);
     updateLock(dt);
     updateTargetHud();
-    if (healthEl) healthEl.textContent = 'HULL ' + Math.max(0, Math.round(health)) + '%';
+    if (healthEl) healthEl.textContent = 'HULL ' + Math.max(0, Math.round(health)) + '%  GUN ' + gunAmmo + '  MSL ' + missilesAmmo;
   }
 
   function telemetry() {
@@ -859,6 +960,7 @@
         return +cp.distanceTo(tp).toFixed(1);
       })(),
       missilesAmmo: missilesAmmo,
+      gunAmmo: gunAmmo,
       activeMissiles: missiles.filter(m => m.active).length,
       trackedCells: cellHealth.size,
     };

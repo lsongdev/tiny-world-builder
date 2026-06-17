@@ -914,6 +914,14 @@
     if (window.__flightCombat && typeof window.__flightCombat.onEnter === 'function') {
       window.__flightCombat.onEnter(jet);
     }
+    // Leave a fresh parked vehicle in the lobby cell so another player can
+    // immediately enter their own plane while this one is already airborne.
+    if (entry.object === jet) {
+      entry.object = null;
+      if (typeof renderCellObject === 'function') {
+        renderCellObject(x, z, { animate: true, delay: 0.05, impactDust: false });
+      }
+    }
     return true;
   }
 
@@ -936,9 +944,20 @@
     }
     showFlightHud(false);
     hideFlightViewPanel();
-    // restore the parked plane to its resting transform
+    // Remove this flight's airborne mesh. The lobby cell already respawns a
+    // parked replacement on takeoff; this prevents duplicate parked planes on
+    // exit/relaunch.
+    if (flightJet) {
+      const entry = flightCell ? cellMeshes[flightCell.x + ',' + flightCell.z] : null;
+      if (!entry || entry.object !== flightJet) {
+        if (flightJet.parent) flightJet.parent.remove(flightJet);
+        if (typeof disposeGroup === 'function') disposeGroup(flightJet);
+      }
+    }
+    // Ensure the parked plane is present after any render churn while flying.
     if (flightCell && typeof renderCellObject === 'function') {
-      renderCellObject(flightCell.x, flightCell.z, { animate: false, impactDust: false });
+      const entry = cellMeshes[flightCell.x + ',' + flightCell.z];
+      if (!entry || !entry.object) renderCellObject(flightCell.x, flightCell.z, { animate: false, impactDust: false });
     }
     flightJet = null;
     window.__flightJet = null;
