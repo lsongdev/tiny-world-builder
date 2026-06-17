@@ -134,8 +134,10 @@
     'view.iso.desc': 'angled overhead',
     'view.perspective': 'Perspective',
     'view.perspective.desc': 'close orbit',
+    'view.walkThird': 'Walk (third-person)',
+    'view.walkThird.desc': 'follow behind your character',
     'view.walk': 'Walk (first-person)',
-    'view.walk.desc': 'WASD · mouse · space jumps · esc exits',
+    'view.walk.desc': "through your character's eyes",
 
     // ---- time & weather popup ----
     'time.title': 'Time & weather',

@@ -390,6 +390,9 @@ test('deriveWorldState: connected water => one shared fish body, ore/plant nodes
       { x: 5, z: 5, terrain: 'stone' },
       { x: 4, z: 2, terrain: 'dirt', kind: 'corn' },
       { x: 3, z: 3, terrain: 'grass', kind: 'tree' },
+      { x: 6, z: 6, terrain: 'grass', kind: 'bush' },
+      { x: 6, z: 7, terrain: 'grass', kind: 'flower' },
+      { x: 7, z: 6, terrain: 'grass', kind: 'tuft' },
     ],
   }, () => 0.9); // rng 0.9 => ore tier 3
   // The three connected water cells share one fish node.
@@ -404,6 +407,9 @@ test('deriveWorldState: connected water => one shared fish body, ore/plant nodes
   assert.equal(state.grassCells.indexOf('5,5'), -1, 'stone is not standable');
   assert.ok(state.grassCells.indexOf('1,1') >= 0, 'water is standable');
   assert.equal(state.grassCells.indexOf('3,3'), -1, 'tree blocks standing');
+  assert.ok(state.grassCells.indexOf('6,6') >= 0, 'bush is standable');
+  assert.ok(state.grassCells.indexOf('6,7') >= 0, 'flower is standable');
+  assert.ok(state.grassCells.indexOf('7,6') >= 0, 'tuft is standable');
   assert.ok(state.grassCells.indexOf('0,0') >= 0, 'empty cells are standable grass');
 });
 

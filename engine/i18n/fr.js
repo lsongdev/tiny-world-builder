@@ -117,8 +117,10 @@
     'view.iso.desc': 'en plongée inclinée',
     'view.perspective': 'Perspective',
     'view.perspective.desc': 'orbite rapprochée',
+    'view.walkThird': 'Marche (troisième personne)',
+    'view.walkThird.desc': 'suit derrière votre personnage',
     'view.walk': 'Marche (première personne)',
-    'view.walk.desc': 'ZQSD · souris · espace pour sauter · échap pour sortir',
+    'view.walk.desc': 'à travers les yeux du personnage',
 
     'time.title': 'Heure et météo',
     'time.timeOfDay': 'Heure de la journée',

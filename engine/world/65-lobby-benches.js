@@ -115,8 +115,10 @@
   function _lbnLivePeerProfileIds() {
     const ids = new Set();
     try {
-      const peers = (typeof LBW.getPeers === 'function') ? LBW.getPeers() : null;
-      if (Array.isArray(peers)) for (const p of peers) { if (p && p.profileId) ids.add(p.profileId); }
+      if (LBW.myProfileId != null) ids.add(String(LBW.myProfileId));
+      const state = (typeof LBW.getState === 'function') ? LBW.getState() : null;
+      const peers = state && Array.isArray(state.peers) ? state.peers : null;
+      if (Array.isArray(peers)) for (const p of peers) { if (p && p.profileId != null) ids.add(String(p.profileId)); }
     } catch (_) {}
     return ids;
   }
@@ -128,7 +130,7 @@
     const live = _lbnLivePeerProfileIds();
     const myId = d.me && d.me.id;
     // Online members, excluding self and anyone already live in the room.
-    const online = d.members.filter(m => m && m.online && m.id !== myId && !live.has(m.id)).slice(0, Math.min(_lbnMaxSeats, _lbnSeats.length));
+    const online = d.members.filter(m => m && m.online && String(m.id) !== String(myId) && !live.has(String(m.id))).slice(0, Math.min(_lbnMaxSeats, _lbnSeats.length));
     const want = new Set(online.map(m => m.id));
 
     // Remove sitters who went offline / joined the room.

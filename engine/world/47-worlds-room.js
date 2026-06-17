@@ -160,6 +160,10 @@
     let prevPlayMode = null;
     function enterRoom(w, joinToken, joinRole) {
       leaveRoom();
+      // Tear down the home-builder first/third-person walk avatar if it's active.
+      // It lives in the shared worldGroup, so leaving it up would render a second
+      // copy of you alongside the room's networked avatar ("two of me").
+      try { if (typeof window.__tinyworldExitWalkMode === 'function') window.__tinyworldExitWalkMode(); } catch (_) {}
       world = w; token = joinToken || ''; role = joinRole || 'play';
       try { if (typeof WS.seedDemoResources === 'function') WS.seedDemoResources(w); } catch (_) {}
       try { window.__tinyworldInWorldRoom = true; } catch (_) {}   // relax camera pan clamp (02) for island exploration
@@ -264,6 +268,7 @@
       leaveRoom();
       if (typeof WS.restoreFreeform === 'function') WS.restoreFreeform();
     };
+    WS.getSelfEnt = () => selfEnt;
   
     function safeParse(s) { try { return JSON.parse(s); } catch (_) { return null; } }
   
@@ -284,12 +289,17 @@
           if (typeof you.role === 'string') role = you.role;
           nodes = d.nodes || {}; animals = d.animals || [];
           peers.clear(); knownPeerIds.clear(); peerNames.clear();
-          (d.peers || []).forEach(p => { if (p.id && p.id !== myId) { p._t = Date.now(); peers.set(p.id, p); knownPeerIds.add(p.id); peerNames.set(p.id, peerLabel(p)); } });
+          (d.peers || []).forEach(p => { if (p.id && !isSelfPresence(p)) { p._t = Date.now(); peers.set(p.id, p); knownPeerIds.add(p.id); peerNames.set(p.id, peerLabel(p)); } });
           peersSeeded = true;  // peers already here when we arrived are not "joins"
           emit('state', snapshot()); drawMinimap(); updateSelfAvatar(); updatePeerAvatars(); break;
         case 'presence': {
           const p = d.presence; if (!p || !p.id) break;
-          if (p.id === myId) {
+          if (isSelfPresence(p)) {
+            if (p.id !== myId) {
+              const old = peerEnts.get(p.id);
+              if (old) { disposeEntity(old); peerEnts.delete(p.id); }
+              peers.delete(p.id); knownPeerIds.delete(p.id); peerNames.delete(p.id);
+            }
             // Our own presence echo carries authoritative grid state, except while
             // surface roam owns the avatar's free-world position.
             if (!selfEnt || !selfEnt._srActive) {
@@ -408,9 +418,19 @@
     WS.getMyId = () => myId;
     WS.playerName = () => playerName();
     WS.playerColor = () => playerColor();
+    function sameProfileId(a, b) {
+      if (a == null || b == null) return false;
+      return String(a) === String(b);
+    }
+    function isSelfPresence(p) {
+      if (!p) return false;
+      if (p.id != null && p.id === myId) return true;
+      return sameProfileId(p.profileId, WS.myProfileId);
+    }
   
     // ---- movement + click-to-walk pathfinding ----
-    const BLOCKED_KINDS = new Set(['house', 'tree', 'rock', 'fence', 'bush', 'voxel-build', 'model-stamp']);
+    // Low ground cover (bush, flower, tuft) is walkable — avatars stroll over it.
+    const BLOCKED_KINDS = new Set(['house', 'tree', 'rock', 'fence', 'voxel-build', 'model-stamp']);
     let blocked = new Set();   // 'x,z' cells you cannot stand on (mirrors server)
     function rebuildBlocked() {
       blocked = new Set();
@@ -2334,6 +2354,9 @@
         _srUpdateCamera();
         return;
       }
+      if (typeof cameraMode !== 'undefined' && (cameraMode === 'fp' || cameraMode === 'tp')) {
+        return;
+      }
       if (typeof updateCamera !== 'function' || typeof target === 'undefined' || !target) return;
       // Follow the RENDERED position (tweened for voxel) so the camera glides with the
       // avatar — BUT only while the avatar is actually MOVING. When it's idle, leave the
@@ -2603,7 +2626,7 @@
       peers.forEach((p, id) => { if (p && p._t && nowMs - p._t > STALE_PEER_MS) peers.delete(id); });
       const seen = new Set();
       peers.forEach((p) => {
-        if (!p || p.id == null || p.id === myId) return;   // never draw yourself as a peer
+        if (!p || p.id == null || isSelfPresence(p)) return;   // never draw yourself as a peer
         const pos = p.cursor || p; if (pos.x == null) return;
         seen.add(p.id);
         let ent = peerEnts.get(p.id);
@@ -2676,6 +2699,7 @@
       for (const a of animals) { ctx.fillRect(a.x * CELL + 4, a.z * CELL + 4, CELL - 8, CELL - 8); }
       // peers
       for (const p of peers.values()) {
+        if (isSelfPresence(p)) continue;   // never plot yourself as a separate peer dot
         const pos = p.cursor || p; if (pos.x == null) continue;
         ctx.fillStyle = p.color || '#ffd166';
         ctx.beginPath(); ctx.arc(pos.x * CELL + CELL / 2, pos.z * CELL + CELL / 2, 5, 0, 7); ctx.fill();

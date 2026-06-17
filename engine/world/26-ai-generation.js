@@ -343,7 +343,7 @@
     if (data.islands !== undefined && !Array.isArray(data.islands)) return 'islands must be an array';
     if (data.moorings !== undefined && !Array.isArray(data.moorings)) return 'moorings must be an array';
     if (data.cameraMode === 'soft') data.cameraMode = 'perspective';
-    const okCameraMode = new Set(['ortho','topdown','perspective','fp']);
+    const okCameraMode = new Set(['ortho','topdown','perspective','tp','fp']);
     if (data.cameraMode !== undefined && !okCameraMode.has(data.cameraMode)) return 'cameraMode invalid: ' + data.cameraMode;
     if (data.gridSize !== undefined && !isValidGridSize(data.gridSize)) return 'gridSize invalid: ' + data.gridSize;
     if (Array.isArray(data.islands)) {

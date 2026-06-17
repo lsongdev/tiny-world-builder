@@ -37,6 +37,21 @@ description: Use when changing Tiny World Builder's mode indicator, boot tool se
   `pointer-events:none`.
 - `Esc` disarms any build/paint/erase tool back to Select (handler in
   `20-input-place-erase.js`, skipped in first-person walk mode).
+- The View modes popup has five modes: top-down, isometric, perspective,
+  third-person walk (`tp`), and first-person walk (`fp`). Both walk modes are
+  driven by the same `fp` controller in `20-input-place-erase.js`; `tp` shows a
+  chase camera behind the voxel avatar, while `fp` uses the avatar rig's
+  `getEyeWorldPosition()` and hides the head via `setFirstPerson(true)`.
+  Keep `tp` in camera-mode schema/import allowlists when touching saved camera
+  validation.
+- Both walk modes are **home-builder only**. The `fp` avatar is added to the
+  shared `worldGroup`, so it must never coexist with a Tinyverse room's own
+  networked avatar or the player sees two copies of themselves. `setCameraMode`
+  redirects `fp`/`tp` to `perspective` while `window.__tinyworldInWorldRoom` is
+  set, and `47-worlds-room.js` `enterRoom` calls `window.__tinyworldExitWalkMode`
+  (exposed from `20-input-place-erase.js`) to dispose any active walk avatar
+  before spawning the room avatar. The room's own first-person is the surface
+  roam zoom-in (`v` key, `_sr*` in `47`), not the builder `fp` controller.
 
 ## Gotcha
 

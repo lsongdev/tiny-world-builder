@@ -270,9 +270,10 @@
           "ortho",
           "topdown",
           "perspective",
+          "tp",
           "fp"
         ],
-        "description": "Optional preferred camera. Saved worlds usually use ortho, perspective, or fp; topdown is accepted for imports."
+        "description": "Optional preferred camera. Saved worlds usually use ortho, perspective, third-person walk, or first-person walk; topdown is accepted for imports."
       },
       "toolId": {
         "type": "string",

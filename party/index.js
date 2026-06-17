@@ -456,7 +456,8 @@ function deriveWorldState(data, rng = Math.random) {
 
   // Standable grass: any in-bounds cell that is not water/stone and carries no
   // blocking object. Default (absent) cells are grass.
-  const blockedKinds = new Set(['house', 'tree', 'rock', 'fence', 'bush', 'voxel-build', 'model-stamp']);
+  // Low ground cover (bush, flower, tuft) is walkable — avatars stroll over it.
+  const blockedKinds = new Set(['house', 'tree', 'rock', 'fence', 'voxel-build', 'model-stamp']);
   const grassCells = [];
   for (let x = 0; x < gridSize; x++) {
     for (let z = 0; z < gridSize; z++) {

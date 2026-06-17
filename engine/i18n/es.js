@@ -117,8 +117,10 @@
     'view.iso.desc': 'en ángulo desde arriba',
     'view.perspective': 'Perspectiva',
     'view.perspective.desc': 'órbita cercana',
+    'view.walkThird': 'Caminar (tercera persona)',
+    'view.walkThird.desc': 'sigue detrás de tu personaje',
     'view.walk': 'Caminar (primera persona)',
-    'view.walk.desc': 'WASD · ratón · espacio salta · esc sale',
+    'view.walk.desc': 'a través de los ojos del personaje',
 
     'time.title': 'Hora y clima',
     'time.timeOfDay': 'Hora del día',

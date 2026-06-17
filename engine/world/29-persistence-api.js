@@ -454,7 +454,7 @@
       invalidateHomeFade();
       suppressSave = false;
       if (!opts.keepCamera) {
-        const okCameraMode = new Set(['ortho','topdown','perspective','fp']);
+        const okCameraMode = new Set(['ortho','topdown','perspective','tp','fp']);
         if (data.cameraMode && okCameraMode.has(data.cameraMode)) setCameraMode(data.cameraMode);
         else resetCameraDefaults();
       }
@@ -637,7 +637,7 @@
 
       suppressSave = false;
       if (!opts.keepCamera) {
-        const okCameraMode = new Set(['ortho','topdown','perspective','fp']);
+        const okCameraMode = new Set(['ortho','topdown','perspective','tp','fp']);
         if (data.cameraMode && okCameraMode.has(data.cameraMode)) setCameraMode(data.cameraMode);
         else resetCameraDefaults();
       }

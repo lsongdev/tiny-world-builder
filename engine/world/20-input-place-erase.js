@@ -2002,8 +2002,8 @@
   let polarBeforeTopdown = null;
   function setCameraMode(mode) {
     const requested = mode === 'soft' ? 'perspective' : mode;
-    const effective = ['ortho', 'topdown', 'perspective', 'fp'].includes(requested) ? requested : 'ortho';
-    if (effective !== 'fp' && fp.active) exitFP();
+    let effective = ['ortho', 'topdown', 'perspective', 'tp', 'fp'].includes(requested) ? requested : 'ortho';
+    if (effective !== 'fp' && effective !== 'tp' && fp.active) exitFP();
     // 'topdown' is orthoCam with polar snapped to ~0 (straight down).
     // Internally we still store cameraMode='ortho' for everything that
     // branches on it (renderer, ghost-board code, persistence) — the
@@ -2020,6 +2020,8 @@
         polarBeforeTopdown = null;
       }
       cameraMode = 'ortho';
+    } else if (effective === 'tp' || effective === 'fp') {
+      cameraMode = effective;
     } else {
       cameraMode = effective;
     }
@@ -2031,8 +2033,9 @@
     perspBtn.setAttribute('data-tooltip',
       isTopdown              ? 'Top-down (bird\'s eye)' :
       cameraMode === 'ortho' ? 'Isometric' :
-      cameraMode === 'fp'    ? 'Walk (esc to exit)' : 'Perspective');
-    if (effective === 'fp') enterFP();
+      cameraMode === 'tp'    ? 'Third-person walk' :
+      cameraMode === 'fp'    ? 'First-person walk' : 'Perspective');
+    if (effective === 'fp' || effective === 'tp') enterFP(effective);
     if (typeof updateCamera === 'function') updateCamera();
     onResize();
   }
@@ -2050,6 +2053,9 @@
   const FP_SPEED = 1.4;          // units / sec
   const FP_SPRINT_MULT = 2.2;
   const FP_FOV = 55;
+  const FP_THIRD_FOV = 42;
+  const FP_THIRD_DIST = 3.2;
+  const FP_THIRD_UP = 1.35;
   const FP_NEAR = 0.02;
   const PERS_NEAR_DEFAULT = persCam.near;
   const PERS_FOV_DEFAULT  = persCam.fov;
@@ -2064,6 +2070,8 @@
     pitch: 0,
     vy: 0,
     grounded: true,
+    view: 'fp',
+    avatar: null,
   };
   const fpKeys = new Set();
 
@@ -2073,23 +2081,83 @@
     const gz = Math.round(worldZ + GRID / 2 - 0.5);
     const cell = (world[gx] && world[gx][gz]) ? world[gx][gz] : null;
     const rise = terrainVisualRiseForCell(cell);
-    return rise + TOP_H + FP_EYE_H;
+    return rise + TOP_H;
   }
 
-  function enterFP() {
-    if (fp.active) return;
+  function ensureFPAvatar() {
+    if (typeof window !== 'undefined' && window.__tinyworldInWorldRoom) return null;
+    if (fp.avatar && fp.avatar.group) return fp.avatar;
+    if (typeof window === 'undefined' || typeof window.makeVoxelAvatar !== 'function') return null;
+    try {
+      const desc = (window.__tinyworldWorlds && typeof window.__tinyworldWorlds.avatarVoxel === 'function')
+        ? window.__tinyworldWorlds.avatarVoxel()
+        : { seed: 17, fit: 'Casual' };
+      fp.avatar = window.makeVoxelAvatar(desc);
+      if (fp.avatar && fp.avatar.group) {
+        fp.avatar.group.renderOrder = 10;
+        const par = (typeof worldGroup !== 'undefined' && worldGroup) ? worldGroup : scene;
+        if (par) par.add(fp.avatar.group);
+      }
+    } catch (_) {
+      fp.avatar = null;
+    }
+    return fp.avatar;
+  }
+
+  function disposeFPAvatar() {
+    if (!fp.avatar) return;
+    try { if (fp.avatar.dispose) fp.avatar.dispose(); } catch (_) {}
+    fp.avatar = null;
+  }
+
+  function enterFP(view) {
+    const nextView = view === 'tp' ? 'tp' : 'fp';
+    const isRoom = !!(typeof window !== 'undefined' && window.__tinyworldInWorldRoom);
+    let roomSelfEnt = null;
+    if (isRoom) {
+      const WS = window.__tinyworldWorlds;
+      if (WS && typeof WS.getSelfEnt === 'function') roomSelfEnt = WS.getSelfEnt();
+    }
+
+    if (fp.active) {
+      fp.view = nextView;
+      const avatar = (isRoom && roomSelfEnt) ? roomSelfEnt.voxel : fp.avatar;
+      if (avatar && avatar.setFirstPerson) avatar.setFirstPerson(fp.view === 'fp');
+      document.body.classList.toggle('fp-third-person', fp.view === 'tp');
+      persCam.fov = fp.view === 'tp' ? FP_THIRD_FOV : FP_FOV;
+      persCam.updateProjectionMatrix();
+      return;
+    }
     fp.active = true;
-    // Spawn at home-board centre at ground height, facing toward the
-    // negative Z axis so the user immediately sees the diorama.
-    fp.pos.set(0, fpGroundYAt(0, GRID * 0.4), GRID * 0.4);
-    fp.yaw = 0;
-    fp.pitch = 0;
+    fp.view = nextView;
+    fp.hadPointerLock = false;
+
+    if (isRoom && roomSelfEnt && roomSelfEnt.sprite) {
+      fp.pos.copy(roomSelfEnt.sprite.position);
+      if (typeof azimuth !== 'undefined') {
+        fp.yaw = -azimuth - Math.PI / 2;
+      } else {
+        fp.yaw = 0;
+      }
+      fp.pitch = 0.2;
+    } else {
+      // Spawn at home-board centre at ground height, facing toward the
+      // negative Z axis so the user immediately sees the diorama.
+      fp.pos.set(0, fpGroundYAt(0, GRID * 0.4), GRID * 0.4);
+      fp.yaw = 0;
+      fp.pitch = 0;
+    }
     fp.vy = 0;
     fp.grounded = true;
-    persCam.fov = FP_FOV;
+    ensureFPAvatar();
+
+    const avatar = (isRoom && roomSelfEnt) ? roomSelfEnt.voxel : fp.avatar;
+    if (avatar && avatar.setFirstPerson) avatar.setFirstPerson(fp.view === 'fp');
+    persCam.fov = fp.view === 'tp' ? FP_THIRD_FOV : FP_FOV;
     persCam.near = FP_NEAR;
     persCam.updateProjectionMatrix();
     document.body.classList.add('fp-active');
+    document.body.classList.toggle('fp-third-person', fp.view === 'tp');
     if (renderer.domElement.requestPointerLock) {
       try { renderer.domElement.requestPointerLock(); } catch (_) {}
     }
@@ -2102,17 +2170,71 @@
     persCam.near = PERS_NEAR_DEFAULT;
     persCam.updateProjectionMatrix();
     document.body.classList.remove('fp-active');
+    document.body.classList.remove('fp-third-person');
+
+    const isRoom = !!(typeof window !== 'undefined' && window.__tinyworldInWorldRoom);
+    if (isRoom) {
+      const WS = window.__tinyworldWorlds;
+      if (WS && typeof WS.getSelfEnt === 'function') {
+        const roomSelfEnt = WS.getSelfEnt();
+        if (roomSelfEnt && roomSelfEnt.voxel && roomSelfEnt.voxel.setFirstPerson) {
+          roomSelfEnt.voxel.setFirstPerson(false);
+        }
+      }
+    }
+
+    disposeFPAvatar();
     if (document.pointerLockElement === renderer.domElement && document.exitPointerLock) {
       try { document.exitPointerLock(); } catch (_) {}
     }
   }
   document.addEventListener('pointerlockchange', () => {
-    if (!document.pointerLockElement && fp.active) {
-      // User hit esc / clicked away — drop back to ortho.
-      exitFP();
-      setCameraMode('ortho');
+    if (document.pointerLockElement === renderer.domElement) {
+      fp.hadPointerLock = true;
+    } else if (fp.active) {
+      if (fp.hadPointerLock) {
+        // User explicitly exited pointer lock — drop back to the normal isometric view.
+        exitFP();
+        setCameraMode('ortho');
+      }
     }
   });
+  // Force-leave the home-builder walk avatar (e.g. when handing the scene to a
+  // Tinyverse room, which renders its own networked avatar). Without this, the
+  // standalone fp/tp voxel body lingers in worldGroup as a duplicate "you".
+  if (typeof window !== 'undefined') {
+    window.__tinyworldExitWalkMode = function () {
+      if (fp.active) { exitFP(); setCameraMode('ortho'); }
+    };
+  }
+
+  // Fallback pointer drag-to-look for touch, iframe sandbox, or when pointer lock is denied
+  let fpDragActive = false;
+  let fpLastPointerX = 0, fpLastPointerY = 0;
+  function fpOnPointerDown(e) {
+    if (!fp.active || document.pointerLockElement === renderer.domElement) return;
+    fpDragActive = true;
+    fpLastPointerX = e.clientX;
+    fpLastPointerY = e.clientY;
+  }
+  function fpOnPointerMove(e) {
+    if (!fp.active || !fpDragActive || document.pointerLockElement === renderer.domElement) return;
+    const dx = e.clientX - fpLastPointerX;
+    const dy = e.clientY - fpLastPointerY;
+    fpLastPointerX = e.clientX;
+    fpLastPointerY = e.clientY;
+    markCameraMoving();
+    fp.yaw -= dx * 0.005;
+    fp.pitch = Math.max(-1.4, Math.min(1.4, fp.pitch - dy * 0.005));
+  }
+  function fpOnPointerUp() {
+    fpDragActive = false;
+  }
+  window.addEventListener('pointerdown', fpOnPointerDown, true);
+  window.addEventListener('pointermove', fpOnPointerMove, true);
+  window.addEventListener('pointerup', fpOnPointerUp, true);
+  window.addEventListener('pointercancel', fpOnPointerUp, true);
+
   document.addEventListener('mousemove', e => {
     if (!fp.active || document.pointerLockElement !== renderer.domElement) return;
     markCameraMoving();
@@ -2145,39 +2267,91 @@
     const sprint = fpKeys.has('shift') ? FP_SPRINT_MULT : 1;
     const speed = FP_SPEED * sprint * dt;
     const len = Math.hypot(fx, fz);
-    if (len > 0) {
-      markCameraMoving();
-      const ux = fx / len, uz = fz / len;
-      fp.pos.x += ux * speed;
-      fp.pos.z += uz * speed;
+
+    const isRoom = !!(typeof window !== 'undefined' && window.__tinyworldInWorldRoom);
+    let roomSelfEnt = null;
+    if (isRoom) {
+      const WS = window.__tinyworldWorlds;
+      if (WS && typeof WS.getSelfEnt === 'function') roomSelfEnt = WS.getSelfEnt();
     }
-    // Clamp to the home-grid bounds (small margin so eye doesn't peek
-    // past the world edge).
-    const bound = GRID / 2 - 0.3;
-    fp.pos.x = Math.max(-bound, Math.min(bound, fp.pos.x));
-    fp.pos.z = Math.max(-bound, Math.min(bound, fp.pos.z));
-    // Ground-following + gravity.
-    const groundY = fpGroundYAt(fp.pos.x, fp.pos.z);
-    if (!fp.grounded) {
-      markCameraMoving();
-      fp.vy -= FP_GRAVITY * dt;
-      fp.pos.y += fp.vy * dt;
-      if (fp.pos.y <= groundY) {
-        fp.pos.y = groundY;
-        fp.vy = 0;
-        fp.grounded = true;
-      }
-    } else if (fp.pos.y - groundY > FP_FALL_THRESHOLD) {
-      fp.grounded = false;
+
+    if (isRoom && roomSelfEnt && roomSelfEnt.sprite) {
+      // Synchronize camera tracking directly with the room's local player avatar position
+      fp.pos.copy(roomSelfEnt.sprite.position);
     } else {
-      const k = 1 - Math.exp(-FP_STEP_LERP * dt);
-      fp.pos.y += (groundY - fp.pos.y) * k;
+      // Normal home-builder continuous movement
+      if (len > 0) {
+        markCameraMoving();
+        const ux = fx / len, uz = fz / len;
+        fp.pos.x += ux * speed;
+        fp.pos.z += uz * speed;
+      }
+      // Clamp to the home-grid bounds (small margin so eye doesn't peek
+      // past the world edge).
+      const bound = GRID / 2 - 0.3;
+      fp.pos.x = Math.max(-bound, Math.min(bound, fp.pos.x));
+      fp.pos.z = Math.max(-bound, Math.min(bound, fp.pos.z));
+      // Ground-following + gravity.
+      const groundY = fpGroundYAt(fp.pos.x, fp.pos.z);
+      if (!fp.grounded) {
+        markCameraMoving();
+        fp.vy -= FP_GRAVITY * dt;
+        fp.pos.y += fp.vy * dt;
+        if (fp.pos.y <= groundY) {
+          fp.pos.y = groundY;
+          fp.vy = 0;
+          fp.grounded = true;
+        }
+      } else if (fp.pos.y - groundY > FP_FALL_THRESHOLD) {
+        fp.grounded = false;
+      } else {
+        const k = 1 - Math.exp(-FP_STEP_LERP * dt);
+        fp.pos.y += (groundY - fp.pos.y) * k;
+      }
     }
-    persCam.position.copy(fp.pos);
-    const lookX = fp.pos.x - Math.sin(fp.yaw) * Math.cos(fp.pitch);
-    const lookY = fp.pos.y + Math.sin(fp.pitch);
-    const lookZ = fp.pos.z - Math.cos(fp.yaw) * Math.cos(fp.pitch);
-    persCam.lookAt(lookX, lookY, lookZ);
+
+    const avatar = (isRoom && roomSelfEnt) ? roomSelfEnt.voxel : ensureFPAvatar();
+    const moving = len > 0;
+    if (avatar && avatar.group) {
+      if (!isRoom) {
+        avatar.group.position.copy(fp.pos);
+        if (avatar.setHeading) avatar.setHeading(Math.atan2(-sinY, -cosY));
+        const cur = avatar.getState ? avatar.getState() : '';
+        if (cur !== 'jump' && cur !== 'attack') avatar.setState(moving ? 'walk' : 'idle');
+      }
+      if (avatar.setFirstPerson) avatar.setFirstPerson(fp.view === 'fp');
+      if (avatar.update && !isRoom) avatar.update(dt);
+      if (!isRoom) avatar.group.visible = true;
+    }
+    const eyeY = fp.pos.y + FP_EYE_H;
+    const lookX = fp.pos.x - sinY * Math.cos(fp.pitch);
+    const lookY = eyeY + Math.sin(fp.pitch);
+    const lookZ = fp.pos.z - cosY * Math.cos(fp.pitch);
+    if (fp.view === 'tp') {
+      persCam.position.set(
+        fp.pos.x + sinY * FP_THIRD_DIST,
+        fp.pos.y + FP_THIRD_UP,
+        fp.pos.z + cosY * FP_THIRD_DIST,
+      );
+      persCam.lookAt(lookX, lookY, lookZ);
+    } else {
+      let usedAvatarEye = false;
+      if (avatar && avatar.getEyeWorldPosition) {
+        try {
+          const eye = avatar.getEyeWorldPosition(new THREE.Vector3());
+          if (eye && isFinite(eye.x) && isFinite(eye.y) && isFinite(eye.z)) {
+            persCam.position.copy(eye);
+            usedAvatarEye = true;
+          }
+        } catch (_) {}
+      }
+      if (!usedAvatarEye) persCam.position.set(fp.pos.x, eyeY, fp.pos.z);
+      persCam.lookAt(
+        persCam.position.x - sinY * Math.cos(fp.pitch),
+        persCam.position.y + Math.sin(fp.pitch),
+        persCam.position.z - cosY * Math.cos(fp.pitch),
+      );
+    }
   }
 
   function resetCameraDefaults() {

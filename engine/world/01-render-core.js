@@ -899,7 +899,7 @@
   }
 
   function pixelZoomResolutionScale() {
-    if (cameraMode === 'fp') return 1;
+    if (cameraMode === 'fp' || cameraMode === 'tp') return 1;
     const base = Math.max(0.001, DEFAULT_VIEW_SIZE);
     const zoomRatio = Math.max(0.05, viewSize / base);
     return Math.max(PIXEL_ZOOM_MIN_RES_SCALE, Math.min(PIXEL_ZOOM_MAX_RES_SCALE, Math.sqrt(zoomRatio)));

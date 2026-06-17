@@ -117,8 +117,10 @@
     'view.iso.desc': '倾斜俯视',
     'view.perspective': '透视',
     'view.perspective.desc': '近距环绕',
+    'view.walkThird': '行走（第三人称）',
+    'view.walkThird.desc': '跟随在角色身后',
     'view.walk': '行走（第一人称）',
-    'view.walk.desc': 'WASD · 鼠标 · 空格跳跃 · Esc 退出',
+    'view.walk.desc': '透过角色的眼睛',
 
     'time.title': '时间与天气',
     'time.timeOfDay': '一天中的时间',
