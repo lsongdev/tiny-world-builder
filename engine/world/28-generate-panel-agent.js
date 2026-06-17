@@ -1308,16 +1308,21 @@
     function selectionColorOptions(options) {
       return [{ label: 'Default', value: 'default' }].concat(options || []);
     }
+    // Each material chip carries a small visual marker so the row is readable at
+    // a glance (feedback #2 — chips were text-only). `swatch` is a representative
+    // material colour and `glyph` is a tiny inline SVG (tinted via currentColor),
+    // following the SVG-glyph pattern in 19-tools-toolbar.js (TOOL_GLYPH_SVG).
+    // PROJECT RULE: SVG glyphs only — never PNG/baked icons.
     const SELECTION_MATERIAL_OPTIONS = [
-      { label: 'Default', value: 'default' },
-      { label: 'Brick', value: 'brick' },
-      { label: 'Stone', value: 'cottage-stone' },
-      { label: 'Rock', value: 'rock-face' },
-      { label: 'Slate', value: 'shingles' },
-      { label: 'Wood', value: 'cottage-wood' },
-      { label: 'Grass', value: 'cottage-grass' },
-      { label: 'Dirt', value: 'cottage-dirt' },
-      { label: 'Sand', value: 'sand' },
+      { label: 'Default', value: 'default', swatch: '#aab0b8', glyph: '<svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 2"/></svg>' },
+      { label: 'Brick', value: 'brick', swatch: '#b0563a', glyph: '<svg viewBox="0 0 16 16"><path d="M2 5h12M2 8h12M2 11h12M7 5v3M11 8v3M7 11v3M4 8v3" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>' },
+      { label: 'Stone', value: 'cottage-stone', swatch: '#9a948a', glyph: '<svg viewBox="0 0 16 16"><path d="M2.5 4.5h5v3h-5zM8.5 4.5h5v3h-5zM2.5 8.5h5v3h-5zM8.5 8.5h5v3h-5z" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>' },
+      { label: 'Rock', value: 'rock-face', swatch: '#6f6a64', glyph: '<svg viewBox="0 0 16 16"><path d="M8 2.5 13.5 8 8 13.5 2.5 8Z M8 2.5 8 13.5 M2.5 8 13.5 8" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>' },
+      { label: 'Slate', value: 'shingles', swatch: '#5a6b7d', glyph: '<svg viewBox="0 0 16 16"><path d="M3 5.5h10M3 9.5h10M3 13.5h10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>' },
+      { label: 'Wood', value: 'cottage-wood', swatch: '#9c6b3b', glyph: '<svg viewBox="0 0 16 16"><path d="M4 2.5v11M8 2.5v11M12 2.5v11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>' },
+      { label: 'Grass', value: 'cottage-grass', swatch: '#4f9a43', glyph: '<svg viewBox="0 0 16 16"><path d="M5 13.5C4 9.5 3.5 7 3.5 4.5M8 13.5V4M11 13.5c1-4 1.5-6.5 1.5-9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>' },
+      { label: 'Dirt', value: 'cottage-dirt', swatch: '#6f4a2c', glyph: '<svg viewBox="0 0 16 16"><g fill="currentColor"><circle cx="4.5" cy="5" r="1.2"/><circle cx="9" cy="7" r="1.2"/><circle cx="12" cy="4.5" r="1.2"/><circle cx="6" cy="11" r="1.2"/><circle cx="11" cy="11.5" r="1.2"/></g></svg>' },
+      { label: 'Sand', value: 'sand', swatch: '#cdb267', glyph: '<svg viewBox="0 0 16 16"><path d="M2.5 6c1.5-2 3.5-2 5 0s3.5 2 6 0M2.5 11c1.5-2 3.5-2 5 0s3.5 2 6 0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>' },
     ];
     const SELECTION_COLOR_EDITABLE_KINDS = new Set([
       'house', 'voxel-build', 'tree', 'rock', 'bridge', 'fence', 'crop',
@@ -1746,14 +1751,25 @@
         return;
       }
       if (rowKey === 'selectionAction') {
-        if (value === 'copy') copyActiveCellIntent();
-        else if (value === 'cut') cutActiveCellIntent();
-        else if (value === 'delete') deleteActiveCellIntent();
-        else if (value === 'apply-tool') applySelectedToolToSelection();
-        else if (value === 'paste') pasteClipboardAtActiveTarget();
-        else if (value === 'duplicate') duplicateActiveCellIntent();
-        else if (value === 'save-template') saveActiveSelectionTemplate();
-        else if (value === 'paste-template') pasteLatestTemplateAtActiveTarget();
+        let ok = true;
+        if (value === 'copy') ok = copyActiveCellIntent();
+        else if (value === 'cut') ok = cutActiveCellIntent();
+        else if (value === 'delete') ok = deleteActiveCellIntent();
+        else if (value === 'apply-tool') ok = applySelectedToolToSelection();
+        else if (value === 'paste') ok = pasteClipboardAtActiveTarget();
+        else if (value === 'duplicate') ok = duplicateActiveCellIntent();
+        else if (value === 'save-template') ok = saveActiveSelectionTemplate();
+        else if (value === 'paste-template') ok = pasteLatestTemplateAtActiveTarget();
+        // Surface a no-op instead of swallowing it: a chip that returns false did
+        // nothing, so tell the user why (feedback #5). Chips are also gated off in
+        // the panel, but a keyboard/route can still reach a failing action.
+        if (ok === false && typeof twToast === 'function') {
+          const reason = value === 'apply-tool' ? window.t('props.gate.needTool')
+            : value === 'paste' ? window.t('props.gate.nothingCopied')
+            : value === 'paste-template' ? window.t('props.gate.noTemplate')
+            : window.t('props.action.failed');
+          twToast(reason, 'warn');
+        }
         renderSelection();
         return;
       }
@@ -2101,20 +2117,26 @@
         { label: 'Undo', value: 'undo', disabled: !worldUndoStack.length },
         { label: 'Redo', value: 'redo', disabled: !worldRedoStack.length },
       ] });
+      // Context-gate the actions that silently no-op when their precondition is
+      // not met (feedback #5): disable the chip + show the precondition as its
+      // tooltip rather than leaving a dead button that does nothing on click.
+      const applyToolDisabled = typeof canApplySelectedToolToSelection === 'function' && !canApplySelectedToolToSelection();
+      const pasteDisabled = typeof clipboardHasContent === 'function' && !clipboardHasContent();
+      const pasteTemplateDisabled = typeof latestTemplateAvailable === 'function' && !latestTemplateAvailable();
       addRows('Edit', [
         { key: 'selectionAction', label: 'Tool', control: 'actions', options: [
-          { label: 'Apply tool', value: 'apply-tool' },
+          { label: 'Apply tool', value: 'apply-tool', disabled: applyToolDisabled, disabledReason: window.t('props.gate.needTool') },
           { label: 'Delete', value: 'delete' },
         ] },
         { key: 'selectionAction', label: 'Clipboard', control: 'actions', options: [
           { label: 'Copy', value: 'copy' },
           { label: 'Cut', value: 'cut' },
-          { label: 'Paste', value: 'paste' },
+          { label: 'Paste', value: 'paste', disabled: pasteDisabled, disabledReason: window.t('props.gate.nothingCopied') },
           { label: 'Duplicate', value: 'duplicate' },
         ] },
         { key: 'selectionAction', label: 'Templates', control: 'actions', options: [
           { label: 'Save template', value: 'save-template' },
-          { label: 'Paste latest', value: 'paste-template' },
+          { label: 'Paste latest', value: 'paste-template', disabled: pasteTemplateDisabled, disabledReason: window.t('props.gate.noTemplate') },
         ] },
       ]);
       addRow('Transform', { key: 'rotate', label: 'Rotate', control: 'rotate', options: [
@@ -2169,7 +2191,7 @@
         );
         addRows('Transform', transformRows);
         const appearanceRows = [
-          { key: 'objectMaterial', label: 'All material', currentValue: currentObjectMaterial, options: SELECTION_MATERIAL_OPTIONS },
+          { key: 'objectMaterial', label: 'All material', material: true, currentValue: currentObjectMaterial, options: SELECTION_MATERIAL_OPTIONS },
           { key: 'objectMaterialScale', label: 'All mat scale', control: 'stepper', currentValue: scaleResetValue(objectCells, 'materialTextureScale'), options: [
             { label: 'Smaller', value: 'down' },
             { label: 'Larger', value: 'up' },
@@ -2178,13 +2200,13 @@
         ];
         if (partMaterialCells.length) {
           appearanceRows.push(
-            { key: 'bodyMaterial', label: 'Body material', currentValue: currentBodyMaterial, options: SELECTION_MATERIAL_OPTIONS },
+            { key: 'bodyMaterial', label: 'Body material', material: true, currentValue: currentBodyMaterial, options: SELECTION_MATERIAL_OPTIONS },
             { key: 'bodyMaterialScale', label: 'Body mat scale', control: 'stepper', currentValue: scaleResetValue(partMaterialCells, 'bodyTextureScale'), options: [
               { label: 'Smaller', value: 'down' },
               { label: 'Larger', value: 'up' },
               { label: 'Reset', value: 'reset' },
             ] },
-            { key: 'topMaterial', label: 'Top material', currentValue: currentTopMaterial, options: SELECTION_MATERIAL_OPTIONS },
+            { key: 'topMaterial', label: 'Top material', material: true, currentValue: currentTopMaterial, options: SELECTION_MATERIAL_OPTIONS },
             { key: 'topMaterialScale', label: 'Top mat scale', control: 'stepper', currentValue: scaleResetValue(partMaterialCells, 'topTextureScale'), options: [
               { label: 'Smaller', value: 'down' },
               { label: 'Larger', value: 'up' },
@@ -2238,13 +2260,19 @@
                 { label: 'Yaw-', value: 'y-' }, { label: 'Yaw+', value: 'y+' },
                 { label: 'Roll-', value: 'z-' }, { label: 'Roll+', value: 'z+' },
               ] });
+              // Voxel sculpt/add only apply to voxel parts (key `v:x,y,z`); on a
+              // named part they silently no-op, so disable them with a tooltip
+              // when the selected part is not a voxel (feedback #5).
+              const voxelReady = !!(se.isVoxelPartSelected && se.isVoxelPartSelected());
+              const voxelReason = window.t('props.gate.voxelOnly');
               addRow('Edit', { key: 'voxelSculpt', label: 'Voxel', control: 'actions', options: [
-                { label: 'Remove', value: 'remove' }, { label: 'Smooth', value: 'smooth' },
+                { label: 'Remove', value: 'remove', disabled: !voxelReady, disabledReason: voxelReason },
+                { label: 'Smooth', value: 'smooth', disabled: !voxelReady, disabledReason: voxelReason },
               ] });
               addRow('Edit', { key: 'voxelAdd', label: 'Add voxel', control: 'move', options: [
-                { label: 'X-', value: 'x-' }, { label: 'X+', value: 'x+' },
-                { label: 'Y-', value: 'y-' }, { label: 'Y+', value: 'y+' },
-                { label: 'Z-', value: 'z-' }, { label: 'Z+', value: 'z+' },
+                { label: 'X-', value: 'x-', disabled: !voxelReady, disabledReason: voxelReason }, { label: 'X+', value: 'x+', disabled: !voxelReady, disabledReason: voxelReason },
+                { label: 'Y-', value: 'y-', disabled: !voxelReady, disabledReason: voxelReason }, { label: 'Y+', value: 'y+', disabled: !voxelReady, disabledReason: voxelReason },
+                { label: 'Z-', value: 'z-', disabled: !voxelReady, disabledReason: voxelReason }, { label: 'Z+', value: 'z+', disabled: !voxelReady, disabledReason: voxelReason },
               ] });
             }
           }
@@ -2401,7 +2429,7 @@
       };
       const chipClassForOption = (row, opt) => {
         const classes = ['selection-prop-chip'];
-        if (row.color) classes.push('color-chip');
+        if (row.color || row.material) classes.push('color-chip');
         if (row.control === 'stepper' || row.control === 'rotate' || row.control === 'move' || row.control === 'axis' || row.control === 'history') {
           classes.push('icon-chip');
         }
@@ -2490,11 +2518,33 @@
             if (opt.disabled) chip.disabled = true;
             chip.setAttribute('aria-label', row.label + ': ' + opt.label);
             chip.title = row.label + ': ' + opt.label;
+            // When a chip is gated off, surface the precondition as its tooltip
+            // (and aria-label) so the disabled state is explained, not mysterious.
+            if (opt.disabled && opt.disabledReason) {
+              chip.title = opt.disabledReason;
+              chip.setAttribute('aria-label', row.label + ': ' + opt.label + ' — ' + opt.disabledReason);
+            }
             if (row.color && opt.color) {
               const swatch = document.createElement('span');
               swatch.className = 'selection-prop-swatch';
               swatch.style.background = opt.color;
               chip.appendChild(swatch);
+            } else if (row.material && (opt.glyph || opt.swatch)) {
+              // Material marker: a small SVG glyph tinted with the material's
+              // representative colour so each chip is distinguishable at a glance.
+              const marker = document.createElement('span');
+              marker.setAttribute('aria-hidden', 'true');
+              marker.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;flex:0 0 auto;color:' + (opt.swatch || 'currentColor') + ';';
+              if (opt.glyph) {
+                marker.innerHTML = opt.glyph;
+                const svgEl = marker.firstChild;
+                if (svgEl && svgEl.style) { svgEl.style.width = '100%'; svgEl.style.height = '100%'; }
+              } else {
+                marker.style.background = opt.swatch;
+                marker.style.borderRadius = '4px';
+                marker.style.boxShadow = 'inset 0 0 0 1px rgba(0,0,0,0.12)';
+              }
+              chip.appendChild(marker);
             }
             chip.appendChild(document.createTextNode(optionGlyph(row, opt)));
             chip.addEventListener('click', e => {

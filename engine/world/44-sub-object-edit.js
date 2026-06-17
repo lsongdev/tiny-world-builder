@@ -323,6 +323,12 @@
     const m = /^v:(-?\d+),(-?\d+),(-?\d+)$/.exec(key || '');
     return m ? { x: +m[1], y: +m[2], z: +m[3] } : null;
   }
+  // True when the locked-in selected part is a sculptable voxel (key `v:x,y,z`).
+  // The voxel remove/smooth/add actions no-op on named (non-voxel) parts, so the
+  // panel uses this to disable those chips when they would silently fail.
+  function isVoxelPartSelected() {
+    return !!parseVoxelKey(selectedPartKey);
+  }
   function sculptMutate(fn) {
     if (subEditCellX === null) return false;
     if (typeof getWorldCell !== 'function' || typeof setCell !== 'function') return false;
@@ -530,6 +536,7 @@
     removeVoxel: removeSelectedVoxel,
     addVoxel: addVoxelFromSelected,
     smoothVoxel: smoothSelectedVoxel,
+    isVoxelPartSelected,
     setExplode,
     isExploded,
     _tickExplode: tickSubEditExplode,

@@ -321,5 +321,12 @@
     'toast.downloadFailed': '下载失败。',
     'toast.invalidJson': '该文件不是有效的 JSON。',
     'toast.readFailed': '无法读取该文件。',
+
+    // ---- builder Properties panel: action gating tooltips + toasts ----
+    'props.gate.needTool': '请先选择放置工具',
+    'props.gate.nothingCopied': '尚未复制任何内容',
+    'props.gate.noTemplate': '尚未保存模板',
+    'props.gate.voxelOnly': '仅限体素部件',
+    'props.action.failed': '这里没有可执行的操作',
   };
 }());

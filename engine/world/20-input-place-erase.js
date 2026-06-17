@@ -161,6 +161,31 @@
     return true;
   }
 
+  // Read-only mirror of applySelectedToolToSelection's gating (above) so the
+  // Properties panel can disable the "Apply tool" chip when the action would
+  // no-op (feedback #5). Keep this beside applySelectedToolToSelection so the
+  // two stay in sync if the guards change.
+  function canApplySelectedToolToSelection() {
+    if (window.__tinyworldIsPlayMode && window.__tinyworldIsPlayMode()) return false;
+    const sel = window.__tinyworldSelection;
+    if (!sel || !sel.cells || !sel.cells.size) return false;
+    if (!selectedTool || selectedTool.select || selectedTool.auto || selectedTool.island || selectedTool.mooring) return false;
+    return true;
+  }
+
+  // True when there is a clipboard payload (copy/cut, or a single hovered cell
+  // captured for copy) that paste could place. Mirrors pasteClipboardAtTarget's
+  // content check so the panel can disable a "Paste" chip that would no-op.
+  function clipboardHasContent() {
+    if (assetClipboard && assetClipboard.cells && assetClipboard.cells.length) return true;
+    return !!copiedHoverCell;
+  }
+
+  // True when a saved asset template exists for "Paste latest".
+  function latestTemplateAvailable() {
+    return !!latestTemplateClipboardPayload();
+  }
+
   // True unless a shared-room role forbids editing entirely (viewer/player).
   // Gates the non-per-cell edit paths (clipboard, keyboard shortcuts).
   function mpEditAllowed() {

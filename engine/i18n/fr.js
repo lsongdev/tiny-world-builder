@@ -321,5 +321,12 @@
     'toast.downloadFailed': 'Échec du téléchargement.',
     'toast.invalidJson': 'Ce fichier n’est pas un JSON valide.',
     'toast.readFailed': 'Impossible de lire ce fichier.',
+
+    // ---- builder Properties panel: action gating tooltips + toasts ----
+    'props.gate.needTool': 'Choisissez d’abord un outil de placement',
+    'props.gate.nothingCopied': 'Rien de copié pour l’instant',
+    'props.gate.noTemplate': 'Aucun modèle enregistré',
+    'props.gate.voxelOnly': 'Pièces voxel uniquement',
+    'props.action.failed': 'Rien à faire ici',
   };
 }());
