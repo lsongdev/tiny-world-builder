@@ -2134,13 +2134,14 @@
     // Surface height for a cell's tile top (world Y). Sprites are billboards anchored
     // with center(0.5,0.12) so they used a flat 0.02; a solid voxel body must plant its
     // feet on the ACTUAL tile top, which varies with terrain/floors.
-    const _wsGroundBox = (typeof THREE !== 'undefined') ? new THREE.Box3() : null;
     function voxelGroundY(x, z) {
-      if (typeof cellMeshes === 'undefined' || !_wsGroundBox) return 0.02;
+      if (typeof cellMeshes === 'undefined') return 0.02;
       const cm = cellMeshes[x + ',' + z];
-      if (cm && cm.tile) {
-        _wsGroundBox.setFromObject(cm.tile);
-        if (isFinite(_wsGroundBox.max.y)) return _wsGroundBox.max.y;
+      if (cm && cm.tile && typeof tileSurfaceWorldY === 'function') {
+        // Walkable cap height — ignores decorative edge weeds/kerbs/bevels that
+        // poke above the surface (those made avatars bob up/down over "nothing").
+        const y = tileSurfaceWorldY(cm.tile);
+        if (typeof y === 'number' && isFinite(y)) return y;
       }
       // Tile baked away (static lobby): use the height cached at bake time.
       if (cm && typeof cm.bakedGroundY === 'number') return cm.bakedGroundY;

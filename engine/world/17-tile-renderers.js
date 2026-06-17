@@ -875,7 +875,13 @@
       terrainBakeRoot.attach(entry.tile);
       // Cache the tile-top world Y BEFORE the merge strips the tile's meshes, so
       // voxelGroundY (47-worlds-room) keeps avatars grounded once entry.tile is null.
-      try { _terrainBakeBox.setFromObject(entry.tile); if (isFinite(_terrainBakeBox.max.y)) entry.bakedGroundY = _terrainBakeBox.max.y; } catch (_) {}
+      // Use the walkable cap height (not the raw bounding box, which encloses edge
+      // weeds/kerbs/bevels that poke above the surface and make avatars bob).
+      try {
+        const gy = (typeof tileSurfaceWorldY === 'function') ? tileSurfaceWorldY(entry.tile) : null;
+        if (typeof gy === 'number' && isFinite(gy)) entry.bakedGroundY = gy;
+        else { _terrainBakeBox.setFromObject(entry.tile); if (isFinite(_terrainBakeBox.max.y)) entry.bakedGroundY = _terrainBakeBox.max.y; }
+      } catch (_) {}
       // Swap transparent fade materials back to their preserved opaque baseMat.
       // prepareFadeable (15-ghost-generation-fade.js) sets keepFadeAtOpaque on
       // home tiles, meaning the material is transparent even at opacity 1.

@@ -174,6 +174,12 @@
     // mathematical tile height, otherwise rain ripples and snow buildup hide
     // inside the top face at grazing camera angles.
     g.userData.weatherSurfaceY = topY + WEATHER_SURFACE_PAD;
+    // Walkable top of the terrain cap, in the tile group's LOCAL frame. The tile
+    // group's bounding box also encloses decorative edge weeds, kerb strips, and
+    // cap bevels that poke ABOVE this surface — using that box for avatar ground
+    // height made avatars bob up/down over "nothing". tileSurfaceWorldY() prefers
+    // this recorded value.
+    g.userData.surfaceY = topY;
 
     const skipTerrain = !!(opts && opts.skipTerrain);
     const skipSurfaceDetails = !!(opts && opts.skipSurfaceDetails);
@@ -327,6 +333,29 @@
       castReceive(g);
     }
     return g;
+  }
+
+  // -------- tile surface height --------
+  // World-space Y of a tile's walkable cap. A tile group's bounding box also
+  // encloses decorative edge weeds, kerb strips, and cap bevels that stick UP
+  // above the cap, so using box.max.y as ground height makes avatars ride on
+  // top of those decorations and bob up/down between cells. Prefer the recorded
+  // cap height (userData.surfaceY, local) projected through the tile's world
+  // matrix; fall back to the bounding box for tiles without it (e.g. baked).
+  const _tileSurfaceVec = (typeof THREE !== 'undefined') ? new THREE.Vector3() : null;
+  const _tileSurfaceBox = (typeof THREE !== 'undefined') ? new THREE.Box3() : null;
+  function tileSurfaceWorldY(tile) {
+    if (!tile) return null;
+    if (tile.userData && typeof tile.userData.surfaceY === 'number' && _tileSurfaceVec) {
+      tile.updateWorldMatrix(true, false);
+      _tileSurfaceVec.set(0, tile.userData.surfaceY, 0).applyMatrix4(tile.matrixWorld);
+      if (isFinite(_tileSurfaceVec.y)) return _tileSurfaceVec.y;
+    }
+    if (_tileSurfaceBox) {
+      _tileSurfaceBox.setFromObject(tile);
+      if (isFinite(_tileSurfaceBox.max.y)) return _tileSurfaceBox.max.y;
+    }
+    return null;
   }
 
   // -------- object factories --------
