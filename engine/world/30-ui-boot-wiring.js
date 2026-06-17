@@ -1042,7 +1042,20 @@
     // Expose the signed-in profile so other modules can read the real username.
     // The multiplayer name tag (47-worlds-room) looks for account.profile() —
     // without this it always falls back to the generic "Player" label.
-    window.__tinyworldAccount = { profile: function () { return userProfile; } };
+    // onProfile callbacks are fired whenever the profile is freshly loaded so that
+    // world-room modules can update their presence without waiting for the modal.
+    const _profileCallbacks = [];
+    window.__tinyworldAccount = {
+      profile: function () { return userProfile; },
+      onProfile: function (cb) { if (typeof cb === 'function') _profileCallbacks.push(cb); },
+    };
+    function _fireProfileCallbacks() {
+      for (const cb of _profileCallbacks) { try { cb(userProfile); } catch (_) {} }
+      // Also fire a document-level event so modules loaded in a separate closure
+      // (e.g. 47-worlds-room.js) can refresh their multiplayer identity without
+      // needing a direct reference to this modal's callback list.
+      try { document.dispatchEvent(new CustomEvent('tinyworld:profile-loaded', { detail: userProfile })); } catch (_) {}
+    }
 
     function showTab(tab) {
       tabProfile.classList.toggle('active', tab === 'profile');
@@ -1091,6 +1104,7 @@
           profileAvatarImg.src = p.image;
           profileAvatarImg.hidden = false;
         }
+        _fireProfileCallbacks();
       }
     }
 
@@ -1144,6 +1158,7 @@
       });
       if (result && (result.id || result.username)) {
         userProfile = result;
+        _fireProfileCallbacks();
         profileStatus.textContent = 'Saved!';
         setTimeout(() => profileStatus.textContent = '', 2000);
       } else {
@@ -1296,6 +1311,10 @@
       loadBuilds();
     });
     window.__tinyworldAccountWorldsRefresh = loadBuilds;
+    // Proactively load profile on first initialisation so the real display name
+    // is available immediately (e.g. for world-room name labels) without requiring
+    // the user to open the account modal first.
+    loadProfile().catch(() => {});
   }
 
   // -------- auth --------

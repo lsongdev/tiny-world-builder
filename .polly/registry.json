@@ -1,0 +1,61 @@
+{
+  "epic": "builder-mode-feedback Wave 1",
+  "plan": "plans/builder-mode-feedback-plan.md",
+  "base": "main@c3711b7",
+  "shared_surface": "engine/i18n/{en,es,fr,zh}.js — all 3 tasks add keys (additive; trivial human-merge conflicts expected)",
+  "tasks": [
+    {
+      "id": "w1-props",
+      "items": ["#2 material glyphs", "#5 dead-button gating + feedback"],
+      "worktree": ".worktrees/w1-props",
+      "branch": "polly/w1-props-glyphs-gating",
+      "implementer": "claude_code",
+      "reviewer_vendor": "codex",
+      "conv_id": "conv_52bae61816474ee081ba76df42e3eb61",
+      "pr_url": "https://github.com/jasonkneen/tiny-world-builder/pull/48",
+      "gates": "check + smoke + test:unit(129) + i18n:check green; implementer browser-verified",
+      "preview": "https://deploy-preview-48--tiny-world-builder.netlify.app",
+      "review_conv_id": "conv_1c389a6ce8654feca33ff1f125f279d0",
+      "status": "in-review"
+    },
+    {
+      "id": "w1-layers",
+      "items": ["#3 rename Layers -> Inventory + helper copy"],
+      "worktree": ".worktrees/w1-layers",
+      "branch": "polly/w1-layers-rename",
+      "implementer": "codex",
+      "reviewer_vendor": "claude_code",
+      "conv_id": "conv_5bd06988f90a421f9653b3d3bb56ad56",
+      "pr_url": "https://github.com/jasonkneen/tiny-world-builder/pull/46",
+      "gates": "i18n:check + npm test green",
+      "review_conv_id": "conv_0034c7d7299f4157ad6ea84e4c1fc31c",
+      "review": "PASS (no blocking). Polish applied (commit d5a079e): removed dup title, helper under tab row, dedicated layers-helper class + minimal CSS. i18n:check + npm test green.",
+      "preview": "https://deploy-preview-46--tiny-world-builder.netlify.app",
+      "status": "READY-FOR-HUMAN-MERGE"
+    },
+    {
+      "id": "w1-coach",
+      "items": ["#1a core-loop coach card"],
+      "worktree": ".worktrees/w1-coach",
+      "branch": "polly/w1-coach-card",
+      "implementer": "claude_code",
+      "reviewer_vendor": "codex",
+      "conv_id": "conv_ca842944175449578d0da1eb0fb01b56",
+      "pr_url": "https://github.com/jasonkneen/tiny-world-builder/pull/47",
+      "gates": "i18n:check + check green (305 keys x4)",
+      "preview": "https://deploy-preview-47--tiny-world-builder.netlify.app",
+      "review_conv_id": "conv_c59644a241cf4a29b8830e079bf6f192",
+      "review": "PASS (zero blocking/non-blocking; one cosmetic suggestion: inline section-title style -> CSS later)",
+      "followup": "eyeball fr/zh card fit at 360px on deploy-preview-47 before merge",
+      "status": "READY-FOR-HUMAN-MERGE"
+    }
+  ],
+  "netlify": {
+    "site": "tiny-world-builder (tinyworld.build)",
+    "site_id": "f2255f9a-69eb-470c-8273-c12e4b4f70c3",
+    "pr_previews": "AUTOMATIC via Netlify GitHub app: every PR -> https://deploy-preview-<PR#>--tiny-world-builder.netlify.app",
+    "build": "./publish.sh -> dist (guards: no cluso). PartyKit deploys separately.",
+    "manual_draft": "npm exec -- netlify deploy --context deploy-preview --alias <branch-no-slashes> (NOT --prod)"
+  },
+  "deferred": ["#1b guided overlay", "#4 shrink (Wave 2, verify-first)", "#5c real undo/redo", "#2 settings <select> html"]
+}

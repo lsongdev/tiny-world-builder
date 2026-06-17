@@ -656,6 +656,10 @@
   .multiplayer-roster .mp-role-editor { color: #2b2f6b; }
   .multiplayer-roster .mp-role-player { color: #2f7d4a; }
   .multiplayer-roster .mp-role-viewer { color: #5a6172; }
+  /* Tinyverse world-room flight badge — plane icon on avatar circle. */
+  .multiplayer-roster .mp-flight-badge { color: #2fa8cc; background: #e8f6fb; border-color: rgba(80,190,230,.5); }
+  .multiplayer-roster .mp-flight-badge-icon { display: block; }
+  .multiplayer-roster .mp-avatar.is-flying { box-shadow: 0 0 0 2px #40b8d0, 0 1px 3px rgba(20,28,45,.28); }
 
   /* Glassy bottom-center toast (lobby entrance / role changes). */
   .mp-toast {

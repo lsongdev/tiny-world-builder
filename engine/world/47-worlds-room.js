@@ -103,7 +103,20 @@
     let animals = [];
     let cells = [];           // tile cells for minimap (from world.data)
     let connected = false;
-  
+    // Flight ghost state: keyed by peer id, tracks peer planes rendered in
+    // the world-room scene under avatarParent(). Populated by incoming 'entity'
+    // messages relayed through the world-room onWorldMessage entity branch.
+    const flightGhosts = new Map();
+    // Track which peers are currently flying so the roster can badge them.
+    const flyingById = new Set();
+    // Per-room multiplayer stub saved/restored on enter/leave so 34-flight-sim.js
+    // can call broadcastFlight without knowing which mode it's in.
+    let _prevMultiplayer = null;
+    // Roster DOM element (mirrors the .multiplayer-roster pill from 38-multiplayer-partykit).
+    let rosterEl = null;
+    // Throttle flight broadcasts to ~15/s (same cadence as 38-multiplayer-partykit).
+    let _lastFlightSent = 0;
+
     function host() {
       const explicit = window.__TINY_WORLD_PARTYKIT_HOST__ || '';
       const h = String(explicit || '').trim().replace(/\/+$/, '');
@@ -138,6 +151,20 @@
       } catch (_) { return '#5a78e0'; }
     }
   
+    // When the account profile loads (async, possibly after world join), refresh our
+    // presence so peers see the real display name rather than the 'Player' fallback.
+    // 30-ui-boot-wiring.js fires 'tinyworld:profile-loaded' on the document after
+    // each successful profile GET or PUT, so we don't need a reference to the modal
+    // closure's callback list — we just listen on the document.
+    document.addEventListener('tinyworld:profile-loaded', function () {
+      if (!connected) return;
+      send({ type: 'presence', presence: { name: playerName(), color: playerColor() } });
+      // Update our own name label immediately.
+      if (typeof selfEnt !== 'undefined' && selfEnt) {
+        if (typeof ensureNameLabel === 'function') ensureNameLabel(selfEnt, playerName(), playerColor());
+      }
+    });
+
     function send(obj) { if (socket && socket.readyState === 1) socket.send(JSON.stringify(obj)); }
 
     // Compact [x,z,terrain,kind?] tuples — small enough for the join envelope and
@@ -189,6 +216,18 @@
       // Force play mode so all edit gates block building while in a tinyverse world.
       const mode = window.__tinyworldMode;
       if (mode) { prevPlayMode = mode.isPlay(); mode.setPlay(); }
+      // Install a compatible broadcastFlight / flightGhosts stub so 34-flight-sim.js
+      // can call broadcastFlight() while the player is in a tinyverse world room.
+      // Save and restore the previous value so 38-multiplayer-partykit stays intact
+      // if it was already installed (e.g. the player is also in a shared build room).
+      _prevMultiplayer = window.__tinyworldMultiplayer || null;
+      window.__tinyworldMultiplayer = {
+        broadcastFlight: _broadcastFlightWorld,
+        flightGhosts: () => { const out = []; flightGhosts.forEach(g => out.push(g)); return out; },
+        canInteract: () => connected,
+        roomId: () => 'world-' + (w ? w.slug : ''),
+        send,
+      };
       emit('enter', { world: w, role });
       const roomId = 'world-' + w.slug;
       const url = host() + '/party/' + encodeURIComponent(roomId) + '?_pk=' + encodeURIComponent(connToken());
@@ -226,6 +265,17 @@
         if (typeof window.__tinyworldSetTerrainBakeForced === 'function') window.__tinyworldSetTerrainBakeForced(false);
         if (typeof window.__tinyworldUnbakeTerrain === 'function') window.__tinyworldUnbakeTerrain();
       } catch (_) {}
+      // If the player is currently flying, exit flight cleanly before closing the
+      // socket so the server and peers get the active:false entity message.
+      try { if (window.__flightActive && typeof window.exitFlight === 'function') window.exitFlight(); } catch (_) {}
+      _selfFlying = false;
+      // Restore previous __tinyworldMultiplayer (may be from 38-multiplayer-partykit).
+      window.__tinyworldMultiplayer = _prevMultiplayer; _prevMultiplayer = null;
+      // Clear all flight ghosts from the scene.
+      _clearFlightGhosts();
+      flyingById.clear();
+      // Hide and clean up the tinyverse roster pill.
+      if (rosterEl) { rosterEl.classList.remove('visible'); }
       if (socket) { try { socket.close(); } catch (_) {} socket = null; }
       connected = false; peers.clear(); nodes = {}; animals = [];
       knownPeerIds.clear(); peerNames.clear(); peersSeeded = false;
@@ -346,6 +396,11 @@
         }
         case 'chat.typing': emit('typing', d); break;
         case 'present': emit('present', d); break;   // lobby slide sync (58-lobby-presentation)
+        case 'entity':
+          // Live plane transform from a peer who is flying. Relayed through the
+          // world-room onWorldMessage entity branch (added to party/index.js).
+          _applyRemoteEntity(d);
+          break;
         case 'world.refresh':
           // A god-admin saved the live world; the server relays the fresh board so
           // every connected client re-renders without a reload. Only the compact
@@ -361,9 +416,243 @@
     const localRes = { fish: 0, meat: 0, plants: 0, ore: 0 };
     function addLocalResource(r, n) { if (localRes[r] != null && n > 0) { localRes[r] += n; emit('resources', Object.assign({}, localRes)); } }
     WS.getResources = () => Object.assign({}, localRes);
+
+    // ---- world-room flight ghost helpers --------------------------------
+    // Build a minimal placeholder mesh for a peer's ghost plane. Prefer the real
+    // model stamp if makeModelStamp is available; fall back to a small cone so
+    // the ghost is still visible before any GLB loads. No emoji, no PNG icons.
+    function _buildWorldFlightGhostModel() {
+      if (typeof makeModelStamp === 'function') {
+        try {
+          // Look for a flyable stamp in the world's cell data.
+          if (typeof isFlyableStampCell === 'function' && cells && Array.isArray(cells)) {
+            for (const c of cells) {
+              if (!c) continue;
+              const cell = Array.isArray(c) ? null : c;
+              if (cell && isFlyableStampCell(cell)) {
+                const sid = cell.appearance && cell.appearance.modelStampId;
+                if (sid) { try { const m = makeModelStamp(sid); if (m) return m; } catch (_) {} }
+              }
+            }
+          }
+        } catch (_) {}
+      }
+      // Fallback: translucent cone pointing forward. No emoji, no PNG.
+      if (typeof THREE === 'undefined') return null;
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(
+        new THREE.ConeGeometry(0.22, 0.9, 12),
+        new THREE.MeshBasicMaterial({ color: 0x9bb8e8, transparent: true, opacity: 0.85 })
+      );
+      body.rotation.x = -Math.PI / 2;
+      g.add(body);
+      return g;
+    }
+
+    function _removeFlightGhost(id) {
+      const ghost = flightGhosts.get(id);
+      if (!ghost) return;
+      const par = avatarParent();
+      if (par && ghost.group && ghost.group.parent) par.remove(ghost.group);
+      if (ghost.group && typeof ghost.group.traverse === 'function') {
+        ghost.group.traverse(o => {
+          if (o.geometry) o.geometry.dispose();
+          if (o.material) {
+            if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+            else o.material.dispose();
+          }
+        });
+      }
+      flightGhosts.delete(id);
+    }
+
+    function _clearFlightGhosts() {
+      flightGhosts.forEach((_, id) => _removeFlightGhost(id));
+    }
+
+    function _applyRemoteEntity(msg) {
+      if (!msg || msg.kind !== 'plane') return;
+      const id = String(msg.id || '');
+      if (!id) return;
+      // Never render our own ghost — the flyer sees the real plane.
+      if (id === myId) return;
+      if (msg.active === false) {
+        _removeFlightGhost(id);
+        flyingById.delete(id);
+        _renderWorldRoster();
+        return;
+      }
+      flyingById.add(id);
+      let ghost = flightGhosts.get(id);
+      if (!ghost) {
+        const model = _buildWorldFlightGhostModel();
+        if (!model) return;
+        const group = new THREE.Group();
+        group.name = 'world-plane-' + id;
+        group.add(model);
+        const par = avatarParent();
+        if (par) par.add(group);
+        ghost = { group };
+        flightGhosts.set(id, ghost);
+      }
+      const p = msg.p || {};
+      const r = msg.r || {};
+      const px = Number(p.x), py = Number(p.y), pz = Number(p.z);
+      if (Number.isFinite(px) && Number.isFinite(py) && Number.isFinite(pz)) {
+        ghost.group.position.set(px, py, pz);
+      }
+      ghost.group.rotation.set(
+        Number.isFinite(Number(r.x)) ? Number(r.x) : 0,
+        Number.isFinite(Number(r.y)) ? Number(r.y) : 0,
+        Number.isFinite(Number(r.z)) ? Number(r.z) : 0,
+        'XYZ'
+      );
+      ghost.group.visible = true;
+      _renderWorldRoster();
+    }
+
+    // Broadcast own flight position to world room peers (~15/s when active).
+    // Called by 34-flight-sim.js via window.__tinyworldMultiplayer.broadcastFlight.
+    const _flBcPos = typeof THREE !== 'undefined' ? new THREE.Vector3() : null;
+    const _flBcEuler = typeof THREE !== 'undefined' ? new THREE.Euler() : null;
+    const _flBcQuat = typeof THREE !== 'undefined' ? new THREE.Quaternion() : null;
+    let _selfFlying = false;
+    function _broadcastFlightWorld(active) {
+      if (!connected) return;
+      if (active === false) {
+        if (_selfFlying) { _selfFlying = false; _renderWorldRoster(); }
+        send({ type: 'entity', kind: 'plane', active: false, p: { x: 0, y: 0, z: 0 }, r: { x: 0, y: 0, z: 0 } });
+        return;
+      }
+      const jet = window.__flightJet;
+      if (!jet || !_flBcPos || !_flBcEuler || !_flBcQuat) return;
+      if (!_selfFlying) { _selfFlying = true; _renderWorldRoster(); }
+      const now = Date.now();
+      if (now - _lastFlightSent < 66) return;   // ~15/s
+      _lastFlightSent = now;
+      // Capture in world space; convert into avatarParent() local frame so the ghost
+      // lands in the same content-local frame that peers render in (same as 38-multiplayer-partykit).
+      jet.getWorldPosition(_flBcPos);
+      const par = avatarParent();
+      if (par) par.worldToLocal(_flBcPos);
+      jet.getWorldQuaternion(_flBcQuat);
+      _flBcEuler.setFromQuaternion(_flBcQuat, 'XYZ');
+      send({
+        type: 'entity',
+        kind: 'plane',
+        active: true,
+        p: { x: _flBcPos.x, y: _flBcPos.y, z: _flBcPos.z },
+        r: { x: _flBcEuler.x, y: _flBcEuler.y, z: _flBcEuler.z },
+      });
+    }
     // Lobby presentation: broadcast the current slide index to the room (58 listens
     // for the server's 'present' echo to apply it on every client).
     WS.present = function (slide) { send({ type: 'present', slide: slide | 0 }); };
+
+    // ---- tinyverse player roster (top-center pill) -----------------------
+    // Mirrors the .multiplayer-roster pill from 38-multiplayer-partykit but lives
+    // here for the world-room path. Shows self + peers with a plane SVG badge for
+    // anyone currently flying. No emoji, no PNG.
+    function _ensureWorldRoster() {
+      if (rosterEl) return rosterEl;
+      rosterEl = document.createElement('div');
+      rosterEl.className = 'multiplayer-roster tw-worlds-roster';
+      rosterEl.dataset.posType = 'neutral';
+      rosterEl.setAttribute('aria-live', 'polite');
+      document.body.appendChild(rosterEl);
+      return rosterEl;
+    }
+    function _planeIconSvg() {
+      const NS = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(NS, 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('width', '10');
+      svg.setAttribute('height', '10');
+      svg.setAttribute('aria-hidden', 'true');
+      svg.setAttribute('class', 'mp-flight-badge-icon');
+      // Simple paper-plane / chevron path — no emoji.
+      const path = document.createElementNS(NS, 'path');
+      path.setAttribute('d', 'M2 12 L22 4 L14 22 L11 14 Z M11 14 L22 4');
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', 'currentColor');
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+      svg.appendChild(path);
+      return svg;
+    }
+    function _avatarInitials(name) {
+      const t = String(name || '').trim();
+      if (!t) return '?';
+      const parts = t.split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+      return t.slice(0, 2).toUpperCase();
+    }
+    function _renderWorldRoster() {
+      const el = _ensureWorldRoster();
+      el.textContent = '';
+      if (!connected) { el.classList.remove('visible'); return; }
+      const selfName = playerName();
+      const selfColor = playerColor();
+      const selfFlying = _selfFlying;
+      // Build list: self first, then up to 5 peers.
+      const people = [{ id: myId, name: selfName, color: selfColor, self: true, flying: selfFlying }];
+      peers.forEach((p, pid) => {
+        if (!p || pid === myId) return;
+        people.push({ id: pid, name: p.name || 'Player', color: p.color || '#5a78e0', self: false, flying: flyingById.has(pid) });
+      });
+      const MAX_SHOWN = 6;
+      const shown = people.slice(0, MAX_SHOWN);
+      const extra = people.length - MAX_SHOWN;
+      // Count pill
+      const cnt = document.createElement('span');
+      cnt.className = 'mp-count';
+      cnt.setAttribute('aria-label', people.length + ' player' + (people.length === 1 ? '' : 's'));
+      cnt.textContent = String(people.length);
+      el.appendChild(cnt);
+      // Avatar initials
+      const avs = document.createElement('span');
+      avs.className = 'mp-avatars';
+      for (const person of shown) {
+        const av = document.createElement('span');
+        av.className = 'mp-avatar' + (person.self ? ' mp-self' : '');
+        if (/^#[0-9a-f]{6}$/i.test(String(person.color || ''))) av.style.background = person.color;
+        av.textContent = _avatarInitials(person.name);
+        av.title = person.name + (person.flying ? ' (flying)' : '');
+        if (person.flying) {
+          // Plane badge clipped to bottom-right of the avatar circle.
+          const badge = document.createElement('span');
+          badge.className = 'mp-role-badge mp-flight-badge';
+          badge.setAttribute('aria-label', 'flying');
+          badge.appendChild(_planeIconSvg());
+          av.classList.add('is-flying');
+          av.appendChild(badge);
+        }
+        avs.appendChild(av);
+      }
+      if (extra > 0) {
+        const more = document.createElement('span');
+        more.className = 'mp-avatar mp-more';
+        more.textContent = '+' + extra;
+        avs.appendChild(more);
+      }
+      el.appendChild(avs);
+      el.classList.add('visible');
+    }
+    // Update the roster whenever peers change or we connect.
+    on('peers', () => _renderWorldRoster());
+    on('you', () => _renderWorldRoster());
+    on('enter', () => _renderWorldRoster());
+    // 'state' fires when the server sends world.state (always the first server
+    // message on join). At that point connected===true, so this is the earliest
+    // reliable moment to paint a solo player's pill.
+    on('state', () => _renderWorldRoster());
+    on('leave', () => { if (rosterEl) rosterEl.classList.remove('visible'); });
+    on('status', (d) => {
+      if (d && !d.connected && rosterEl) { rosterEl.classList.remove('visible'); return; }
+      // Reconnected — repaint so the pill reappears.
+      if (d && d.connected) _renderWorldRoster();
+    });
 
     // ---- god-admin live world refresh ----
     // The admin editor (66) calls this after a successful adminSave. We send the
@@ -418,6 +707,8 @@
     WS.getMyId = () => myId;
     WS.playerName = () => playerName();
     WS.playerColor = () => playerColor();
+    // Expose flying state so chat/players panels can badge flying peers.
+    WS.isFlying = (id) => id === myId ? _selfFlying : flyingById.has(String(id || ''));
     function sameProfileId(a, b) {
       if (a == null || b == null) return false;
       return String(a) === String(b);

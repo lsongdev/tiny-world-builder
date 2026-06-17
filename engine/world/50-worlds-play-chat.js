@@ -160,6 +160,8 @@
         .tw-play-chat-pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .tw-play-chat-you { font-size: 9px; color: rgba(160,190,240,.55); background: rgba(80,110,200,.15);
           border: 1px solid rgba(80,110,200,.2); border-radius: 4px; padding: 1px 4px; flex-shrink: 0; }
+        .tw-play-chat-fly-badge { flex-shrink: 0; color: #7ec8e0; display: inline-flex; align-items: center; }
+        .tw-play-chat-player-row.is-flying { border-color: rgba(80,190,230,.3); }
 
         /* @mention chips (inline) + the special @lobby broadcast chip. */
         .tw-chat-at { color: #a8c8ff; font-weight: 700; background: rgba(80,130,230,.16); border-radius: 4px; padding: 0 3px; }
@@ -773,8 +775,9 @@
     }
 
     function makePlayerRow(id, name, color, isSelf) {
+      const flying = typeof WS.isFlying === 'function' ? WS.isFlying(id) : false;
       const row = document.createElement('div');
-      row.className = 'tw-play-chat-player-row' + (isSelf ? ' is-self' : '');
+      row.className = 'tw-play-chat-player-row' + (isSelf ? ' is-self' : '') + (flying ? ' is-flying' : '');
       const av = document.createElement('span');
       av.className = 'tw-play-chat-av';
       av.style.background = color;
@@ -790,6 +793,15 @@
       nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); focusPlayer(id); } });
       row.appendChild(av);
       row.appendChild(nameEl);
+      if (flying) {
+        // Small plane icon indicating this player is currently flying. SVG only — no emoji, no PNG.
+        const flBadge = document.createElement('span');
+        flBadge.className = 'tw-play-chat-fly-badge';
+        flBadge.setAttribute('aria-label', 'flying');
+        flBadge.setAttribute('title', name + ' is flying');
+        flBadge.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" style="vertical-align:middle"><path d="M2 12 L22 4 L14 22 L11 14 Z M11 14 L22 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        row.appendChild(flBadge);
+      }
       if (isSelf) {
         const you = document.createElement('span');
         you.className = 'tw-play-chat-you';

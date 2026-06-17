@@ -1156,6 +1156,27 @@ export default class TinyWorldParty {
       this.broadcastToAdmitted({ type: 'present', slide, id, name: p.name });
       return;
     }
+    if (type === 'entity') {
+      // Live flight transform relayed through the world-room path. MUST live here
+      // (not in onMessage) because world rooms early-return to onWorldMessage at
+      // the top of onMessage before any entity branch there can fire. Rate limiting
+      // for the 'entity' bucket is applied by onMessage before the early-return, so
+      // no second takeToken is needed here. The server stamps id = sender's id so a
+      // peer cannot spoof another's ghost, and excludes the sender from the relay.
+      if (!this.admitted.has(id)) return;
+      const kind = cleanText(data.kind, 24);
+      if (kind !== 'plane') return;
+      this.broadcastToAdmitted({
+        type: 'entity',
+        kind: 'plane',
+        id,
+        active: data.active !== false,
+        p: cleanVec3(data.p),
+        r: cleanVec3(data.r),
+      }, id);
+      return;
+    }
+
     if (type === 'world.refresh') {
       // God-admin pushed a fresh live board after an authoritative adminSave. ONLY
       // an admin seat may do this. We re-derive the room's world state from the
