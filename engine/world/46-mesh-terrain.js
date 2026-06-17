@@ -269,7 +269,13 @@
       let gmin = Infinity;
       for (let k = 0; k < cellH.length; k++) if (cellH[k] < gmin) gmin = cellH[k];
       if (!isFinite(gmin)) gmin = 0;
-      return surfaceY + Math.min(0, gmin) - BASE_SKIRT;
+      const skirted = surfaceY + Math.min(0, gmin) - BASE_SKIRT;
+      // Drop the boundary skirt all the way to the home island's dirt-block bottom
+      // (y = -DIRT_H) so the outer rim is a solid deep wall. With only BASE_SKIRT
+      // the rim was a shallow lip floating above the island underside, leaving an
+      // open gap you could see straight through ("see-through sides").
+      const dirtBottom = (typeof DIRT_H === 'number') ? -DIRT_H : skirted;
+      return Math.min(skirted, dirtBottom);
     }
 
     // Board cells the user painted water/stone are SUNKEN features they want kept when
