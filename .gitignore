@@ -27,3 +27,4 @@ dist/
 # Local-only Cluso feedback widget (dev-server injected, never shipped)
 cluso/
 /.worktrees
+/.polly
