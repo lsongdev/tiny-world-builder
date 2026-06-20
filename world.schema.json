@@ -91,7 +91,7 @@
     },
     "kind": {
       "type": ["string", "null"],
-      "enum": [null, "house", "tree", "fence", "rock", "bridge", "crop", "corn", "wheat", "pumpkin", "carrot", "sunflower", "tuft", "flower", "bush", "cow", "sheep", "lamp-post", "spotlight", "voxel-build", "model-stamp"]
+      "enum": [null, "house", "tree", "fence", "rock", "bridge", "crop", "corn", "wheat", "pumpkin", "carrot", "sunflower", "tuft", "flower", "bush", "cow", "sheep", "lamp-post", "spotlight", "voxel-build", "model-stamp", "artifact", "relic", "crystal", "totem", "ruins"]
     },
     "island": {
       "type": "object",

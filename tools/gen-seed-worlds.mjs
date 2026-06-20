@@ -1,15 +1,21 @@
 #!/usr/bin/env node
-// Generates the Worlds seed migration: a small, fixed collection of distinct
-// worlds with different resource strengths (fishing / mining / farming / mixed),
-// each procedurally laid out from a per-world seed so they are all different.
+// Generates the Worlds seed migration: a large collection of rich, playable
+// Tinyverse starter islands.
 //
-//   node tools/gen-seed-worlds.mjs > netlify/database/migrations/20260607122000_reseed_worlds.sql
+//   node tools/gen-seed-worlds.mjs > netlify/database/migrations/20260620143000_rich_tinyverse_islands.sql
 //
-// Deterministic: re-running produces the same SQL. This is a SEPARATE migration
-// from the original seed (20260607121000) — migrations are immutable once applied
-// (Netlify tracks their checksums), so we never edit that file; this one clears
-// the original placeholder seed and inserts the curated collection instead.
-// The claim flow never INSERTs worlds, so these files define the universe supply.
+// All islands are published, owner-less "starter" islands for the Tinyverse MMO.
+// They are intentionally dense with:
+//   - Large connected water bodies (fish)
+//   - Substantial stone clusters (ore)
+//   - High crop density (plants/gather)
+//   - 8–25+ artifacts per island (relics, crystals, totems, ruins)
+//
+// Artifacts use kind: 'artifact' (or subtypes) and are placed on grass/stone.
+// This gives immediate rich harvesting, GOLD accrual, and artifact recovery
+// loops for testing and default Tinyverse population.
+//
+// Deterministic via per-world seeds.
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -20,14 +26,13 @@ function mulberry32(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
 function hashSeed(str) {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
   return h >>> 0;
 }
 
-// Grow a connected blob of `count` cells from (cx,cz), 4-neighbour random walk —
-// keeps water bodies connected (one shared fishing node) and stone clusters tight.
 function growBlob(occupied, g, cx, cz, count, rng) {
   const out = [];
   const key = (x, z) => x + ',' + z;
@@ -39,14 +44,13 @@ function growBlob(occupied, g, cx, cz, count, rng) {
     occupied.add(key(x, z));
     out.push([x, z]);
     const nbrs = [[x + 1, z], [x - 1, z], [x, z + 1], [x, z - 1]];
-    for (const n of nbrs) if (rng() < 0.7) frontier.push(n);
-    if (!frontier.length) frontier.push([x + (rng() < 0.5 ? 1 : -1), z]);
+    for (const n of nbrs) if (rng() < 0.65) frontier.push(n);
   }
   return out;
 }
 
 function emptyGrassCell(occupied, g, rng) {
-  for (let tries = 0; tries < 40; tries++) {
+  for (let tries = 0; tries < 60; tries++) {
     const x = Math.floor(rng() * g), z = Math.floor(rng() * g);
     if (!occupied.has(x + ',' + z)) { occupied.add(x + ',' + z); return [x, z]; }
   }
@@ -54,59 +58,115 @@ function emptyGrassCell(occupied, g, rng) {
 }
 
 const PLANTS = ['corn', 'wheat', 'carrot', 'sunflower', 'pumpkin'];
+const ARTIFACT_KINDS = ['artifact', 'relic', 'crystal', 'totem', 'ruins'];
 
-// archetype: { slug, name, status, grid, water:[blobSizes], stone:[clusterSizes], crops, trees }
-function buildWorld(a) {
+function buildRichWorld(a) {
   const g = a.grid;
   const rng = mulberry32(hashSeed(a.slug));
   const occupied = new Set();
   const cells = [];
-  // Water bodies.
+
+  // Big water bodies for fishing (rich)
   for (const size of a.water) {
     const cx = Math.floor(rng() * g), cz = Math.floor(rng() * g);
-    for (const [x, z] of growBlob(occupied, g, cx, cz, size, rng)) cells.push({ x, z, terrain: 'water' });
+    for (const [x, z] of growBlob(occupied, g, cx, cz, size, rng)) {
+      cells.push({ x, z, terrain: 'water' });
+    }
   }
-  // Stone / ore clusters.
+
+  // Substantial stone/ore clusters
   for (const size of a.stone) {
     const cx = Math.floor(rng() * g), cz = Math.floor(rng() * g);
-    for (const [x, z] of growBlob(occupied, g, cx, cz, size, rng)) cells.push({ x, z, terrain: 'stone' });
+    for (const [x, z] of growBlob(occupied, g, cx, cz, size, rng)) {
+      cells.push({ x, z, terrain: 'stone' });
+    }
   }
-  // Crops (ripe plants → gather nodes) on open grass.
+
+  // Dense crops for gathering
   for (let i = 0; i < a.crops; i++) {
     const c = emptyGrassCell(occupied, g, rng); if (!c) break;
     cells.push({ x: c[0], z: c[1], terrain: 'grass', kind: PLANTS[Math.floor(rng() * PLANTS.length)] });
   }
-  // Trees for character (block standing, not harvestable).
+
+  // Some decorative trees
   for (let i = 0; i < a.trees; i++) {
     const c = emptyGrassCell(occupied, g, rng); if (!c) break;
     cells.push({ x: c[0], z: c[1], terrain: 'grass', kind: 'tree' });
   }
+
+  // Rich artifacts scattered (the new "artikrfacts")
+  for (let i = 0; i < a.artifacts; i++) {
+    const c = emptyGrassCell(occupied, g, rng); if (!c) break;
+    const kind = ARTIFACT_KINDS[Math.floor(rng() * ARTIFACT_KINDS.length)];
+    // Occasionally place on stone for "ruins" feel
+    const terrain = rng() < 0.25 ? 'stone' : 'grass';
+    cells.push({ x: c[0], z: c[1], terrain, kind });
+  }
+
   const water = cells.filter(c => c.terrain === 'water').length;
   const stone = cells.filter(c => c.terrain === 'stone').length;
   const tile = g * g;
-  const grass = tile - water - stone;            // crops/trees keep grass terrain
-  const price = a.status === 'unclaimed' ? Math.round(0.01 * tile * 1e6) / 1e6 : 0;
+  const grass = tile - water - stone;
+
   return {
-    slug: a.slug, name: a.name, status: a.status,
-    kind: a.status === 'published' ? 'starter' : 'purchasable',
-    grid: g, tile, stone, grass, water, price,
+    slug: a.slug,
+    name: a.name,
+    status: 'published',
+    kind: 'starter',
+    grid: g,
+    tile,
+    stone,
+    grass,
+    water,
+    price: 0,
     data: { v: 4, gridSize: g, cells },
   };
 }
 
-// 10 worlds, all different, spanning board sizes 8/12/16/20 (the client's valid
-// home-grid sizes). Mixed published (playable now) + unclaimed (buyable).
+// A big collection of rich, varied Tinyverse starter islands.
+// All published and dense with resources + artifacts for immediate MMO play
+// (harvest, GOLD, tax, interest testing).
 const ARCHETYPES = [
-  { slug: 'tidewater-bay', name: 'Tidewater Bay', status: 'published', grid: 16, water: [40, 16, 8], stone: [4], crops: 6, trees: 6 },
-  { slug: 'iron-ridge', name: 'Iron Ridge', status: 'published', grid: 12, water: [4], stone: [12, 8, 6], crops: 3, trees: 3 },
-  { slug: 'green-pastures', name: 'Green Pastures', status: 'published', grid: 12, water: [5], stone: [2], crops: 18, trees: 6 },
-  { slug: 'mixed-hollow', name: 'Mixed Hollow', status: 'published', grid: 20, water: [30, 12], stone: [14, 8], crops: 16, trees: 10 },
-  { slug: 'forest-glade', name: 'Forest Glade', status: 'published', grid: 12, water: [8], stone: [3], crops: 6, trees: 22 },
-  { slug: 'quarry-flats', name: 'Quarry Flats', status: 'published', grid: 12, water: [3], stone: [10, 7, 5], crops: 3, trees: 2 },
-  { slug: 'lake-district', name: 'Lake District', status: 'unclaimed', grid: 20, water: [34, 22, 14], stone: [5], crops: 8, trees: 8 },
-  { slug: 'stone-vale', name: 'Stone Vale', status: 'unclaimed', grid: 16, water: [6], stone: [16, 11, 8, 5], crops: 3, trees: 4 },
-  { slug: 'meadow-plots', name: 'Meadow Plots', status: 'unclaimed', grid: 8, water: [3], stone: [2], crops: 12, trees: 4 },
-  { slug: 'crossroads', name: 'Crossroads', status: 'unclaimed', grid: 8, water: [5], stone: [4], crops: 4, trees: 3 },
+  // Fishing heavy + artifacts
+  { slug: 'tidewater-bay', name: 'Tidewater Bay', grid: 20, water: [55, 28, 14], stone: [6], crops: 22, trees: 8, artifacts: 18 },
+  { slug: 'coral-reef', name: 'Coral Reef', grid: 18, water: [62, 19], stone: [5], crops: 14, trees: 7, artifacts: 14 },
+  { slug: 'salt-marsh', name: 'Salt Marsh', grid: 16, water: [48, 22], stone: [4], crops: 19, trees: 9, artifacts: 16 },
+
+  // Mining / stone rich + crystal artifacts
+  { slug: 'iron-ridge', name: 'Iron Ridge', grid: 18, water: [7], stone: [28, 19, 11], crops: 11, trees: 6, artifacts: 21 },
+  { slug: 'crystal-canyon', name: 'Crystal Canyon', grid: 20, water: [9], stone: [31, 17, 9], crops: 8, trees: 5, artifacts: 25 },
+  { slug: 'quarry-flats', name: 'Quarry Flats', grid: 16, water: [5], stone: [24, 15, 8], crops: 10, trees: 4, artifacts: 13 },
+
+  // Farming / crop heavy
+  { slug: 'green-pastures', name: 'Green Pastures', grid: 18, water: [8], stone: [5], crops: 42, trees: 9, artifacts: 12 },
+  { slug: 'meadow-plots', name: 'Meadow Plots', grid: 16, water: [6], stone: [3], crops: 38, trees: 11, artifacts: 15 },
+  { slug: 'sunflower-plains', name: 'Sunflower Plains', grid: 20, water: [11], stone: [4], crops: 51, trees: 7, artifacts: 11 },
+
+  // Mixed rich
+  { slug: 'mixed-hollow', name: 'Mixed Hollow', grid: 22, water: [35, 18, 9], stone: [18, 11], crops: 27, trees: 12, artifacts: 19 },
+  { slug: 'echo-valley', name: 'Echo Valley', grid: 18, water: [21, 11], stone: [14, 9], crops: 24, trees: 15, artifacts: 22 },
+  { slug: 'ember-isle', name: 'Ember Isle', grid: 16, water: [14], stone: [12, 7], crops: 18, trees: 8, artifacts: 17 },
+
+  // Forest / balanced with relics
+  { slug: 'forest-glade', name: 'Forest Glade', grid: 18, water: [10], stone: [6], crops: 15, trees: 31, artifacts: 14 },
+  { slug: 'mosswood', name: 'Mosswood', grid: 20, water: [16, 7], stone: [8], crops: 21, trees: 27, artifacts: 18 },
+  { slug: 'ancient-grove', name: 'Ancient Grove', grid: 18, water: [12], stone: [5], crops: 13, trees: 29, artifacts: 23 },
+
+  // More variety (coastal, highland, etc.)
+  { slug: 'storm-coast', name: 'Storm Coast', grid: 20, water: [48, 15], stone: [9], crops: 17, trees: 10, artifacts: 16 },
+  { slug: 'highland-basin', name: 'Highland Basin', grid: 18, water: [13, 6], stone: [17, 10], crops: 20, trees: 8, artifacts: 19 },
+  { slug: 'golden-strand', name: 'Golden Strand', grid: 16, water: [22, 9], stone: [4], crops: 16, trees: 6, artifacts: 12 },
+  { slug: 'obsidian-shore', name: 'Obsidian Shore', grid: 18, water: [27, 8], stone: [15], crops: 12, trees: 5, artifacts: 21 },
+  { slug: 'fern-hollow', name: 'Fern Hollow', grid: 20, water: [18], stone: [7], crops: 29, trees: 18, artifacts: 15 },
+  { slug: 'sable-ridge', name: 'Sable Ridge', grid: 16, water: [5], stone: [21, 12], crops: 9, trees: 7, artifacts: 18 },
+  { slug: 'willow-bend', name: 'Willow Bend', grid: 18, water: [19, 10], stone: [3], crops: 23, trees: 14, artifacts: 13 },
+  { slug: 'ember-falls', name: 'Ember Falls', grid: 20, water: [15, 7], stone: [11, 8], crops: 15, trees: 9, artifacts: 20 },
+  { slug: 'jade-lagoon', name: 'Jade Lagoon', grid: 18, water: [41, 14], stone: [5], crops: 18, trees: 8, artifacts: 17 },
+  { slug: 'thornfield', name: 'Thornfield', grid: 16, water: [4], stone: [6], crops: 27, trees: 12, artifacts: 14 },
+  { slug: 'dawn-island', name: 'Dawn Island', grid: 20, water: [23, 9], stone: [8], crops: 25, trees: 11, artifacts: 22 },
+  { slug: 'mist-veil', name: 'Mist Veil', grid: 18, water: [29, 12], stone: [4], crops: 14, trees: 13, artifacts: 19 },
+  { slug: 'crimson-bay', name: 'Crimson Bay', grid: 16, water: [33, 8], stone: [7], crops: 11, trees: 6, artifacts: 15 },
+  { slug: 'silver-glen', name: 'Silver Glen', grid: 20, water: [12], stone: [13, 6], crops: 22, trees: 10, artifacts: 18 },
 ];
 
 function sqlString(obj) {
@@ -114,33 +174,44 @@ function sqlString(obj) {
 }
 
 function main() {
-  const worlds = ARCHETYPES.map(buildWorld);
+  const worlds = ARCHETYPES.map(buildRichWorld);
   const lines = [];
-  lines.push('-- Reseed the universe with a FIXED, hand-tuned collection of distinct worlds.');
-  lines.push('-- GENERATED by tools/gen-seed-worlds.mjs — do not edit by hand; re-run the');
-  lines.push('-- generator to regenerate. Each world has a different mix of water / stone /');
-  lines.push('-- grass / crops, so they carry different resource strengths. Published worlds');
-  lines.push('-- are playable immediately (owner-less, no tax sink); unclaimed worlds are');
-  lines.push('-- buyable with USDC. The claim flow never INSERTs worlds, so supply is fixed.');
+  lines.push('-- Rich default Tinyverse islands for MMO play.');
+  lines.push('-- GENERATED by tools/gen-seed-worlds.mjs — do not edit by hand.');
+  lines.push('-- All are published starter islands, deliberately dense with resources');
+  lines.push('-- (water/fish, stone/ore, crops/plants) + many artifacts (relic/crystal/totem/ruins).');
+  lines.push('-- Perfect for testing harvest, GOLD, tax, interest, and artifact recovery.');
   lines.push('');
-  lines.push('-- Clear the original placeholder seed (5 starter-* + 80 plot-*) that nobody');
-  lines.push('-- owns. Owned worlds are never touched.');
-  lines.push("DELETE FROM worlds WHERE owner_profile_id IS NULL AND (slug LIKE 'plot-%' OR slug LIKE 'starter-%');");
+
+  lines.push('-- Remove previous seed islands (owner-less starters).');
+  lines.push("DELETE FROM worlds WHERE owner_profile_id IS NULL AND kind = 'starter';");
   lines.push('');
+
   for (const w of worlds) {
     lines.push('INSERT INTO worlds (slug, kind, status, name, tax_percent, grid_size, tile_count,');
     lines.push('                    stone_tile_count, grass_tile_count, water_tile_count, price_usdc, data, published_at)');
     lines.push('VALUES (' + [
-      "'" + w.slug + "'", "'" + w.kind + "'", "'" + w.status + "'", "'" + w.name.replace(/'/g, "''") + "'",
-      10, w.grid, w.tile, w.stone, w.grass, w.water, w.price,
+      "'" + w.slug + "'",
+      "'" + w.kind + "'",
+      "'" + w.status + "'",
+      "'" + w.name.replace(/'/g, "''") + "'",
+      10,
+      w.grid,
+      w.tile,
+      w.stone,
+      w.grass,
+      w.water,
+      w.price,
       sqlString(w.data) + '::jsonb',
-      w.status === 'published' ? 'NOW()' : 'NULL',
+      'NOW()'
     ].join(', ') + ')');
     lines.push('ON CONFLICT (slug) DO NOTHING;');
     lines.push('');
   }
+
   process.stdout.write(lines.join('\n'));
-  const summary = worlds.map(w => `${w.slug}: ${w.grid}x${w.grid} water=${w.water} stone=${w.stone} grass=${w.grass} [${w.status}]`).join('\n');
+
+  const summary = worlds.map(w => `${w.slug}: ${w.grid}x${w.grid} fish≈${w.water} ore≈${w.stone} crops≈${w.grass} artifacts≈${w.data.cells.filter(c=>c.kind&&c.kind.includes('artifact')||['relic','crystal','totem','ruins'].includes(c.kind)).length} [${w.status}]`).join('\n');
   process.stderr.write('\n' + summary + '\n');
 }
 

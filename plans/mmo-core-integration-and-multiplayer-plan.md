@@ -430,3 +430,16 @@ Run this plan in Chrome after each preview deploy. Paste results (screenshots of
 
 
 **Chrome E2E test plan added to this file** (see section above). Use it in Incognito Chrome against the mmo-preview alias after granting lobby access on the main prod site. This unblocks mmo-verify.
+
+## Rich Default Tinyverse Islands (added 2026-06-20)
+
+- Generated 29+ published owner-less starter islands via updated `tools/gen-seed-worlds.mjs`.
+- All islands are deliberately **rich**:
+  - Dense water bodies (high fish)
+  - Large stone clusters (high ore)
+  - High crop counts (high plants/gather)
+  - 12–25 artifacts per island (kind: artifact/relic/crystal/totem/ruins)
+- Migration: `netlify/database/migrations/20260620143000_rich_tinyverse_islands.sql`
+- Regenerate with: `node tools/gen-seed-worlds.mjs > ...`
+- Perfect for Chrome E2E testing (harvest, GOLD, tax cooldown, artifact recovery).
+- Also updated `world.schema.json` to allow the new artifact kinds in cells.
