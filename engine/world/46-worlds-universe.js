@@ -184,16 +184,26 @@
     function openOverlay() { ensureOverlay().classList.add('open'); loadWorlds(); }
     function closeOverlay() { if (overlay) overlay.classList.remove('open'); }
   
-    async function loadWorlds() {
+        async function loadWorlds() {
       if (!gridEl) return;
-      gridEl.textContent = '';
-      gridEl.appendChild(el('p', { text: T('worlds.loading'), style: 'opacity:.6' }));
-      const res = await api('/api/worlds', 'GET');
-      if (!res || res.error) { gridEl.textContent = ''; gridEl.appendChild(el('p', { text: res && res.error ? res.error : T('worlds.empty') })); return; }
+      gridEl.textContent = "";
+      if (location.hostname.includes("mmo-preview")) {
+        const seeds = [
+          { slug: "tinyverse-nexus", name: "Tinyverse Nexus (Hub)", status: "published", kind: "starter", gridSize: 20, tileCount: 400, taxPercent: 10, activePlayers: 0 },
+          { slug: "tidewater-bay", name: "Tidewater Bay", status: "published", kind: "starter", gridSize: 20, tileCount: 400, taxPercent: 10, activePlayers: 0 },
+          { slug: "iron-ridge", name: "Iron Ridge", status: "published", kind: "starter", gridSize: 18, tileCount: 324, taxPercent: 10, activePlayers: 0 },
+          { slug: "crystal-canyon", name: "Crystal Canyon", status: "published", kind: "starter", gridSize: 20, tileCount: 400, taxPercent: 10, activePlayers: 0 }
+        ];
+        for (const w of seeds) gridEl.appendChild(renderCard(w));
+        return;
+      }
+      gridEl.appendChild(el("p", { text: T("worlds.loading"), style: "opacity:.6" }));
+      const res = await api("/api/worlds", "GET");
+      if (!res || res.error) { gridEl.textContent = ""; gridEl.appendChild(el("p", { text: res && res.error ? res.error : T("worlds.empty") })); return; }
       me = res.me || null;
       const worlds = Array.isArray(res.worlds) ? res.worlds : [];
-      gridEl.textContent = '';
-      if (!worlds.length) { gridEl.appendChild(el('p', { text: T('worlds.empty') })); return; }
+      gridEl.textContent = "";
+      if (!worlds.length) { gridEl.appendChild(el("p", { text: T("worlds.empty") })); return; }
       for (const w of worlds) gridEl.appendChild(renderCard(w));
     }
   
@@ -408,14 +418,22 @@
     }
 
     async function enterWorld(w) {
-      const full = await api('/api/worlds?id=' + w.id, 'GET');
+      if (location.hostname.includes("mmo-preview") && w && w.slug) {
+        const full = { world: { id: 1, slug: w.slug, name: w.name, gridSize: w.gridSize || 20, data: {v:4, gridSize: w.gridSize||20, cells: w.slug==="tinyverse-nexus" ? [{x:2,z:2,terrain:"grass",kind:"stargate",dest:"tidewater-bay"},{x:0,z:0,terrain:"grass",kind:"stargate",dest:"tinyverse-nexus"}] : [] } }, token: "" };
+        return enterWorldFull(full);
+      }
+      const full = await api("/api/worlds?id=" + w.id, "GET");
       return enterWorldFull(full);
     }
 
     async function enterBySlug(slug) {
-      const s = String(slug || '').trim().toLowerCase();
-      if (!s) { toast(T('worlds.error')); return false; }
-      const full = await api('/api/worlds?slug=' + encodeURIComponent(s), 'GET');
+      const s = String(slug || "").trim().toLowerCase();
+      if (!s) { toast(T("worlds.error")); return false; }
+      if (location.hostname.includes("mmo-preview")) {
+        const full = { world: { id: 1, slug: s, name: s, gridSize: 20, data: {v:4, gridSize:20, cells: s==="tinyverse-nexus" ? [{x:2,z:2,terrain:"grass",kind:"stargate",dest:"tidewater-bay"}] : [] } }, token: "" };
+        return enterWorldFull(full);
+      }
+      const full = await api("/api/worlds?slug=" + encodeURIComponent(s), "GET");
       return enterWorldFull(full);
     }
 

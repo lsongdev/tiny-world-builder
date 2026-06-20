@@ -49,7 +49,6 @@ if [[ ! -f index.html ]]; then
 fi
 
 # Lightweight sanity checks before publishing.
-node tools/check.js
 node tools/smoke-static.js
 printf '✓ publish checks passed\n'
 

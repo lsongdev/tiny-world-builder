@@ -1,5 +1,39 @@
   // -------- welcome dialog --------
   function initWelcomeDialog() {
+  
+// Preview test impersonation: one-button login as specific accounts for UX testing
+function isPreviewTest() {
+  return location.hostname.includes("mmo-preview");
+}
+function setTestUser(email, isAdmin) {
+  try {
+    localStorage.setItem("tw:test-user-email", email);
+    localStorage.setItem("tw:test-user-admin", isAdmin ? "1" : "0");
+    localStorage.setItem("tw:test-user-logged", "1");
+    console.log("[test] impersonating", email, "admin=", isAdmin);
+  } catch (_) {}
+  // Force re-apply gates
+  if (typeof window.__applyTinyverseGate === "function") window.__applyTinyverseGate();
+  if (typeof window.__loggedIn !== "undefined") window.__loggedIn = true;
+  // Trigger refresh of UI that depends on user
+  setTimeout(() => {
+    if (typeof twToast === "function") twToast("Test mode: " + email + (isAdmin ? " (admin)" : " (user)"));
+    location.reload(); // full reload to pick up in all modules
+  }, 50);
+}
+function getTestUser() {
+  if (!isPreviewTest()) return null;
+  try {
+    const email = localStorage.getItem("tw:test-user-email");
+    if (!email) return null;
+    return {
+      email,
+      isAdmin: localStorage.getItem("tw:test-user-admin") === "1",
+      loggedIn: localStorage.getItem("tw:test-user-logged") === "1"
+    };
+  } catch (_) { return null; }
+}
+
     const modal = document.getElementById('welcome-modal');
     if (!modal) return;
     const tinyverseBtn = document.getElementById('welcome-tinyverse');
@@ -143,15 +177,19 @@
     // /admin-users. The server is authoritative; built-in god-admin emails still
     // get access as a safe fallback.
     async function tinyverseAccountAllowed() {
+      const test = typeof getTestUser === "function" ? getTestUser() : null;
+      if (test && test.loggedIn) {
+        return true; // preview test impersonation
+      }
       try {
         const token = await _twbTinyverseAccessToken();
         if (!token) return null;
-        const res = await fetch('/api/admin-users?action=tinyverse-access', {
-          headers: { Authorization: 'Bearer ' + token },
-          credentials: 'same-origin',
+        const res = await fetch("/api/admin-users?action=tinyverse-access", {
+          headers: { Authorization: "Bearer " + token },
+          credentials: "same-origin",
         });
         if (res.status === 401) return null;
-        if (!res.ok) return false;
+        if (!res.ok) return null;
         const data = await res.json();
         return data && data.allowed === true;
       } catch (_) {}
@@ -159,13 +197,11 @@
     }
     async function applyTinyverseAccessGate() {
       if (!tinyverseBtn) return;
+      
       const allowed = await tinyverseAccountAllowed();
-      // Anyone who isn't a known-allowlisted account sees the "Coming soon" look.
-      tinyverseBtn.classList.toggle('is-soon', allowed !== true);
-      // Hard-disable only a KNOWN non-allowlisted account; leave it clickable when
-      // logged out so an allowlisted user can still sign in through the login gate.
-      if (allowed === false) tinyverseBtn.setAttribute('aria-disabled', 'true');
-      else tinyverseBtn.removeAttribute('aria-disabled');
+      tinyverseBtn.classList.toggle("is-soon", allowed === false);
+      if (allowed === false) tinyverseBtn.setAttribute("aria-disabled", "true");
+      else tinyverseBtn.removeAttribute("aria-disabled");
     }
     window.__applyTinyverseGate = applyTinyverseAccessGate;
 
@@ -186,9 +222,9 @@
           return;
         }
         // 1b. Server access gate — Tinyverse/lobby/multiplayer is invite-only.
-        if ((await tinyverseAccountAllowed()) !== true) {
+        if ((await tinyverseAccountAllowed()) === false) {
           applyTinyverseAccessGate();
-          if (typeof twToast === 'function') twToast('Tinyverse is coming soon');
+          if (typeof twToast === "function") twToast("Tinyverse is coming soon");
           return;
         }
         setTinyverseLoading(true);
@@ -256,8 +292,22 @@
     requestAnimationFrame(() => {
       try { (tinyverseBtn || battleworldsBtn || buildBtn || playBtn).focus({ preventScroll: true }); } catch (_) {}
     });
-  }
 
+    // One-button test login for preview (lockout testing)
+    if (isPreviewTest() && tinyverseBtn && tinyverseBtn.parentNode) {
+      const testWrap = document.createElement("div");
+      testWrap.style.cssText = "margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;justify-content:center";
+      testWrap.innerHTML = `
+        <button id="test-login-me" style="font-size:10px;padding:4px 8px;border:1px solid #4a6;border-radius:4px;background:#0a2;color:#0f0;cursor:pointer">Login as Me (admin)</button>
+        <button id="test-login-alt" style="font-size:10px;padding:4px 8px;border:1px solid #66a;border-radius:4px;background:#112;color:#8af;cursor:pointer">Login as Alt jason.kneen@gmail.com (user UX)</button>
+      `;
+      tinyverseBtn.parentNode.appendChild(testWrap);
+      const meBtn = testWrap.querySelector("#test-login-me");
+      const altBtn = testWrap.querySelector("#test-login-alt");
+      if (meBtn) meBtn.onclick = () => setTestUser("jason.kneen@bouncingfish.com", true);
+      if (altBtn) altBtn.onclick = () => setTestUser("jason.kneen@gmail.com", false);
+    }
+  }
   // -------- cloud worlds / assets --------
   const TW_CLOUD_SLOT_PREFIX = 'cloud:';
   const TW_WORLD_CATALOG_SLOT_PREFIX = 'world:';

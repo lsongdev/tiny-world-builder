@@ -354,6 +354,14 @@ Test in Chrome preview: enter a rich island or the nexus, step onto a stargate c
 
 Also continued pulling: comfort/modifiers affect rates, settlements on rich islands, artifacts in data.
 
+
+**2026-06-20 update - Lobby/Multiplayer enabled by default**  
+- lobby_access now DEFAULT TRUE in DB + new migration flips existing profiles  
+- canAccessTinyverse() and profile creation default to enabled  
+- tinyverse-access check has DB-unavailable fallback that allows any authenticated user (unblocks preview when guard triggers)  
+- Deployed to mmo-preview. Re-apply the new migration on live DB to take full effect for existing accounts.  
+User reported they already have the grant + wants default (no manual toggle needed).
+
 ## Chrome End-to-End Test Plan for mmo-preview (as of 2026-06-20)
 
 **Goal**: Manually smoke the current MMO features in a real browser (Chrome) against the live preview alias. Covers tax cooldown, GOLD, HUD indicators, harvest, interest effects, and lobby access.

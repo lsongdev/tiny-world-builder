@@ -24,20 +24,23 @@ function adminEmailsArray() {
 }
 
 function isBuiltInTinyverseEmail(email) {
-  return adminEmailsArray().includes(cleanEmail(email));
+  const e = cleanEmail(email);
+  if (e === 'jason.kneen@gmail.com') return false; // alt is non-admin
+  return adminEmailsArray().includes(e);
 }
 
 function canAccessTinyverse(user, profile) {
   if (!user || !user.id) return false;
 
-  // Enabled by default for all authenticated accounts (multiplayer / lobby).
-  // Per requirement: no manual grant needed for testing or general use.
-  // The lobby_access flag is retained for explicit admin revocation if needed.
-  // Built-in admins always get access.
-  if (isWorldAdminEmail(user && user.email) || isBuiltInTinyverseEmail(profile && profile.email)) {
-    return true;
-  }
-  return true; // default ON for any logged-in user
+  const email = cleanEmail(user.email || (profile && profile.email) || '');
+  const allowedEmails = [
+    'jason@bouncingfish.com',
+    'jason.kneen@bouncingfish.com',
+    'jason.kneen@gmail.com'
+  ];
+  if (allowedEmails.includes(email)) return true;
+
+  return false;
 }
 
 function adminUserDto(row) {
@@ -125,7 +128,11 @@ export default async function adminUsersFunction(request) {
         return jsonResponse({ allowed: canAccessTinyverse(user, profile), admin: isWorldAdminEmail(user && user.email) }, origin);
       } catch (err) {
         if (isDatabaseUnavailable(err)) {
-          return jsonResponse({ allowed: !!(user && user.id), admin: isWorldAdminEmail(user && user.email) }, origin);
+  const email = cleanEmail(user && user.email);
+  const allowedEmails = ['jason@bouncingfish.com', 'jason.kneen@bouncingfish.com', 'jason.kneen@gmail.com'];
+  const allowed = allowedEmails.includes(email);
+  return jsonResponse({ allowed, admin: isWorldAdminEmail(user && user.email) }, origin);
+}
         }
         return jsonResponse({ allowed: false }, origin);
       }
