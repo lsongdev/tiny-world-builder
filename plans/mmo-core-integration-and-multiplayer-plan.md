@@ -268,3 +268,13 @@ Next suggested: surface cooldown in world cards + full client-side block before 
 
 **In-room taxCooldown flow complete:** lastTaxChange now sent on world.join (from list data), stored on room.world meta, forwarded in worldSnapshotFor + state updates. Client computes cooldown object from it and feeds to HUD role label (shows e.g. "Visitor · 15% (CD 18h)") and listeners. Fully consistent with cards/manage/HUD.
 Preview alias updated with the change.
+
+## Manual smoke checklist for mmo-preview (as of latest)
+1. Load https://mmo-preview--tiny-world-builder.netlify.app
+2. Enter a published world as Play → bottom HUD shows $TW + G, role line shows tax% (no CD if fresh).
+3. As owner of a draft: Manage → change tax → Save. Dialog should disable tax + show ~24h message. Card should show (CD).
+4. Re-enter the world as visitor/owner → role line should now show "· 15% (CD 23h)" or similar.
+5. Harvest a node → see resource + small GOLD spend in ledger (check /api/me/gold later).
+6. Wait or use another draft to test cooldown expiry behavior.
+
+All previous features (interest scoping, GOLD accrual on harvest, weekly payouts) remain live.
