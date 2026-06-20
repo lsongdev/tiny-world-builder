@@ -1,12 +1,12 @@
 # CodeSurf Workspace Memory — tinyworld
 
-Generated: 2026-06-18
+Generated: 2026-06-20
 
 ---
 
 ## Overview
 
-Tiny World Builder is a vanilla ES6, no-bundler 3D world editor on Three.js r128. Shell lives in `tiny-world-builder.html` (~1.4k lines); logic is split across approximately **68+ modules** under `engine/world/` (numbered 00–68 + 99, with `09b` and two `46-` files). Styles in `styles/tiny-world.css` (~5.2k lines). Deployed via Vercel and Netlify from `dist/` via `./publish.sh`. Port 8888 is the Netlify dev server; local Postgres required before any Worlds MMO features can be browser-tested.
+Tiny World Builder is a vanilla ES6, no-bundler 3D world editor on Three.js r128. Shell lives in `tiny-world-builder.html` (~1.4k lines); logic is split across approximately **69+ modules** under `engine/world/` (numbered 00–68 + 99, with `09b` and two `46-` files). Styles in `styles/tiny-world.css` (~5.2k lines). Deployed via Vercel and Netlify from `dist/` via `./publish.sh`. Port 8888 is the Netlify dev server; local Postgres required before any Worlds MMO features can be browser-tested.
 
 A separate **landing/marketing page** (`index.html`) is in the repo with its own build/publish pipeline — distinct from `tiny-world-builder.html`.
 
@@ -16,7 +16,7 @@ A separate **landing/marketing page** (`index.html`) is in the repo with its own
 
 **Architecture**
 - Shell: `tiny-world-builder.html` — HTML, boot config, ordered `<script src>` tags only
-- Engine modules: 68+ `.js` files sharing one global scope + `flight-combat-math.mjs` (ES module companion to `34-flight-sim.js`); classic scripts, not ES modules
+- Engine modules: 69+ `.js` files sharing one global scope + `flight-combat-math.mjs` (ES module companion to `34-flight-sim.js`); classic scripts, not ES modules
 - Non-sequential extras: `09b-voxel-build-factories.js` (between 09 and 10); two files share the `46-` prefix (`46-mesh-terrain.js`, `46-worlds-universe.js`) — load order between them not formally documented
 - Skybound additions (modules 53–60) added after core 00–52; extended modules 61–68 ongoing; `99-late-boot.js` is the final late-init module
 - Duplicate top-level identifiers silently kill the declaring module without affecting others — prefix module-local scratch globals (e.g. `_fl…` flight, `_sr…` surface-roam, `_sf…` skyfall)
@@ -47,7 +47,7 @@ A separate **landing/marketing page** (`index.html`) is in the repo with its own
 - `45-shader-fx.js` — `window.TinyShaderFX`; GLSL effects via `onBeforeCompile`
 - `46-mesh-terrain.js` — opt-in voxel-block landscape sculptor; persists under `tinyworld:meshTerrain:*`; no `setCell` bake; hidden by default via inline `style.display='none'` at line ~877 + dropped from flyout toolIds; surfaced only for lobby admin via `body.tw-admin-fulledit.tw-worlds-play #mesh-terrain-toggle{display:inline-flex !important}`
 - `46-worlds-universe.js` — Worlds MMO universe map, world buying (USDC), management/publish; dispatches `tinyworld:worlds-ready`; exposes `window.__tinyworldWorldsReady` promise; adds `body.tw-worlds-play` on room enter via `WS.setPlayChrome(true)` — this class STAYS ON during admin editing
-- `47-worlds-room.js` — Worlds MMO room client (PartyKit `world-<slug>`); `createAvatar` routes through `window.makeVoxelAvatar`; owns skyfall ring meshes + camera follow + steering; runs SEPARATE avatar rAF — do NOT add a third rAF; dispatches `tinyworld:skyfall-start`; **owns `_sr*` surface-roam controller**; surface roam physics fixed 2026-06-15 (`_srVel` is `THREE.Vector3`; gravity/friction corrected; `sampleWorld` null-guarded); dynamic camera height 2026-06-15 (camera Y tracks `sampleWorld(x,z)` floor height + 1.2 eye offset); FP camera wired via `WS._fpMode` flag; new PartyKit world message handlers go in `onWorldMessage`, NOT `onMessage` (world rooms early-return past the main `onMessage` — this trap caused the chat-emote relay to ship dead in prod); contains debug 'k' key (`startSkyfall(0,1)` from anywhere) — **remove once skyfall is live-tuned**
+- `47-worlds-room.js` — Worlds MMO room client (PartyKit `world-<slug>`); `createAvatar` routes through `window.makeVoxelAvatar`; runs SEPARATE avatar rAF — do NOT add a third rAF; **owns `_sr*` surface-roam controller**; surface roam physics fixed 2026-06-15 (`_srVel` is `THREE.Vector3`; gravity/friction corrected; `sampleWorld` null-guarded); dynamic camera height 2026-06-15 (camera Y tracks `sampleWorld(x,z)` floor height + 1.2 eye offset); FP camera wired via `WS._fpMode` flag; new PartyKit world message handlers go in `onWorldMessage`, NOT `onMessage` (world rooms early-return past the main `onMessage` — this trap caused the chat-emote relay to ship dead in prod); water is WALKABLE (deliberate — players were island-isolated when water was blocked); lava + stone stay blocked; skyfall walk-off-edge trigger retired 2026-06-15 (debug 'k' key removed at the same time)
 - `48-worlds-harvest-hud.js` — in-world HUD (hearts, resources, harvest, cooldowns, reward popups); SVG glyphs only
 - `49-worlds-avatar-picker.js` — avatar picker gallery; drives `WS.setAvatarClass`; extensible via `WS.registerAvatarProvider`
 - `50-worlds-play-chat.js` — play-mode chat panel; IIFE-wrapped; `mp-chat-*` CSS + `tw-play-chat-*` overrides; handles `@username` mentions and `@lobby` big-screen broadcast
@@ -59,11 +59,11 @@ A separate **landing/marketing page** (`index.html`) is in the repo with its own
 - `53-voxel-avatar.js` — `window.makeVoxelAvatar`; FK rig with named limb groups (`armL_sh`/`armR_sh`, `armL_elbow`/`armR_elbow`, `legL_hip`/`legR_hip`, `legL_knee`/`legR_knee`, chest, `head`); material MUST be `side:THREE.DoubleSide`; `AVATAR_HEIGHT=0.5`; API added 2026-06-15: `setFirstPerson(on)` hides `head` group (Minecraft-style), `getEyeWorldPosition(out)` via head group world matrix + `(0, AVATAR_HEIGHT*0.4, 0)` offset; `setRocketVisible(on)` / `setThrusting(on)` for rocket-pack visuals; adding a state requires whitelisting in `setState` or it silently collapses to idle; top-of-update neutralize zeroes extra axes every frame so pose state cannot leak across transitions; walk leg hinge convention: `+hip.rotation.x → foot −z` (reverse = moonwalk bug — cost hours, twice)
 - `54-fly-down.js` — fly-down mechanic (key `j`); `window.__tinyworldFlyDown.{descend,ascend,toggle,isDown,state}`; eases camera to planet underlay; shows/hides home-island proxy + force-hides full board via `window.__hideHomeLayer`
 - `55-stargate.js` — stargate object (key `G`); styles: nested/voyager/portal/rings; `nested` = voxel stone casing + recessed ring + white energy centre, sunk at ground level
-- `56-gate-transit.js` — gate transit (key `h`); `window.__tinyworldGateTransit`; `placeLobbyGates()` scatters 3 paired gates on enter; auto-travel loop every ~4–8s; CYBERGATE/GROUND LEVEL signs; accessors added 2026-06-15: `skyGateCell/ensureSkyGate/flashSky/ensureLandGate/flashLand/landGateWorldPos`; sky-edge gate relabeled "GROUND LEVEL" with `rotation.y=Math.PI`; FP trigger 2026-06-15: proximity in surface-roam auto-activates FP camera; `setFirstPerson(on)`/`isFirstPerson()`; objects parented to the stretched surface group (57) inherit Y_BOOST stretch — counter with `landGate.group.scale.set(NET/gs.x, NET/gs.y, NET/gs.z)`
-- `57-poser-surface.js` — `window.__tinyworldPoserSurface.{show,hide,build}`; VERBATIM lift of voxel-poser.html SATS/ISLE/groundH geometry + banded water shader + foam ribbons; scaled (SCALE 1.6 / **Y_BOOST 1** — reduced from 3 on 2026-06-15) at y=−60; `sampleWorld(wx,wz)` returns `{walkWorldY,localH,water}` — must read `group.position.x/z` (stable), NOT `target.x/z` (camera rewrites it every frame); do NOT reimplement — extract verbatim
-- `58-lobby-screen.js` — lobby/title screen at `y=+100`; slide-sync via PartyKit `present` event (no echo loop); `party/index.js` deploys via `partykit`, not `publish.sh`
-- `59-avatar-animations.js` — avatar state machine: walk=`strideCore` natural gait, jump/crouch/sit/climb/attack/blink + skydive/rocket freefall postures w/ `setBodyPitch` controller contract; drive keys c/x/W/f/j; moonwalk + climb-facing gotchas
-- `60-skyfall.js` — `window.__tinyworldSkyfall`; ring-dodge minigame; seeded LCG PRNG; pure sim (no THREE/DOM), headless-testable; REWARD = ROCKET PACK: earn by flying through `earnThreshold` rings, then HOLD SPACE to thrust; `CFG.fuel=2.5s` depletes while thrusting; HUD `#tw-skyfall-hud`; **walk-off-edge trigger RETIRED 2026-06-15**: islands have solid edges; `startSkyfall` early-returns false (sim/ring code kept but unreachable); descend via stargate/J only; `startSkyfall` calls `window.__tinyworldPoserSurface.build()+show()` so surface islands appear during fall at `groundDrop=58`; chase cam looks down from above (BACK=4.5, UP=7.5) to frame avatar against void — not yet re-confirmed in a stable session
+- `56-gate-transit.js` — gate transit (key `h`); `window.__tinyworldGateTransit`; `placeLobbyGates()` scatters 3 paired gates on enter; auto-travel loop every ~4–8s; CYBERGATE/GROUND LEVEL signs; accessors added 2026-06-15: `skyGateCell/ensureSkyGate/flashSky/ensureLandGate/flashLand/landGateWorldPos`; sky-edge gate relabeled "GROUND LEVEL" with `rotation.y=Math.PI`; objects parented to the stretched surface group (57) inherit Y_BOOST stretch — counter with `landGate.group.scale.set(NET/gs.x, NET/gs.y, NET/gs.z)`
+- `57-poser-surface.js` — `window.__tinyworldPoserSurface.{show,hide,build}`; VERBATIM lift of voxel-poser.html SATS/ISLE/groundH geometry + banded water shader + foam ribbons; scaled (SCALE 1.6 / **Y_BOOST 1** — reduced from 3 on 2026-06-15) at y=−60; `sampleWorld(wx,wz)` returns `{walkWorldY,localH,water}` — must read `group.position.x/z` (stable), NOT `target.x/z` (camera rewrites it every frame); do NOT reimplement — extract verbatim; any child object parented here inherits the scale — counter it explicitly
+- `58-lobby-presentation.js` — lobby/title screen at `y=+100`; slide-sync via PartyKit `present` event (no echo loop); `party/index.js` deploys via `partykit`, not `publish.sh`
+- `59-gate-travel-fx.js` — 5-stage gate travel visual effect: magnetic pull → particle dissolve → portal flash → back-extrude → receiving edge-light+emerge (THREE.Points, one draw call each); companion to `55` + `56`; effect reads subtle at gameplay scale (gates are edge-scattered, particles small) — open tuning: larger gates / particle size scaled to gate
+- `60-skyfall.js` — `window.__tinyworldSkyfall`; ring-dodge sim (seeded LCG PRNG, pure headless-testable); REWARD = ROCKET PACK (hold SPACE to thrust, fuel-limited at 2.5s); **walk-off-edge trigger RETIRED 2026-06-15** — `startSkyfall` early-returns false; sim/ring code kept but unreachable from gameplay; descend via stargate/J only; if revived: `startSkyfall` calls `window.__tinyworldPoserSurface.build()+show()` + shows HUD `#tw-skyfall-hud`; 20/20 headless seeds verified; tuning knobs in `CFG`: gravity/termVel/chuteVel/steer/steerMax/drag/ringGapY/ringStep/ringSpread/earnThreshold/groundDrop
 
 **Extended modules (61–68)**
 - `61-tinyverse-race-track.js` — Tinyverse ground-surface perimeter rally loop; poser-surface show/hide hook; static road/bridge merging; local kart race HUD; skill: `tinyworld-tinyverse-race-track`
@@ -71,7 +71,7 @@ A separate **landing/marketing page** (`index.html`) is in the repo with its own
 - `63-cctv-placement.js` — CCTV camera placement companion to 62
 - `64-lobby-chat-bridge.js` — purpose/API **undocumented**; read before editing
 - `65-lobby-benches.js` — purpose/API **undocumented**; read before editing
-- `66-lobby-admin.js` — god-admin live-lobby editor; Edit Lobby adds `body.tw-admin-editing` + calls `__tinyworldMode.setBuild()`; lobby-only, gated by `_laIsLobby()` comparing world slug to `window.__TW_LOBBY_WORLD_SLUG || 'tidewater-bay'`; adds `body.tw-admin-fulledit` which unlocks full builder (toolbar, palette, flyouts, inspector, radial menu, layers, stamp library); `tw-worlds-play` STAYS ON (deliberate) — keeps import/export/reset/clear out; CSS specificity: hidden by ID selectors `display:none !important` (specificity 1,1,1); overrides must be `body.tw-admin-fulledit.tw-worlds-play #id` (1,2,1); Stamps button hidden by chained `:not(#id)` — override needs matching `:not(#…)` padding; toggle panels use `[hidden]` — override with `:not([hidden])`; `#agent-panel` uses `.collapsed` — override with `:not(.collapsed)` (don't force permanently open); mesh terrain surfaced via stylesheet `!important` (beats non-important inline); underside pyramid edit uses existing subsystem in `09b`/`14`/`28` — no new code needed
+- `66-lobby-admin.js` — god-admin live-lobby editor; Edit Lobby adds `body.tw-admin-editing` + calls `__tinyworldMode.setBuild()`; lobby-only, gated by `_laIsLobby()` comparing world slug to `window.__TW_LOBBY_WORLD_SLUG || 'tidewater-bay'`; adds `body.tw-admin-fulledit` which unlocks full builder (toolbar, palette, flyouts, inspector, radial menu, layers, stamp library); `tw-worlds-play` STAYS ON (deliberate — keeps import/export/reset/clear out; Save to Live Lobby is the only persistence path); CSS specificity: hidden by ID selectors `display:none !important` (specificity 1,1,1); overrides must be `body.tw-admin-fulledit.tw-worlds-play #id` (1,2,1); Stamps button hidden by chained `:not(#id)` — override needs matching `:not(#…)` padding; toggle panels use `[hidden]` — override with `:not([hidden])`; `#agent-panel` uses `.collapsed` — override with `:not(.collapsed)` (don't force permanently open); mesh terrain surfaced via stylesheet `!important` (beats non-important inline); underside pyramid edit uses existing subsystem in `09b`/`14`/`28` — no new code needed; crowd panel deliberately excluded (globally `display:none !important`, rabbit hole)
 - `67-cctv-view.js` — per-room live CCTV via `?view=cctv` world mode; ortho video-wall of `monitorMaterialFor` planes; headless browse has no WebGL so wall is deploy-verify-only; room `world_slug`/`editRoom` backend wired
 - `68-notifications.js` — join/leave/chat/bot toasts + web notifications; opt-in bell in minimap header; implicit-join seeding gotcha: no join message emitted when seeding (diff peer ids — seed silently on `world.state`)
 
@@ -88,11 +88,11 @@ A separate **landing/marketing page** (`index.html`) is in the repo with its own
 | Voxel avatars | `53` | `window.makeVoxelAvatar` |
 | Fly-down | `54` | `window.__tinyworldFlyDown.*` |
 | Stargate | `55` | `window.__tinyworldStargate` |
-| Gate transit + FP cam | `56` | `window.__tinyworldGateTransit.*` |
+| Gate transit + travel FX | `56`, `59` | `window.__tinyworldGateTransit.*`; `59` = particle effect |
 | Poser surface | `57` | `window.__tinyworldPoserSurface.*` |
-| Lobby screen | `58` | PartyKit `present` event |
-| Avatar animations | `59` | `setBodyPitch`, avatar state machine |
-| Skyfall + rocket pack | `60` | `window.__tinyworldSkyfall`, ring LCG |
+| Lobby presentation | `58` | PartyKit `present` event |
+| Avatar animations | `53`, `47` | state machine in 53; drive keys c/x/W/f/j in 47; `setBodyPitch` contract |
+| Skyfall sim (inactive) | `60` | `window.__tinyworldSkyfall`; walk-off-edge retired; sim code kept but unreachable |
 | Race track | `61` | poser-surface hook; kart HUD |
 | CCTV / Truman | `62`, `63`, `67` | render-to-texture feeds; `?view=cctv` |
 | Lobby admin full-edit | `66` | `body.tw-admin-fulledit`; `_laIsLobby()` |
@@ -100,7 +100,7 @@ A separate **landing/marketing page** (`index.html`) is in the repo with its own
 | Mesh terrain (opt-in) | `46-mesh-terrain.js` | `window.runTerrainBake`, `?meshbake=1` |
 | Shader FX | `45` | `window.TinyShaderFX` |
 | Sub-object edit | `44` | transform delegation, hover hulls |
-| Surface roam | `47` (`_sr*` vars) | WASD+mouse-look; `j` descend/ascend; wheel-zoom; V=FP toggle |
+| Surface roam | `47` (`_sr*` vars) | WASD+mouse-look; `j` descend/ascend; wheel-zoom `_srCamDist`; `V`=FP toggle; FP widens `persCam.fov` to 75°; Space-tap=jump, double-tap=fly toggle; F=attack; stargate round-trip auto-wired |
 | Name labels | `47` | `makeNameSprite`; billboard Sprite +1.46Y above avatars |
 | Lobby NPC bots | `tools/lobby-bots.mjs` | `npm run bots:lobby`; external Node process only |
 
@@ -119,25 +119,27 @@ A separate **landing/marketing page** (`index.html`) is in the repo with its own
 - **World message handlers**: new PartyKit worlds handlers go in `onWorldMessage` (not `onMessage` — world rooms early-return past it); add to `RATE_LIMITS` bucket; test the world path
 - **LandscapeEngine**: `LandscapeEngine.js` is a superseded monolith; `getHeight`/chunk-building live in `engine/landscape/*.js` mixins — always edit the mixins, not the monolith
 - **Local peer testing**: local peers need `openMode` (no `WORLDS_JOIN_SECRET`/`SERVICE_TOKEN`) or a signed play token, else bots/clients are observers and never render as peers; client masks own role as `'play'`
-- **Lobby NPC bots**: `TW_ORIGIN` required for cold-room self-load (server fetches `/api/worlds?id=<numericId>` — slug is silently ignored, causing bots to idle on a fake 8×8 board); live creds (OPENROUTER_API_KEY/TW_ORIGIN/OPENROUTER_MODEL) live in MAIN-repo `.env` (gitignored), NOT the worktree root — pass explicitly when testing from a worktree; `:free` model enforced on every attempt; emoji stripped from all bot output; empty-token `observe`-role peers CAN move, chat, and emote, and DO render as peers (empirically verified — no token minting needed for lobby population)
+- **Lobby NPC bots**: `TW_ORIGIN` required for cold-room self-load (server fetches `/api/worlds?id=<numericId>` — slug is silently ignored, causing bots to idle on a fake 8×8 board); live creds (OPENROUTER_API_KEY/TW_ORIGIN/OPENROUTER_MODEL) live in MAIN-repo `.env` (gitignored), NOT the worktree root — pass explicitly when testing from a worktree; `:free` model enforced on every attempt; emoji stripped from all bot output; empty-token `observe`-role peers CAN move, chat, and emote, and DO render as peers (empirically verified — no token minting needed for lobby population); scheduler epoch guard (`this.epoch`) prevents duplicate chains on reconnect; own conn id learned from `welcome` message before chatting (server echo self-triggers reactions otherwise)
+- **Lobby admin CSS specificity**: two separate hide systems (`tw-play-mode` removed by `setBuild`; `tw-worlds-play` stays on); overrides must be `body.tw-admin-fulledit.tw-worlds-play #id` (1,2,1) to beat ID-selector hides; inline `display:none` loses to stylesheet `!important`
+- **Poser surface child transforms**: any object parented to the `57` surface group inherits Y_BOOST scale — counter it explicitly with `object.scale.set(NET/gs.x, NET/gs.y, NET/gs.z)`
+- **Task-completion convention**: default to a short natural-language sentence + verification result; use the structured `CHANGES MADE / DIDN'T TOUCH / CONCERNS` card only for multi-file changes, long-running tasks, risky edits, migrations, debugging sessions, or work requiring a durable handoff
 
 ---
 
 ## Open Threads
 
-- **Multiplayer plane sync (Tinyverse mode)**: server relays `entity` transforms for shared-build rooms, but `onWorldMessage` in `47-worlds-room.js` has no `entity` branch → flight positions cannot sync to world-room peers; also `playerName()` falls back to literal `"Player"` if profile shape mismatches `displayName`/`username`
-- **Debug 'k' key in 47**: `startSkyfall(0,1)` shortcut left in for testing — remove once skyfall ring/camera/posture is live-tuned
+- **Multiplayer plane sync (Tinyverse mode)**: `onWorldMessage` in `47-worlds-room.js` has no `entity` branch → flight positions cannot sync to world-room peers; `playerName()` falls back to literal `"Player"` if profile shape mismatches `displayName`/`username`
 - `39-atmosphere-effects.js` time-progression has no UI control wired
 - `41-flight-combat.js` health/damage not implemented; fog is visual-only altitude boundary
 - `.agents/skills/` (5 files) not yet referenced in AGENTS.md routing table
 - **Modules 64 and 65 undocumented**: `64-lobby-chat-bridge.js` and `65-lobby-benches.js` exist on disk but their purpose/API is unrecorded; read before editing
 - **Lobby gate repositioning**: user wants an "inner gate" moved toward the lobby tree — `placeLobbyGates` scatters randomly; needs user to specify target position before implementing
-- **Surface-roam feel-tune**: FP eye-height, wheel zoom step, jump height are design-guessed (`_srEyeH`×, wheel 0.9/notch, `SR_JUMP_H`) — need live tuning from user playing directly
+- **Surface-roam feel-tune**: FP eye-height, wheel zoom step, jump height are design-guessed (`_srEyeH`×, wheel 0.9/notch, `SR_JUMP_H`) — need live tuning from user playing directly; look-down camera framing during skyfall also unconfirmed live
 - Distant sea hazes at grazing angles during surface roam (cosmetic, not blocking)
-- **Skyfall live-verification pending**: ring visibility/placement, steering feel, posture-in-motion, rocket-pack FX confirmed triggering but camera framing (look-down constants) not re-confirmed in a stable session; user is the live channel
-- Race track surface-roam integration status unclear
-- **Skyfall deferred follow-ups**: landing on the actual poser surface after fall (v1 settles back on lobby); on-foot traversal on poser surface (no model in 47); peer-sync of fall (peers see cell freeze); persistent rocket-pack unlock (v1 earns per-run)
-- **Lobby NPC bot open items**: scheduler epoch guard prevents duplicate chains on reconnect; auto-reconnect uses capped exponential backoff (2s→30s); `bot-` conn id triggers existing `worlds.notify.botJoined` toast — confirmed working; LLM fallback rotation on 429/404/empty still needs live stress-test in prod
+- **Skyfall follow-ups (deferred)**: walk-off-edge trigger is retired; if revived: landing on actual poser surface (v1 settles back on lobby); on-foot traversal on poser surface (no model in 47); peer-sync of fall (peers see cell freeze); persistent rocket-pack unlock
+- **Race track surface-roam integration status unclear**
+- **Lobby NPC bot open items**: LLM fallback rotation on 429/404/empty still needs live stress-test in prod
+- **Gate travel FX tuning**: particle effect reads subtle at gameplay scale — open task: larger gates, particle size scaled to gate size
 
 ---
 

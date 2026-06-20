@@ -356,9 +356,10 @@ test('taxSplit: owner keeps all, visitor split sums to gross, ownerless keeps al
   const ownerless = taxSplit(3, null, false);
   assert.equal(ownerless.owner, 0);
   assert.equal(ownerless.harvester, 3000, 'no owner = no tax sink');
+  // IMPORTANT: now capped at 20% per mmo-core policy (was previously allowing 100%)
   const heavy = taxSplit(3, 100, false);
-  assert.equal(heavy.owner, 3000);
-  assert.equal(heavy.harvester, 0);
+  assert.equal(heavy.owner, 600, "clamped to 20% of 3000 milli");
+  assert.equal(heavy.harvester, 2400);
 });
 
 test('heartsNow regenerates 1/min and caps at max', () => {

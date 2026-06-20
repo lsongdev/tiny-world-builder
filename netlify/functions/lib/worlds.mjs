@@ -40,8 +40,11 @@ export function cleanWorldName(value) {
 export function cleanTaxPercent(value) {
   const n = Math.round(Number(value));
   if (!Number.isFinite(n)) return null;
-  if (n < 1 || n > 100) return null;
-  return n;
+  // Use mmo-core policy: max 20%, default 5%. Accepts percent or decimal.
+  const rate = n > 1 ? n / 100 : n;
+  const clamped = clampTaxRate(rate, DEFAULT_ECONOMY_POLICY);
+  if (clamped <= 0) return null;
+  return Math.round(clamped * 100); // store as integer percent 1-20
 }
 
 // ---- universe price curve ----

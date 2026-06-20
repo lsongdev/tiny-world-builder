@@ -1,6 +1,12 @@
 // @ts-check
 /// <reference types="partykit/server" />
 
+import {
+  DEFAULT_ECONOMY_POLICY,
+  clampTaxRate,
+  applyIslandTax,
+} from '../packages/tinyworld-mmo-core/src/index.js';
+
 const MESSAGE_LIMIT = 48 * 1024;
 const PRESENCE_KEYS = new Set(['id', 'name', 'color', 'cursor', 'selection', 'tool', 'ts']);
 const OP_KEYS = new Set(['id', 'kind', 'x', 'z', 'cell', 'ts']);
@@ -356,15 +362,27 @@ function withinReach(a, b) {
     && Math.abs(Math.round(a.z) - Math.round(b.z)) <= 1;
 }
 
-// Split a gross reward into owner / harvester thousandths (milli). The owner
-// keeps nothing when harvesting their own world, or when the world has no owner
-// (official starter worlds). Sums exactly to gross * 1000.
+// Split a gross reward into owner / harvester thousandths (milli).
+// NOW INTEGRATED with @tinyworld/mmo-core for guide policy (max 20%, default 5%).
+// Owner keeps nothing when harvesting their own world, or when the world has no owner.
+// Sums exactly to gross * 1000.
 function taxSplit(gross, taxPercent, isOwner) {
-  const total = Math.max(0, Math.round(gross)) * 1000;
-  if (isOwner || taxPercent == null) return { owner: 0, harvester: total };
-  const tax = Math.max(1, Math.min(100, Math.round(taxPercent)));
-  const owner = Math.round(total * tax / 100);
-  return { owner, harvester: total - owner };
+  const grossAmount = Math.max(0, Math.round(gross));
+  const total = grossAmount * 1000;
+
+  if (isOwner || taxPercent == null) {
+    return { owner: 0, harvester: total };
+  }
+
+  // Use package clamp + split logic (self-owner and no-owner cases already handled above)
+  const event = { grossAmount, minerWallet: 'visitor', resource: 'ore' };
+  const island = { id: 'world', ownerWallet: 'owner', taxRate: Number(taxPercent) };
+
+  const split = applyIslandTax(event, island, DEFAULT_ECONOMY_POLICY);
+  const taxRate = split.taxRate; // 0..0.2 already clamped by policy
+
+  const ownerMilli = Math.round(total * taxRate);
+  return { owner: ownerMilli, harvester: total - ownerMilli };
 }
 
 // Hearts regenerate 1/min up to max. Pure: returns the regen result for `now`.
@@ -956,6 +974,10 @@ export default class TinyWorldParty {
             const body = await res.json();
             if (body && body.world) {
               this.world = body.world;
+      if (this.world && this.world.taxPercent != null) {
+        const rate = this.world.taxPercent > 1 ? this.world.taxPercent / 100 : this.world.taxPercent;
+        this.world.taxPercent = Math.round(clampTaxRate(rate, DEFAULT_ECONOMY_POLICY) * 100);
+      }
               if (body.world.data) data = body.world.data;
             }
           }

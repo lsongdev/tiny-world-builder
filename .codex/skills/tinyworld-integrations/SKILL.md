@@ -79,6 +79,11 @@ backend:
   includes `?party=`, `?room=`, or `?collab=`. Collaborate links should reuse a
   `/api/share` id as both the world snapshot id and the PartyKit room id:
   `/tiny-world-builder?share=<id>&party=<id>`.
+- MMO economy/multiplayer extraction lives in `packages/tinyworld-mmo-core/`.
+  It is a dependency-free ESM package for shared GOLD allowance, resource tax,
+  ledger, join-command, and interest-snapshot contracts. Use it when wiring the
+  TinyWorld economy guide into PartyKit or Netlify Functions instead of copying
+  constants between runtime files.
 - Local custom assets are account data too: `/api/assets` stores one
   `asset_libraries` row per profile containing custom voxel-build stamps and
   saved asset templates. Browser hooks in `saveCustomVoxelBuildStamps()` and
