@@ -111,6 +111,7 @@
     let role = 'play';
     let gridSize = 8;
     let taxPercent = null;
+    let taxCooldown = null;
     let restoreAmbientCrowdVisible = null;
     let you = { x: 0, z: 0, hearts: 10, role: 'play' };
     let myId = '';
