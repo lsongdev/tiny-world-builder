@@ -314,6 +314,11 @@
         buttons.push({ label: T('worlds.save'), cls: 'alt', onClick: async () => {
           const res = await api('/api/worlds?id=' + w.id, 'PUT', { name: nameI.value.trim(), taxPercent: Number(taxI.value) });
           if (!res || res.error) { toast(res && res.error ? res.error : T('worlds.error')); return; }
+          if (res.world && res.world.taxCooldown && !res.world.taxCooldown.canChange) {
+            taxI.disabled = true;
+            const h = Math.ceil((res.world.taxCooldown.remainingMs || 0) / (1000*60*60));
+            body.push(el('p', { style: 'font-size:11px;color:#f66;margin-top:4px', text: 'Tax on cooldown for ~' + h + 'h' }));
+          }
           toast(T('worlds.saved')); loadWorlds();
         } });
         buttons.push({ label: T('worlds.publish'), cls: 'go', onClick: async (done) => {

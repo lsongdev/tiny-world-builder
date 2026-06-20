@@ -80,7 +80,7 @@
     const ACTIONS = [['fish', 'worlds.actionFish', 'fish'], ['mine', 'worlds.actionMine', 'ore'], ['gather', 'worlds.actionGather', 'plant'], ['hunt', 'worlds.actionHunt', 'meat']];
     const RES_ICON = { fish: 'fish', meat: 'meat', plants: 'plant', ore: 'ore' };
   
-    let hud = null, heartsEl = null, resEl = null, roleEl = null, tokenEl = null, goldEl = null, progFill = null, helpPanel = null;
+    let hud = null, heartsEl = null, resEl = null, roleEl = null, tokenEl = null, goldEl = null, taxCdEl = null, progFill = null, helpPanel = null;
     const actBtns = {};
     const cooldowns = {};
   
@@ -109,6 +109,7 @@
         roleEl,
         el('div', { class: 'tw-hud-grp' }, [el('span', { style: 'opacity:.6;font-size:10px' }, ['$TW']), tokenEl]),
         el('div', { class: 'tw-hud-grp' }, [el('span', { style: 'opacity:.6;font-size:10px' }, ['G']), goldEl]),
+        taxCdEl,
         actGrp,
         el('button', { class: 'tw-hud-icon tw-hud-avatar', title: T('worlds.avatarOpen'), onclick: () => { if (typeof WS.openAvatarPicker === 'function') WS.openAvatarPicker(); } }, [ic('person', 16)]),
         el('button', { class: 'tw-hud-icon', title: T('worlds.help'), onclick: toggleHelp }, [ic('help', 16)]),
@@ -192,6 +193,13 @@
     }
     function renderToken(n) { buildHud(); if (tokenEl) tokenEl.textContent = fmtCompact(n || 0); }
   function renderGold(g) { buildHud(); if (goldEl) goldEl.textContent = fmtCompact((g && g.available) || 0); }
+    function renderTaxCooldown(info) {
+      buildHud();
+      if (!taxCdEl) return;
+      if (!info || info.canChange) { taxCdEl.textContent = ""; return; }
+      const h = Math.ceil((info.remainingMs || 0) / (1000*60*60));
+      taxCdEl.textContent = "CD " + h + "h";
+    }
 
   function setRole() {
       buildHud();

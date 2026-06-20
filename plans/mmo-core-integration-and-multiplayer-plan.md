@@ -234,3 +234,26 @@ This plan is the deliverable from the review. Execute in bursts; update this fil
 **Gold spends**: recordGoldSpend (GOLD_SPENT via mmo-core) called on every harvest (small cost).
 **Weekly payout**: grantWeeklyGoldPayout using calculateGoldAllowance + tinyworldHeld from join data; emits ALLOWANCE_RECALCULATED on join and in tick for new cycles. Client sends demo holding.
 All verified, tests green, committed in small bursts.
+
+
+## Deploy Status (latest)
+**Netlify preview alias**: https://mmo-preview--tiny-world-builder.netlify.app
+**PartyKit**: updated with latest server (gold events, interest tick, payouts, tax cooldown)
+
+**Visible in preview**:
+- $TW (abbrev holding) + G (GOLD available) in bottom HUD when inside a world room
+- "MMO PREVIEW" banner (only on the alias hostname)
+- Tax cooldown enforcement on draft tax changes (24h, DB-backed)
+- Cooldown info exposed to client
+
+To test: load the alias → pick a published world → join as Play. The new bottom bar items appear after room entry.
+
+
+## Latest burst (continuing)
+- Tax cooldown: DB column + server enforcement on draft tax changes (24h)
+- Client: after tax save, if cooldown, disable input + show "~Xh" message in manage dialog
+- HUD: shows "CD Xh" when taxCooldown info present
+- All redeployed to mmo-preview alias
+- Preview marker + full stack (Netlify + PartyKit) live for testing
+
+Next suggested: surface cooldown in world cards + full client-side block before save, or run smoke verify on preview.
