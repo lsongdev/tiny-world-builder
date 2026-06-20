@@ -123,8 +123,8 @@ export async function ensureProfile(user) {
   const email = userEmail(user);
   try {
     const inserted = await sql`
-      INSERT INTO profiles (auth0_id, email, username, display_name, about, image)
-      VALUES (${user.id}, ${email}, ${username}, ${displayName}, '', ${image})
+      INSERT INTO profiles (auth0_id, email, username, display_name, about, image, lobby_access)
+      VALUES (${user.id}, ${email}, ${username}, ${displayName}, '', ${image}, true)
       ON CONFLICT (auth0_id) DO NOTHING
       RETURNING id, auth0_id, email, username, display_name, about, image, twitter, github, lobby_access, password_reset_requested_at, archived_at, merged_into_profile_id, created_at, updated_at
     `;
@@ -135,8 +135,8 @@ export async function ensureProfile(user) {
 
   const fallbackUsername = ('builder_' + profileSuffix(user.id)).slice(0, 24);
   const fallback = await sql`
-    INSERT INTO profiles (auth0_id, email, username, display_name, about, image)
-    VALUES (${user.id}, ${email}, ${fallbackUsername}, ${displayName}, '', ${image})
+    INSERT INTO profiles (auth0_id, email, username, display_name, about, image, lobby_access)
+    VALUES (${user.id}, ${email}, ${fallbackUsername}, ${displayName}, '', ${image}, true)
     ON CONFLICT (auth0_id) DO UPDATE SET updated_at = profiles.updated_at
     RETURNING id, auth0_id, email, username, display_name, about, image, twitter, github, lobby_access, password_reset_requested_at, archived_at, merged_into_profile_id, created_at, updated_at
   `;

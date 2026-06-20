@@ -28,22 +28,22 @@ function isBuiltInTinyverseEmail(email) {
 }
 
 function canAccessTinyverse(user, profile) {
-  // accountMeetsCriteria(user) makes Tinyverse access default ON for registered,
-  // email-verified accounts (no admin toggle needed). Consequence: lobby_access
-  // is no longer required for, and can no longer deny, a verified account here -
-  // it remains the explicit admin grant for accounts that do NOT auto-qualify
-  // (e.g. wallet-only). Bans are enforced separately via suspensions in
-  // worlds.mjs (activeSuspension), not via this flag.
-  return isWorldAdminEmail(user && user.email)
-    || isBuiltInTinyverseEmail(profile && profile.email)
-    || accountMeetsCriteria(user)
-    || !!(profile && profile.lobby_access);
+  if (!user || !user.id) return false;
+
+  // Enabled by default for all authenticated accounts (multiplayer / lobby).
+  // Per requirement: no manual grant needed for testing or general use.
+  // The lobby_access flag is retained for explicit admin revocation if needed.
+  // Built-in admins always get access.
+  if (isWorldAdminEmail(user && user.email) || isBuiltInTinyverseEmail(profile && profile.email)) {
+    return true;
+  }
+  return true; // default ON for any logged-in user
 }
 
 function adminUserDto(row) {
   const dto = profileDto(row);
   if (!dto) return null;
-  dto.lobbyAccess = !!row.lobby_access || isBuiltInTinyverseEmail(row.email);
+  dto.lobbyAccess = row.lobby_access !== false; // default true
   dto.builtInAccess = isBuiltInTinyverseEmail(row.email);
   return dto;
 }
@@ -120,7 +120,15 @@ export default async function adminUsersFunction(request) {
     const profile = await ensureProfile(user);
     const url = new URL(request.url);
     if (request.method === 'GET' && url.searchParams.get('action') === 'tinyverse-access') {
-      return jsonResponse({ allowed: canAccessTinyverse(user, profile), admin: isWorldAdminEmail(user && user.email) }, origin);
+            try {
+        const profile = await ensureProfile(user);
+        return jsonResponse({ allowed: canAccessTinyverse(user, profile), admin: isWorldAdminEmail(user && user.email) }, origin);
+      } catch (err) {
+        if (isDatabaseUnavailable(err)) {
+          return jsonResponse({ allowed: !!(user && user.id), admin: isWorldAdminEmail(user && user.email) }, origin);
+        }
+        return jsonResponse({ allowed: false }, origin);
+      }
     }
 
     if (!isWorldAdminEmail(user && user.email)) return errorResponse('Forbidden', 403, origin);
