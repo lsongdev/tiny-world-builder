@@ -1,9 +1,10 @@
 // 64-cctv-view.js — "CCTV only" view mode for the world page.
 //
-// Reached via tiny-world-builder.html?world=<slug>&view=cctv (embedded as an
-// iframe by community.html). It rides the normal ?world= auto-enter flow, joins
-// the live PartyKit room as a passive observer, hides all builder/play chrome,
-// and re-displays the existing Truman CCTV feeds as a vertical stack on the main canvas.
+// Reached via tiny-world-builder.html?world=tidewater-bay&view=cctv (embedded
+// as an iframe by community.html). It rides the normal ?world= auto-enter flow,
+// joins the live PartyKit room as a passive observer, hides all builder/play
+// chrome, and re-displays the existing Truman CCTV feeds as a vertical stack on
+// the main canvas. Non-lobby worlds do not run this mode.
 //
 // It does NOT re-implement the cameras, CRT shader, captions, or tracking — those
 // already run in 62-cctv-truman.js / 63-cctv-placement.js. This module only:
@@ -25,6 +26,9 @@
   window.__tinyworldCctvView = api;
 
   if (qp('view') !== 'cctv') return; // no-op on the normal page
+  const lobbyWorldSlug = String(window.__TW_LOBBY_WORLD_SLUG || 'tidewater-bay').toLowerCase();
+  const requestedWorldSlug = String(qp('world') || qp('slug') || '').toLowerCase();
+  if (requestedWorldSlug && requestedWorldSlug !== lobbyWorldSlug) return;
 
   // Join as a spectator (no avatar). enterWorldFull() honours this global.
   window.__tinyworldForceRole = 'observe';

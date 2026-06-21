@@ -6,7 +6,8 @@
   // screen and defaults to slide 0, so the welcome board is already watchable.
   //
   // Exposed as window.__tinyworldLobby.{show,hide,build,setSlides,next,prev,go,group}.
-  // Built/shown when entering a world room (WS 'enter'), hidden on 'leave'.
+  // Built/shown only when entering the lobby world room (WS 'enter'), hidden on
+  // other worlds and on 'leave'.
   // IIFE — no top-level identifiers leak into the shared global scope.
   (function lobbyPresentationBoot() {
     'use strict';
@@ -48,7 +49,7 @@
     // itself is a real i18n string, t('lobby.updates.title').
     let UPDATES = [
       { id: 'lobby-live', title: 'Living Lobby', line: 'Ambient crowd plus join / leave notifications are live' },
-      { id: 'cctv', title: 'World CCTV', line: 'Watch live camera feeds from active rooms right here' },
+      { id: 'cctv', title: 'Lobby CCTV', line: 'Watch live lobby camera feeds right here' },
       { id: 'companions', title: 'AI Companions', line: 'Characters you can walk up to and actually talk with' },
       { id: 'avatars', title: 'Voxel Avatars', line: 'Pick a preset or customise your look in 3D' },
       { id: 'emotes', title: 'Chat Emotes', line: 'Type /wave /dance /sit to act out for everyone' },
@@ -57,12 +58,12 @@
     let idx = 0, group = null, canvas = null, ctx = null, tex = null, built = false, controls = null;
     let screenMesh = null, slideMat = null;       // the display plane + its slide material
     // ---- alternating rotation: CCTV camera <-> Latest Updates slide -------------
-    // With cameras mounted (63-cctv-placement always mounts >=6 on enter) the screen
-    // alternates strictly: a live cam feed, then the Latest Updates slide, then the
-    // NEXT cam, then Updates again — cycling through every camera across the cam
-    // turns. With NO cameras it falls back to a self-running deck (Latest Updates +
-    // the default welcome slides) so the screen is never blank. A brief signal
-    // glitch sells each cam cut.
+    // With cameras mounted in the lobby (63-cctv-placement mounts >=6 on lobby
+    // enter) the screen alternates strictly: a live cam feed, then the Latest
+    // Updates slide, then the NEXT cam, then Updates again — cycling through
+    // every camera across the cam turns. With NO cameras it falls back to a
+    // self-running deck (Latest Updates + the default welcome slides) so the
+    // screen is never blank. A brief signal glitch sells each cam cut.
     let cycleOn = true, cyclePhase = 'deck', cycleT = 0, liveFeedId = null, liveMat = null;
     let camCursor = -1;           // round-robin index into feeds(); advanced each camera turn
     let deckCursor = 0;           // 0 = Latest Updates; 1..N = default SLIDES[n-1] (fallback only)
@@ -78,6 +79,8 @@
     let lobbyCanvas = null, lobbyCtx = null, lobbyTex = null, lobbyMat = null, lobbyMesh = null;
     let lobbyQueue = [], lobbyShowing = false, lobbyT = 0;
     const LOBBY_DWELL = 7.0, LOBBY_FADE = 0.5;
+    const LOBBY_WORLD_SLUG = String(window.__TW_LOBBY_WORLD_SLUG || 'tidewater-bay').toLowerCase();
+    let activeLobbyRoom = false;
 
     // ---- WAVE1 countdown strip ----
     let countdownCanvas = null, countdownCtx = null, countdownTex = null, countdownMat = null, countdownMesh = null;
@@ -87,6 +90,9 @@
       if (typeof worldGroup !== 'undefined' && worldGroup) return worldGroup;
       if (typeof xrWorldRoot !== 'undefined' && xrWorldRoot) return xrWorldRoot;
       return (typeof scene !== 'undefined') ? scene : null;
+    }
+    function isLobbyWorld(w) {
+      return !!(w && String(w.slug || '').toLowerCase() === LOBBY_WORLD_SLUG);
     }
     function screenZ() {                                   // ON the board, a few rows in from the north edge
       const g = (typeof GRID !== 'undefined' && GRID) ? GRID : 8;
@@ -311,6 +317,7 @@
     }
 
     function show() {
+      if (!activeLobbyRoom) return false;
       build();
       const par = parentNode();
       if (!par) return false;
@@ -326,7 +333,10 @@
       return true;
     }
     function hide() {
-      if (group) group.visible = false;
+      if (group) {
+        group.visible = false;
+        if (group.parent) group.parent.remove(group);
+      }
       ensureControls(false);
       showSlides();
       lobbyQueue.length = 0; lobbyShowing = false;
@@ -478,6 +488,7 @@
       if (lobbyMesh) lobbyMesh.visible = true;
     }
     function showLobbyMessage(d) {
+      if (!activeLobbyRoom) return;
       if (!d || !String(d.text || '').trim()) return;
       lobbyQueue.push({ name: d.name, color: d.color, text: String(d.text).trim() });
       if (!lobbyShowing) startNextLobby();
@@ -530,8 +541,14 @@
     }
 
     if (typeof WS.on === 'function') {
-      WS.on('enter', (d) => { try { if (d && d.world && d.world.slug === 'tinyverse-nexus') { hide(); return; } show(); } catch (_) {} });
-      WS.on('leave', () => { try { hide(); } catch (_) {} });
+      WS.on('enter', (d) => {
+        try {
+          activeLobbyRoom = isLobbyWorld(d && d.world);
+          if (!activeLobbyRoom) { hide(); return; }
+          show();
+        } catch (_) {}
+      });
+      WS.on('leave', () => { try { activeLobbyRoom = false; hide(); } catch (_) {} });
       // Synced slide from the room (server echo of any presenter's advance) -> apply
       // locally WITHOUT rebroadcasting, so all clients converge without a feedback loop.
       WS.on('present', (d) => { if (d && typeof d.slide === 'number') applySlide(d.slide); });

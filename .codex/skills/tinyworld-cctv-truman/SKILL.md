@@ -5,10 +5,10 @@ description: Use when changing the in-world CCTV / "Truman Show" surveillance ca
 
 # Tiny World CCTV / Truman Cameras
 
-Low-res black-and-white security cameras that watch the lobby + world and feed
-both physical monitors and the big lobby presentation screen. They idle-sweep,
-then pan to look at whoever is MOVING nearby — like the hidden cameras in The
-Truman Show.
+Low-res black-and-white security cameras that watch the lobby and feed both
+physical monitors and the big lobby presentation screen. They idle-sweep, then
+pan to look at whoever is MOVING nearby — like the hidden cameras in The Truman
+Show. Do not mount CCTV or the big screen in non-lobby worlds.
 
 ## Files
 
@@ -16,10 +16,12 @@ Truman Show.
   `window.__tinyworldCCTV`. **4-space body indent on purpose** so the
   duplicate-declaration guard in `tools/check.js` (which only scans 2-space
   top-level decls) ignores its locals.
-- `engine/world/63-cctv-placement.js` — mounts cams + monitors on room `enter`,
-  tears down on `leave`. Exposes `window.__tinyworldCCTVPlacement`.
-- `engine/world/58-lobby-presentation.js` — the big screen; its `tick()` cuts
-  between slides and the hottest live feed.
+- `engine/world/63-cctv-placement.js` — mounts cams + monitors on lobby room
+  `enter`, tears down on non-lobby `enter` or `leave`. Exposes
+  `window.__tinyworldCCTVPlacement`. Lobby detection is
+  `window.__TW_LOBBY_WORLD_SLUG || 'tidewater-bay'`.
+- `engine/world/58-lobby-presentation.js` — the lobby-only big screen; its
+  `tick()` cuts between slides and the hottest live feed.
 - `scripts/landing-feed.js` + `styles/landing.css` — the public landing-page
   live-worlds panel. World rows are buttons: click once to expand an island
   CCTV preview (2D canvas from `/api/worlds.preview.cells`), click again to
@@ -59,19 +61,22 @@ Truman Show.
 
 ## Placement (63)
 
-On `enter` (after a 350ms delay so cells + lobby screen exist) it mounts:
+On lobby `enter` only (after a 350ms delay so cells + lobby screen exist) it
+mounts:
 - `lobby-l` / `lobby-r` — flank both sides of the presentation screen, angled at
   the crowd (toward +z).
 - `pumpkincam` — over the biggest `kind:'pumpkin'` cell (scans `world[][]`,
   sorts by floors).
 - `treecam-1/2` — over the tallest `kind:'tree'` cells.
 Monitors stack up the sides of the lobby screen. `window.__tinyworldCCTVFeeds`
-lists mounted feed ids.
+lists mounted feed ids. On non-lobby `enter` or `leave`, clear feeds, disable
+capture, and remove monitors.
 
 ## Lobby cutting (58)
 
-`build()` stashes `screenMesh` + `slideMat`. The state machine auto-advances
-slides (`AUTO_ADVANCE`), then after `SLIDE_DWELL` swaps the screen material to a
+`build()` stashes `screenMesh` + `slideMat`. The screen is shown only in the
+configured lobby world, not every island. The state machine auto-advances slides
+(`AUTO_ADVANCE`), then after `SLIDE_DWELL` swaps the screen material to a
 `monitorMaterialFor(hotFeed)` for `FEED_DWELL`, then back. Manual presenter
 `go()` and `hide()` snap back to slides. New API: `tick, setCycle, showSlides,
 showFeed, liveFeed`.

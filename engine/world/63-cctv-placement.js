@@ -1,9 +1,10 @@
   // -------- CCTV placement: lobby side-cams, pumpkincam, treecams --------
-  // Wires the surveillance system (62-cctv-truman.js) into the worlds room. When a
-  // player enters a tinyverse room we mount physical monitors flanking BOTH sides of
-  // the lobby presentation screen, add a "PUMPKINCAM" over the largest pumpkin patch
-  // and one or two "TREECAM"s over trees, point the room's avatar feed at the cameras
-  // so they track whoever's moving, and enable capture. On leave we tear it all down.
+  // Wires the surveillance system (62-cctv-truman.js) into the lobby world room
+  // only. When a player enters the lobby we mount physical monitors flanking BOTH
+  // sides of the lobby presentation screen, add a "PUMPKINCAM" over the largest
+  // pumpkin patch and one or two "TREECAM"s over trees, point the room's avatar
+  // feed at the cameras so they track whoever's moving, and enable capture. On
+  // non-lobby rooms or leave we tear it all down.
   //
   // All cameras + monitors live under avatarParent() (the same local frame the
   // avatars and lobby screen use), so subject positions need no conversion and the
@@ -18,6 +19,9 @@
     const mounted = [];            // { id, monitor } we added to the parent
     let active = false;
     let parentRef = null;
+    let setupTimer = null;
+    let currentWorldIsLobby = false;
+    const LOBBY_WORLD_SLUG = String(window.__TW_LOBBY_WORLD_SLUG || 'tidewater-bay').toLowerCase();
 
     // Monitor-wall layout (beside the lobby screen). The screen is 6 x 3.375 with its
     // bottom at 1.0 (see 58-lobby-presentation), so its centre sits ~2.69 above the
@@ -28,6 +32,9 @@
     const MON_W = 1.25;       // monitor width (height derives 4:3)
 
     function CCTV() { return window.__tinyworldCCTV || null; }
+    function isLobbyWorld(w) {
+      return !!(w && String(w.slug || '').toLowerCase() === LOBBY_WORLD_SLUG);
+    }
 
     function gridSize() {
       return (typeof GRID !== 'undefined' && GRID) ? GRID : 8;
@@ -147,6 +154,7 @@
 
     function setup() {
       const cc = CCTV(); if (!cc) return;
+      if (!currentWorldIsLobby) { teardown(); return; }
       teardown();   // idempotent
       parentRef = (typeof WS.avatarParent === 'function' && WS.avatarParent()) || (typeof scene !== 'undefined' ? scene : null);
       if (!parentRef) return;
@@ -239,6 +247,7 @@
     }
 
     function teardown() {
+      if (setupTimer) { clearTimeout(setupTimer); setupTimer = null; }
       const cc = CCTV();
       if (cc) {
         mounted.forEach((m) => {
@@ -255,8 +264,13 @@
 
     if (typeof WS.on === 'function') {
       // Build slightly after enter so the lobby screen + world cells exist.
-      WS.on('enter', (d) => { if (d && d.world && d.world.slug === 'tinyverse-nexus') { try { teardown(); } catch (_) {} return; } setTimeout(() => { try { setup(); } catch (_) {} }, 350); });
-      WS.on('leave', () => { try { teardown(); } catch (_) {} });
+      WS.on('enter', (d) => {
+        currentWorldIsLobby = isLobbyWorld(d && d.world);
+        try { teardown(); } catch (_) {}
+        if (!currentWorldIsLobby) return;
+        setupTimer = setTimeout(() => { setupTimer = null; try { setup(); } catch (_) {} }, 350);
+      });
+      WS.on('leave', () => { currentWorldIsLobby = false; try { teardown(); } catch (_) {} });
     }
 
     window.__tinyworldCCTVPlacement = {
