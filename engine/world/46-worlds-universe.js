@@ -163,7 +163,7 @@
     background-size:131px 89px,64px 64px,64px 64px;
     background-position:17px 23px,50% 32%,50% 32%;
     mask-image:radial-gradient(circle at 50% 44%,rgba(0,0,0,.85),transparent 74%)}
-  .tw-worlds-overlay::after{content:"";position:absolute;left:50%;top:62%;width:1600px;height:520px;transform:translate(-50%,-50%);pointer-events:none;
+  .tw-worlds-overlay::after{content:"";position:absolute;left:50%;top:73%;width:min(1840px,92vw);height:430px;transform:translate(-50%,-50%);pointer-events:none;
     border:1px solid rgba(92,150,231,.16);border-radius:50%;box-shadow:0 0 0 18px rgba(92,150,231,.025),0 0 0 42px rgba(25,210,89,.035),0 0 100px rgba(54,176,255,.1)}
   .tw-worlds-overlay.open{display:block}
   .tw-worlds-wrap{position:relative;z-index:1;min-height:100%;box-sizing:border-box;max-width:1480px;margin:0 auto;padding:48px 24px 34px;display:flex;flex-direction:column;align-items:center}
@@ -180,21 +180,21 @@
     box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 2px 8px -2px rgba(0,0,0,.35);transition:filter .08s}
   .tw-worlds-x:hover{filter:brightness(1.18)}
   .tw-worlds-x:active{transform:translateY(1px)}
-  .tw-worlds-stage{position:relative;width:100%;height:min(58vh,560px);min-height:470px;margin:4px auto 0;overflow:visible}
+  .tw-worlds-stage{position:relative;width:100%;height:min(58vh,570px);min-height:500px;margin:24px auto 0;overflow:visible}
   .tw-worlds-grid{position:absolute;inset:0;perspective:1000px}
   .tw-worlds-card{position:absolute;left:50%;top:50%;width:min(520px,calc(100vw - 72px));min-height:388px;box-sizing:border-box;
     background:linear-gradient(180deg,rgba(13,24,48,.88),rgba(5,10,22,.9));border:1px solid rgba(114,150,225,.34);border-radius:8px;padding:14px 14px 18px;display:flex;flex-direction:column;gap:10px;
     backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%);
     box-shadow:inset 0 1px 0 rgba(160,190,255,.18),0 28px 80px -24px rgba(0,0,0,.85),0 10px 24px -12px rgba(0,0,0,.62);
     transition:transform .18s ease,opacity .18s ease,filter .18s ease,box-shadow .18s ease;will-change:transform,opacity;cursor:pointer}
-  .tw-worlds-card[data-offset="0"]{transform:translate(-50%,-50%) translateX(0) translateY(16px) scale(1);opacity:1;z-index:6;cursor:default;
+  .tw-worlds-card[data-offset="0"]{transform:translate(-50%,-50%) translateX(0) translateY(38px) scale(1);opacity:1;z-index:6;cursor:default;
     border-color:rgba(78,230,80,.68);box-shadow:inset 0 1px 0 rgba(214,255,218,.22),0 0 0 1px rgba(78,230,80,.28),0 0 34px rgba(52,225,88,.36),0 36px 92px -26px rgba(0,0,0,.9)}
-  .tw-worlds-card[data-offset="-1"]{transform:translate(-50%,-50%) translateX(-415px) translateY(58px) scale(.72);opacity:.82;z-index:4;filter:saturate(.9) brightness(.82)}
-  .tw-worlds-card[data-offset="1"]{transform:translate(-50%,-50%) translateX(415px) translateY(58px) scale(.72);opacity:.82;z-index:4;filter:saturate(.9) brightness(.82)}
-  .tw-worlds-card[data-offset="-2"]{transform:translate(-50%,-50%) translateX(-735px) translateY(88px) scale(.56);opacity:.44;z-index:2;filter:saturate(.72) brightness(.66)}
-  .tw-worlds-card[data-offset="2"]{transform:translate(-50%,-50%) translateX(735px) translateY(88px) scale(.56);opacity:.44;z-index:2;filter:saturate(.72) brightness(.66)}
+  .tw-worlds-card[data-offset="-1"]{transform:translate(-50%,-50%) translateX(-415px) translateY(80px) scale(.72);opacity:.82;z-index:4;filter:saturate(.9) brightness(.82)}
+  .tw-worlds-card[data-offset="1"]{transform:translate(-50%,-50%) translateX(415px) translateY(80px) scale(.72);opacity:.82;z-index:4;filter:saturate(.9) brightness(.82)}
+  .tw-worlds-card[data-offset="-2"]{transform:translate(-50%,-50%) translateX(-735px) translateY(110px) scale(.56);opacity:.44;z-index:2;filter:saturate(.72) brightness(.66)}
+  .tw-worlds-card[data-offset="2"]{transform:translate(-50%,-50%) translateX(735px) translateY(110px) scale(.56);opacity:.44;z-index:2;filter:saturate(.72) brightness(.66)}
   .tw-worlds-card[data-hidden="true"]{opacity:0;pointer-events:none;transform:translate(-50%,-50%) scale(.45)}
-  .tw-worlds-card[data-offset="0"]::before{content:"";position:absolute;left:50%;top:-118px;width:2px;height:112px;transform:translateX(-50%);
+  .tw-worlds-card[data-offset="0"]::before{content:"";position:absolute;left:50%;top:-145px;width:2px;height:138px;transform:translateX(-50%);
     background:linear-gradient(180deg,rgba(66,255,87,0),rgba(66,255,87,.94));box-shadow:0 0 18px rgba(66,255,87,.8)}
   .tw-worlds-card[data-offset="0"]::after{content:"";position:absolute;left:50%;bottom:-18px;width:92%;height:42px;transform:translateX(-50%);border-radius:50%;
     border:2px solid rgba(66,255,87,.68);box-shadow:0 0 34px rgba(66,255,87,.46),inset 0 0 28px rgba(66,255,87,.18);pointer-events:none}
@@ -226,7 +226,7 @@
   .tw-btn.go{background:linear-gradient(180deg,#62cc44 0%,#4aab2e 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.24),0 4px 12px -4px rgba(74,171,46,.4)}
   .tw-btn:disabled{opacity:.4;cursor:not-allowed;filter:grayscale(.5)}
   .tw-worlds-actions .tw-btn.go{min-height:48px;font-size:13px;border-radius:7px;box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 0 22px rgba(74,221,53,.38),0 8px 24px -10px rgba(74,221,53,.7)}
-  .tw-worlds-nav{position:absolute;top:55%;z-index:8;width:58px;height:58px;border-radius:50%;border:1px solid rgba(133,164,221,.3);display:grid;place-items:center;
+  .tw-worlds-nav{position:absolute;top:58%;z-index:8;width:58px;height:58px;border-radius:50%;border:1px solid rgba(133,164,221,.3);display:grid;place-items:center;
     background:linear-gradient(180deg,rgba(36,52,87,.9),rgba(19,30,55,.92));color:#eef5ff;cursor:pointer;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 14px 32px -16px rgba(0,0,0,.9)}
   .tw-worlds-nav:hover{filter:brightness(1.16)}
   .tw-worlds-prev-btn{left:calc(50% - 370px)}
@@ -247,11 +247,13 @@
   .tw-worlds-empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:#b8c3d8;font:700 14px 'Space Grotesk',system-ui,sans-serif}
   @media (max-width:860px){
     .tw-worlds-wrap{padding:30px 14px 24px}
+    .tw-worlds-overlay::after{top:76%;width:1180px;height:330px}
     .tw-worlds-head-actions{right:14px;top:18px}
     .tw-worlds-title{font-size:19px}
     .tw-worlds-title::before,.tw-worlds-title::after{width:18px}
-    .tw-worlds-stage{min-height:430px;height:52vh;margin-top:18px}
+    .tw-worlds-stage{min-height:450px;height:54vh;margin-top:24px}
     .tw-worlds-card{width:min(420px,calc(100vw - 36px));min-height:352px}
+    .tw-worlds-card[data-offset="0"]{transform:translate(-50%,-50%) translateX(0) translateY(28px) scale(1)}
     .tw-worlds-card[data-offset="-1"],.tw-worlds-card[data-offset="1"],.tw-worlds-card[data-offset="-2"],.tw-worlds-card[data-offset="2"]{opacity:0;pointer-events:none}
     .tw-worlds-card h3{font-size:18px}
     .tw-worlds-meta{gap:10px;font-size:12px}
