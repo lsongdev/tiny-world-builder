@@ -12,6 +12,8 @@
   var selectedSlug = null;
   var worldsCache = [];
   var cctvStops = [];
+  var releaseTimer = 0;
+  var WAVE2_FALLBACK_MS = Date.parse('2026-06-29T23:59:00Z');
 
   // Tiny top-down swatch palette for the preview minimap.
   var TERRAIN_COLORS = {
@@ -82,6 +84,26 @@
     list.textContent = '';
     panel.classList.remove('is-expanded');
     panel.hidden = true;
+  }
+
+  function wave2ReleaseMs() {
+    var Countdown = window.TinyWorldCountdown;
+    var countdownMs = Countdown && Number(Countdown.WAVE2_MS);
+    return Number.isFinite(countdownMs) ? countdownMs : WAVE2_FALLBACK_MS;
+  }
+
+  function wave2FeedReleased() {
+    return Date.now() >= wave2ReleaseMs();
+  }
+
+  function scheduleWave2Load() {
+    if (releaseTimer || wave2FeedReleased()) return;
+    var delay = wave2ReleaseMs() - Date.now();
+    if (!Number.isFinite(delay) || delay <= 0) return;
+    releaseTimer = window.setTimeout(function () {
+      releaseTimer = 0;
+      load();
+    }, Math.min(delay + 1000, 2147483647));
   }
 
   function slugOf(w) {
@@ -326,6 +348,11 @@
   }
 
   function load() {
+    if (!wave2FeedReleased()) {
+      hideFeed();
+      scheduleWave2Load();
+      return;
+    }
     accessToken().then(function (token) {
       if (!token) { hideFeed(); return null; }
       return fetch('/api/worlds', { headers: { Accept: 'application/json', Authorization: 'Bearer ' + token } });

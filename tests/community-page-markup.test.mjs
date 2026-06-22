@@ -49,3 +49,9 @@ test('landing world feed is hidden from anonymous visitors', () => {
   assert.match(landingFeedJs, /Authorization: 'Bearer ' \+ token/);
   assert.match(worldsFunctionJs, /if \(!profile\) \{\s*return jsonResponse\(\{ worlds: \[\]/);
 });
+
+test('landing world feed stays hidden until Wave 2', () => {
+  assert.match(landingFeedJs, /WAVE2_FALLBACK_MS = Date\.parse\('2026-06-29T23:59:00Z'\)/);
+  assert.match(landingFeedJs, /function wave2FeedReleased\(\)/);
+  assert.match(landingFeedJs, /if \(!wave2FeedReleased\(\)\) \{\s*hideFeed\(\);\s*scheduleWave2Load\(\);\s*return;\s*\}/);
+});
