@@ -31,29 +31,34 @@ export default async function worldTemplate(request) {
     const sql = getSql();
     const profile = await ensureProfile(auth.user);
 
-    const rows = await sql`SELECT id, owner_profile_id, status FROM worlds WHERE id = ${worldId} LIMIT 1`;
+    // Existence/ownership are surfaced as a clear 404/403, but the authoritative
+    // ownership (+ published, for listing) check lives in the UPDATE predicate so a
+    // concurrent ownership/status change between read and write can't be exploited.
+    const rows = await sql`SELECT owner_profile_id FROM worlds WHERE id = ${worldId} LIMIT 1`;
     if (!rows.length) return errorResponse('world-not-found', 404, origin);
-    const world = rows[0];
-    if (Number(world.owner_profile_id) !== Number(profile.id)) return errorResponse('not-your-world', 403, origin);
-    if (world.status !== 'published') return errorResponse('world-must-be-published', 400, origin);
+    if (Number(rows[0].owner_profile_id) !== Number(profile.id)) return errorResponse('not-your-world', 403, origin);
 
     if (action === 'unlist') {
       const upd = await sql`
-        UPDATE worlds SET is_template = FALSE, updated_at = NOW()
-        WHERE id = ${worldId} RETURNING id, is_template, template_price, remix_count
+        UPDATE worlds
+        SET is_template = FALSE, template_price = NULL, template_author_id = NULL, updated_at = NOW()
+        WHERE id = ${worldId} AND owner_profile_id = ${Number(profile.id)}
+        RETURNING id, is_template, template_price, remix_count
       `;
+      if (!upd.length) return errorResponse('ownership-conflict', 409, origin);
       return jsonResponse({ ok: true, template: upd[0] }, origin);
     }
 
-    // list
+    // list — must own AND be published, enforced in the predicate.
     const price = Number(body.price);
     if (!Number.isInteger(price) || price < 0 || price > MAX_TEMPLATE_PRICE) return errorResponse('invalid-price', 400, origin);
     const upd = await sql`
       UPDATE worlds
       SET is_template = TRUE, template_price = ${price}, template_author_id = ${Number(profile.id)}, updated_at = NOW()
-      WHERE id = ${worldId}
+      WHERE id = ${worldId} AND owner_profile_id = ${Number(profile.id)} AND status = 'published'
       RETURNING id, is_template, template_price, remix_count
     `;
+    if (!upd.length) return errorResponse('not-owner-or-not-published', 409, origin);
     return jsonResponse({ ok: true, template: upd[0] }, origin);
   } catch (err) {
     if (isDatabaseUnavailable(err) || isMissingSchema(err)) {

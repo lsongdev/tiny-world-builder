@@ -14,7 +14,7 @@ export const config = { path: '/api/worlds/remix' };
 
 const TREASURY_FEE_BPS = 500; // 5% — matches DEFAULT_ECONOMY_POLICY.officialMarketplaceFeeBps
 const MAX_BUILDS_PER_PROFILE = 500;
-const isMissingSchema = (err) => isMissingRelations(err, ['worlds', 'builds', 'coin_balances', 'coin_ledger']);
+const isMissingSchema = (err) => isMissingRelations(err, ['worlds', 'builds', 'coin_balances', 'coin_ledger', 'world_remixes']);
 
 export function templateFeeSplit(price) {
   const p = Math.max(0, Math.floor(Number(price) || 0));
@@ -42,42 +42,65 @@ export default async function worldRemix(request) {
   try {
     const sql = getSql();
     const buyer = await ensureProfile(auth.user);
-
-    const rows = await sql`
-      SELECT id, owner_profile_id, name, is_template, template_price, data
-      FROM worlds WHERE id = ${worldId} LIMIT 1
-    `;
-    if (!rows.length) return errorResponse('world-not-found', 404, origin);
-    const world = rows[0];
-    if (!world.is_template || world.template_price == null) return errorResponse('not-a-template', 400, origin);
-    const author = Number(world.owner_profile_id);
-    if (author === Number(buyer.id)) return errorResponse('cannot-remix-own', 400, origin);
-
-    const price = Math.max(0, Math.floor(Number(world.template_price) || 0));
-    const { fee, authorAmount } = templateFeeSplit(price);
+    const buyerId = Number(buyer.id);
+    // Coin refs are bound to the world so a key reused across worlds can't false-replay
+    // a coin debit; the world_remixes table is the operation-level idempotency surface.
+    const coinRef = `rmx:${worldId}:${idempotencyKey}`.slice(0, 128);
 
     const result = await coinsTransaction(sql, async ({ debit, credit, tx }) => {
-      // Buyer's build cap (the duplicated world becomes a build they own).
-      const cnt = await tx`SELECT count(*)::int AS n FROM builds WHERE profile_id = ${Number(buyer.id)}`;
+      // Serialize ALL of this buyer's remix work (and coin ops — same lock key) so the
+      // idempotency pre-check + build-cap + writes can't interleave with a concurrent op.
+      await tx`SELECT pg_advisory_xact_lock(hashtext(${'coin:' + buyerId})::bigint)`;
+
+      // Operation-level idempotency (covers free AND paid). A reused key bound to a
+      // DIFFERENT world is rejected; bound to the same world, replays the original build.
+      const prior = await tx`
+        SELECT world_id, build_id FROM world_remixes
+        WHERE buyer_profile_id = ${buyerId} AND idempotency_key = ${idempotencyKey} LIMIT 1
+      `;
+      if (prior.length) {
+        if (Number(prior[0].world_id) !== worldId) return { ok: false, reason: 'idempotency-key-reused' };
+        return { ok: true, replayed: true, buildId: prior[0].build_id == null ? null : Number(prior[0].build_id) };
+      }
+
+      // Lock the template row and re-read price/data/author UNDER the lock so the author
+      // can't unlist / raise price / unpublish between our read and the charge (TOCTOU).
+      const rows = await tx`
+        SELECT id, owner_profile_id, name, template_price, data FROM worlds
+        WHERE id = ${worldId} AND is_template = TRUE AND template_price IS NOT NULL AND status = 'published'
+        FOR UPDATE
+      `;
+      if (!rows.length) return { ok: false, reason: 'not-a-template' };
+      const world = rows[0];
+      const author = Number(world.owner_profile_id);
+      if (author === buyerId) return { ok: false, reason: 'cannot-remix-own' };
+      const price = Math.max(0, Math.floor(Number(world.template_price) || 0));
+      const { fee, authorAmount } = templateFeeSplit(price);
+
+      const cnt = await tx`SELECT count(*)::int AS n FROM builds WHERE profile_id = ${buyerId}`;
       if (Number(cnt[0].n) >= MAX_BUILDS_PER_PROFILE) return { ok: false, reason: 'build-limit' };
 
-      // Free templates skip the coin movement entirely.
       let debitBalance = null;
       if (price > 0) {
-        const d = await debit({ profileId: buyer.id, amount: price, type: 'DEBIT', reason: `remix:${worldId}`, referenceId: idempotencyKey, counterpartyProfileId: author });
-        if (!d.ok) return d; // insufficient-coins / idempotency-key-reused (no writes)
-        if (d.replayed) return { ok: true, replayed: true, balance: d.balance }; // already remixed — don't double-build
+        const d = await debit({ profileId: buyerId, amount: price, type: 'DEBIT', reason: `remix:${worldId}`, referenceId: coinRef, counterpartyProfileId: author });
+        if (!d.ok) return d; // insufficient-coins (no writes)
         debitBalance = d.balance;
         if (authorAmount > 0) {
-          const c = await credit({ profileId: author, amount: authorAmount, type: 'CREDIT', reason: `remix-sale:${worldId}`, referenceId: idempotencyKey + ':author', counterpartyProfileId: Number(buyer.id) });
+          const c = await credit({ profileId: author, amount: authorAmount, type: 'CREDIT', reason: `remix-sale:${worldId}`, referenceId: coinRef + ':a', counterpartyProfileId: buyerId });
           if (!c.ok) throw new Error('author-credit-failed:' + c.reason); // rolls back the debit
         }
       }
 
       const name = ('Remix of ' + (world.name || 'world')).slice(0, 80);
-      const build = await tx`INSERT INTO builds (profile_id, name, data) VALUES (${Number(buyer.id)}, ${name}, ${world.data}) RETURNING id`;
+      const build = await tx`INSERT INTO builds (profile_id, name, data) VALUES (${buyerId}, ${name}, ${world.data}) RETURNING id`;
+      const buildId = Number(build[0].id);
       await tx`UPDATE worlds SET remix_count = remix_count + 1 WHERE id = ${worldId}`;
-      return { ok: true, replayed: false, buildId: Number(build[0].id), spent: price, fee, authorReceived: authorAmount, balance: debitBalance };
+      // Record the operation — the unique (buyer, key) index is the durable idempotency backstop.
+      await tx`
+        INSERT INTO world_remixes (buyer_profile_id, world_id, build_id, author_profile_id, price, idempotency_key)
+        VALUES (${buyerId}, ${worldId}, ${buildId}, ${author}, ${price}, ${idempotencyKey})
+      `;
+      return { ok: true, replayed: false, buildId, spent: price, fee, authorReceived: authorAmount, balance: debitBalance };
     });
 
     if (!result.ok) {
