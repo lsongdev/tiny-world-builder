@@ -1405,6 +1405,13 @@ syncTinyworldOwnerToolControls();
           e.stopPropagation();
           await shareSavedBuild(b);
         });
+        const listBtn = document.createElement('button');
+        listBtn.textContent = 'List';
+        listBtn.title = 'List as a paid template (others pay GOLD to remix it)';
+        listBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await listBuildAsTemplate(b);
+        });
         const delBtn = document.createElement('button');
         delBtn.textContent = '×';
         delBtn.title = 'Delete';
@@ -1425,6 +1432,7 @@ syncTinyworldOwnerToolControls();
         });
         actions.appendChild(loadBtn);
         actions.appendChild(shareBtn);
+        actions.appendChild(listBtn);
         actions.appendChild(delBtn);
         li.appendChild(info);
         li.appendChild(actions);
@@ -1493,6 +1501,36 @@ syncTinyworldOwnerToolControls();
       const url = absoluteShareUrl(result);
       await copyShareUrl(url);
       twToast('Share URL copied.', 'ok');
+    }
+
+    // List a saved build as a paid template: share it (to get a stable share id that
+    // lands it in the home carousel), then list it for a GOLD price so others can pay
+    // to remix it. Listing is gated to the tinyverse economy allowlist server-side.
+    async function listBuildAsTemplate(build) {
+      const shareResult = await apiCall('/api/share', 'POST', { buildId: build.id });
+      if (!shareResult || shareResult.error || !shareResult.id) {
+        twToast((shareResult && shareResult.error) || 'Could not share this world.', 'err');
+        return;
+      }
+      const raw = window.prompt(
+        'List "' + build.name + '" as a template.\nPrice in GOLD (others pay this to remix it):',
+        '50'
+      );
+      if (raw === null) return;
+      const price = Math.floor(Number(raw));
+      if (!Number.isFinite(price) || price < 0 || price > 1000000) {
+        twToast('Enter a whole GOLD price between 0 and 1,000,000.', 'err');
+        return;
+      }
+      const result = await apiCall('/api/worlds/template', 'POST', { shareId: shareResult.id, action: 'list', price });
+      if (!result || result.error) {
+        const reason = result && result.error;
+        twToast(reason === 'tinyverse-access-required'
+          ? 'Template listing is in private testing.'
+          : (reason || 'Could not list as a template.'), 'err');
+        return;
+      }
+      twToast('Listed as a template for ' + price + ' GOLD.', 'ok');
     }
 
     accountBtn.addEventListener('click', () => {
