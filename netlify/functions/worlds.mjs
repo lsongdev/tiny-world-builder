@@ -3,6 +3,7 @@ import { getAuthUser } from './lib/auth.mjs';
 import { getSql, isDatabaseUnavailable, isMissingRelations } from './lib/db.mjs';
 import { corsResponse, errorResponse, jsonResponse, readJson, sameOriginWriteGuard } from './lib/http.mjs';
 import { ensureProfile, profileDto } from './lib/profiles.mjs';
+import { maybeRewardReferral } from './lib/referrals.mjs';
 import { activeSuspension } from './lib/community-moderation.mjs';
 import { isTinyverseAccessEmail } from './lib/tinyverse-access.mjs';
 import {
@@ -276,6 +277,15 @@ export default async function worldsFunction(request) {
           RETURNING *
         `;
         if (!rows.length) return errorResponse('Cannot publish (need a name, and it must be your draft)', 409, origin);
+        // Publishing a world is the verified action that pays out a pending referral
+        // (earned, not given). Best-effort: a referral-reward error must never fail the
+        // publish. Idempotent — only the first eligible publish ever pays.
+        try {
+          const r = await maybeRewardReferral(sql, profile.id);
+          if (r && r.reason && String(r.reason).startsWith('error:')) {
+            console.warn('[referral] reward failed for profile', profile.id, r.reason);
+          }
+        } catch (e) { console.warn('[referral] reward threw for profile', profile.id, e && e.message); }
         return jsonResponse({ world: worldDto(rows[0], { includeData: true }) }, origin);
       }
 
