@@ -181,7 +181,7 @@ export default async function adminUsersFunction(request) {
     if (request.method === 'GET' && url.searchParams.get('action') === 'tinyverse-access') {
       try {
         const profile = await ensureProfile(user);
-        return jsonResponse({ allowed: canAccessTinyverse(user, profile), admin: isWorldAdminEmail(user && user.email) }, origin);
+        return jsonResponse({ allowed: canAccessTinyverse(user), admin: isWorldAdminEmail(user && user.email) }, origin);
       } catch (err) {
         if (isDatabaseUnavailable(err)) {
           const allowed = isTinyverseAccessEmail(user && user.email);
