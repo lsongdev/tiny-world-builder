@@ -495,12 +495,41 @@
     document.documentElement.style.setProperty('--sky-blue-low-rgb', cssRgb(low));
   }
   applyBackdropSettings();
-  const renderer = new THREE.WebGLRenderer({
-    canvas: canvasEl,
-    antialias: true,
-    alpha: true,
-    powerPreference: 'high-performance',
-  });
+  // Safari is far stricter than Chrome about WebGL context creation: it can refuse
+  // `powerPreference:'high-performance'` on integrated GPUs and throws (rather than
+  // falling back) when a context can't be made. An unguarded `new THREE.WebGLRenderer`
+  // that throws here leaves `renderer` unassigned and every later module that
+  // references it dies with a TDZ "Cannot access before initialization" cascade —
+  // i.e. the whole builder goes blank. Try progressively-safer option sets, and if
+  // all fail, surface a friendly message instead of a dead white screen.
+  function createRenderer() {
+    const attempts = [
+      { canvas: canvasEl, antialias: true, alpha: true, powerPreference: 'high-performance' },
+      { canvas: canvasEl, antialias: true, alpha: true, powerPreference: 'default' },
+      { canvas: canvasEl, antialias: false, alpha: true, powerPreference: 'default' },
+      { canvas: canvasEl, alpha: true },
+    ];
+    let lastErr = null;
+    for (const opts of attempts) {
+      try {
+        const r = new THREE.WebGLRenderer(opts);
+        if (r && r.getContext && r.getContext()) return r;
+      } catch (err) { lastErr = err; }
+    }
+    // Total failure — show a readable message instead of a blank screen + cascade.
+    try {
+      const msg = document.createElement('div');
+      msg.setAttribute('role', 'alert');
+      msg.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:system-ui,sans-serif;background:#0d1220;color:#e6ecff;z-index:99999';
+      msg.innerHTML = '<div style="max-width:520px"><h2 style="margin:0 0 10px">3D view could not start</h2>'
+        + '<p style="opacity:.85;line-height:1.5;margin:0">Your browser could not create a WebGL graphics context. '
+        + 'This often happens in Safari with hardware acceleration disabled, or with too many tabs open. '
+        + 'Try enabling hardware acceleration, closing other tabs, or opening Tiny World in Chrome.</p></div>';
+      document.body.appendChild(msg);
+    } catch (_) {}
+    throw (lastErr || new Error('WebGL context unavailable'));
+  }
+  const renderer = createRenderer();
   function applyRendererPixelRatio() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, renderDprCapForViewport()) * renderResolutionScale);
   }
