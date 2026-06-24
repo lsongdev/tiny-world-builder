@@ -274,7 +274,12 @@ export default async function worldsFunction(request) {
         // Publishing a world is the verified action that pays out a pending referral
         // (earned, not given). Best-effort: a referral-reward error must never fail the
         // publish. Idempotent — only the first eligible publish ever pays.
-        try { await maybeRewardReferral(sql, profile.id); } catch (_) {}
+        try {
+          const r = await maybeRewardReferral(sql, profile.id);
+          if (r && r.reason && String(r.reason).startsWith('error:')) {
+            console.warn('[referral] reward failed for profile', profile.id, r.reason);
+          }
+        } catch (e) { console.warn('[referral] reward threw for profile', profile.id, e && e.message); }
         return jsonResponse({ world: worldDto(rows[0], { includeData: true }) }, origin);
       }
 

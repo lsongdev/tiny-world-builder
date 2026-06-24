@@ -18,3 +18,13 @@ CREATE TABLE IF NOT EXISTS referrals (
   CONSTRAINT referrals_no_self CHECK (referrer_profile_id <> referee_profile_id)
 );
 CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals (referrer_profile_id, status);
+
+-- Race-free per-referrer per-cycle reward cap: a single counter row updated atomically
+-- (INSERT ... ON CONFLICT DO UPDATE ... WHERE count < cap RETURNING) so concurrent
+-- payouts for different referees under one referrer can't all slip past the cap.
+CREATE TABLE IF NOT EXISTS referral_reward_counters (
+  referrer_profile_id BIGINT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  cycle_id TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (referrer_profile_id, cycle_id)
+);

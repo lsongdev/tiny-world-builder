@@ -81,12 +81,25 @@ export async function maybeRewardReferral(sql, refereeId, now = new Date()) {
       const referralId = Number(rows[0].id);
       const referrer = Number(rows[0].referrer_profile_id);
 
-      // Per-referrer per-cycle cap (anti-farming).
-      const capRows = await tx`
-        SELECT count(*)::int AS n FROM referrals
-        WHERE referrer_profile_id = ${referrer} AND status = 'rewarded' AND cycle_id = ${cycleId}
+      // Anti-Sybil: the referee must have a VERIFIED wallet before the reward pays.
+      // Each fake referee would need a distinct real Solana keypair + the signature
+      // flow — far harder to farm than free accounts. If not yet, leave it pending
+      // (it pays on a later publish once they've linked + verified a wallet).
+      const w = await tx`SELECT 1 FROM wallet_accounts WHERE profile_id = ${ref} AND verified_at IS NOT NULL LIMIT 1`;
+      if (!w.length) return { rewarded: false, reason: 'referee-no-verified-wallet' };
+
+      // Race-free per-referrer per-cycle cap: atomic increment that only succeeds while
+      // under the cap. Empty RETURNING => cap reached. Increment rolls back with the tx
+      // if a later credit fails, so the counter only counts paid rewards.
+      const cap = await tx`
+        INSERT INTO referral_reward_counters (referrer_profile_id, cycle_id, count)
+        VALUES (${referrer}, ${cycleId}, 1)
+        ON CONFLICT (referrer_profile_id, cycle_id)
+        DO UPDATE SET count = referral_reward_counters.count + 1
+        WHERE referral_reward_counters.count < ${MAX_REWARDS_PER_CYCLE}
+        RETURNING count
       `;
-      if (Number(capRows[0].n) >= MAX_REWARDS_PER_CYCLE) {
+      if (!cap.length) {
         await tx`UPDATE referrals SET status = 'rejected', cycle_id = ${cycleId} WHERE id = ${referralId}`;
         return { rewarded: false, reason: 'cap-reached' };
       }
