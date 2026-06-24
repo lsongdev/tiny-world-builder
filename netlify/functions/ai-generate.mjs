@@ -3,7 +3,7 @@ import { requireAuthUser } from './lib/auth.mjs';
 import { ensureProfile } from './lib/profiles.mjs';
 import { getSql, isDatabaseUnavailable, isMissingRelations } from './lib/db.mjs';
 import { corsResponse, errorResponse, jsonResponse, readJson, sameOriginWriteGuard } from './lib/http.mjs';
-import { coinsTransaction, creditCoins, isValidCoinRef } from './lib/coins.mjs';
+import { coinsTransaction, isValidCoinRef } from './lib/coins.mjs';
 import { generateAi, isAiKind, aiCost } from './lib/ai.mjs';
 
 export const config = { path: '/api/ai/generate' };
@@ -16,6 +16,10 @@ export const config = { path: '/api/ai/generate' };
 // is bound to a (kind+input) fingerprint, so a key can't be reused for a different
 // request, and concurrent same-key requests never double-call or double-charge.
 const isMissingSchema = (err) => isMissingRelations(err, ['ai_generations', 'coin_balances', 'coin_ledger']);
+// A 'pending' op older than this was charged but never finished (process died between
+// the provider call and the DB write). A retry may RESUME it — the charge already stands
+// — so the player is never permanently stuck-pending or charged with no replayable result.
+const PENDING_TIMEOUT_MS = 60_000;
 
 function sha(s) { return createHash('sha256').update(String(s)).digest('hex'); }
 
@@ -50,7 +54,7 @@ export default async function aiGenerate(request) {
     const reserve = await coinsTransaction(sql, async ({ debit, tx }) => {
       await tx`SELECT pg_advisory_xact_lock(hashtext(${'coin:' + profileId})::bigint)`;
       const prior = await tx`
-        SELECT status, kind, cost, input_hash, result FROM ai_generations
+        SELECT status, kind, cost, input_hash, result, updated_at FROM ai_generations
         WHERE profile_id = ${profileId} AND idempotency_key = ${idempotencyKey} LIMIT 1
       `;
       if (prior.length) {
@@ -58,7 +62,12 @@ export default async function aiGenerate(request) {
         if (String(p.input_hash) !== inputHash || String(p.kind) !== kind) return { state: 'reused' };
         if (p.status === 'completed') return { state: 'replay', result: p.result, cost: Number(p.cost) };
         if (p.status === 'failed') return { state: 'failed-prior' };
-        return { state: 'in-progress' };
+        // pending: an active request, OR a charged-but-crashed op. If stale, claim it to
+        // RESUME (the charge already stands — no new debit); else report in-progress.
+        const ageMs = Date.now() - new Date(p.updated_at).getTime();
+        if (ageMs < PENDING_TIMEOUT_MS) return { state: 'in-progress' };
+        await tx`UPDATE ai_generations SET updated_at = NOW() WHERE profile_id = ${profileId} AND idempotency_key = ${idempotencyKey} AND status = 'pending'`;
+        return { state: 'resume', cost: Number(p.cost) };
       }
       const d = await debit({ profileId, amount: cost, type: 'DEBIT', reason: `ai:${kind}`, referenceId: coinRef });
       if (!d.ok) return { state: d.reason }; // insufficient-coins / invalid-*
@@ -74,21 +83,28 @@ export default async function aiGenerate(request) {
     if (reserve.state === 'reused') return jsonResponse({ ok: false, reason: 'idempotency-key-reused' }, origin, 409);
     if (reserve.state === 'failed-prior') return jsonResponse({ ok: false, reason: 'prior-generation-failed' }, origin, 409);
     if (reserve.state === 'insufficient-coins') return jsonResponse({ ok: false, reason: 'insufficient-coins', cost }, origin, 402);
-    if (reserve.state !== 'reserved') return jsonResponse({ ok: false, reason: 'reserve-failed' }, origin, 400);
+    if (reserve.state !== 'reserved' && reserve.state !== 'resume') return jsonResponse({ ok: false, reason: 'reserve-failed' }, origin, 400);
 
-    // The cost is now reserved. Run the provider exactly once.
+    // The cost is reserved (or being resumed). Run the provider exactly once.
     const gen = await generateAi({ kind, input });
     if (!gen.ok) {
-      // Refund the reservation and mark the op failed.
-      await creditCoins(sql, { profileId, amount: cost, type: 'CREDIT', reason: `ai-refund:${kind}`, referenceId: coinRef + ':r' }).catch(() => {});
-      await sql`UPDATE ai_generations SET status = 'failed', updated_at = NOW() WHERE profile_id = ${profileId} AND idempotency_key = ${idempotencyKey}`.catch(() => {});
-      return jsonResponse({ ok: false, reason: gen.error }, origin, 502);
+      // Refund + mark failed ATOMICALLY (one transaction), so we never charge-and-lock
+      // or leave a refunded row stuck pending. If this whole step is lost to a crash,
+      // the op stays pending and the stale-resume path recovers it on the next retry.
+      try {
+        await coinsTransaction(sql, async ({ credit, tx }) => {
+          await credit({ profileId, amount: cost, type: 'CREDIT', reason: `ai-refund:${kind}`, referenceId: coinRef + ':r' });
+          await tx`UPDATE ai_generations SET status = 'failed', updated_at = NOW() WHERE profile_id = ${profileId} AND idempotency_key = ${idempotencyKey} AND status = 'pending'`;
+          return { ok: true };
+        });
+      } catch (e) { console.warn('[ai-generate] refund failed:', e && e.message); }
+      return jsonResponse({ ok: false, reason: 'generation-failed' }, origin, 502);
     }
     await sql`
       UPDATE ai_generations SET result = ${gen.text}, status = 'completed', updated_at = NOW()
-      WHERE profile_id = ${profileId} AND idempotency_key = ${idempotencyKey}
+      WHERE profile_id = ${profileId} AND idempotency_key = ${idempotencyKey} AND status = 'pending'
     `;
-    return jsonResponse({ ok: true, kind, cost, result: gen.text, balance: reserve.balance }, origin);
+    return jsonResponse({ ok: true, kind, cost, result: gen.text }, origin);
   } catch (err) {
     if (isDatabaseUnavailable(err) || isMissingSchema(err)) {
       return errorResponse('ai-generate-unavailable: schema not ready', 503, origin);
