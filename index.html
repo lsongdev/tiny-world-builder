@@ -174,6 +174,14 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
         </a>
       </aside>
+      <!-- Top $TINYWORLD holders — fetched at runtime; hidden until data is available -->
+      <aside class="top-holders" id="top-holders" aria-label="Top $TINYWORLD holders" hidden>
+        <div class="top-holders-head">
+          <span class="top-holders-title">Top Holders</span>
+          <span class="top-holders-beta">Beta</span>
+        </div>
+        <ul class="top-holders-list" id="top-holders-list"></ul>
+      </aside>
       <a class="scroll-cue" href="#features" aria-label="Scroll to features">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
       </a>
@@ -376,5 +384,7 @@
   <script src="scripts/world-preview.js" defer></script>
   <script src="scripts/world-carousel.js" defer></script>
   <script src="scripts/latest-news.js" defer></script>
+  <script src="scripts/achievements.js" defer></script>
+  <script src="scripts/top-holders.js" defer></script>
 </body>
 </html>
