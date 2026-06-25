@@ -216,6 +216,11 @@
   ],
   "feed": [
     {
+      "ts": "2026-06-25T11:12:33.821Z",
+      "kind": "tick",
+      "text": "Autonomous tick (safe scope): drafted news/tweet for \"animal updates\" -> plans/production-line/drafts/2026-06-25T11-12-animal-updates.md. No economy paths touched."
+    },
+    {
       "ts": "2026-06-25T09:25:40.016Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-25T09-25-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
@@ -409,12 +414,7 @@
       "ts": "2026-06-24T08:30:00Z",
       "kind": "system",
       "text": "Tweet drafted for ANNOUNCE; queued in tweets/ (posting blocked until X/Twitter API creds are provided)."
-    },
-    {
-      "ts": "2026-06-24T03:30:00Z",
-      "kind": "system",
-      "text": "Autonomous production line initialised. 16 features queued across economy, templates, gamification, payments, and AI."
     }
   ],
-  "lastTick": "2026-06-25T09:25:40.016Z"
+  "lastTick": "2026-06-25T11:12:33.821Z"
 }
