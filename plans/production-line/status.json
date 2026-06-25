@@ -216,6 +216,11 @@
   ],
   "feed": [
     {
+      "ts": "2026-06-25T17:59:01.882Z",
+      "kind": "tick",
+      "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-25T17-59-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
+    },
+    {
       "ts": "2026-06-25T17:00:41.628Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-25T17-00-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
@@ -409,12 +414,7 @@
       "ts": "2026-06-24T09:04:00Z",
       "kind": "pr",
       "text": "E1 opened as draft PR #74 [HOLD: economy preview]: live $TINYWORLD->GOLD wiring + latent /api/me/gold 500 fix. 199 tests pass."
-    },
-    {
-      "ts": "2026-06-24T09:00:00Z",
-      "kind": "review",
-      "text": "Codex pass #2 -> RESOLVED. One non-blocking note (mixed wallet decimals) addressed by per-wallet whole-token conversion."
     }
   ],
-  "lastTick": "2026-06-25T17:00:41.628Z"
+  "lastTick": "2026-06-25T17:59:01.882Z"
 }
