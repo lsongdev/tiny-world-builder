@@ -216,6 +216,11 @@
   ],
   "feed": [
     {
+      "ts": "2026-06-25T09:25:40.016Z",
+      "kind": "tick",
+      "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-25T09-25-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
+    },
+    {
       "ts": "2026-06-25T07:29:59.532Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"Merge branch 'main' of https://github.com/jasonkneen/tiny-world-builder\" -> plans/production-line/drafts/2026-06-25T07-29-merge-branch-main-of-https-github-com-jasonkneen.md. No economy paths touched."
@@ -409,12 +414,7 @@
       "ts": "2026-06-24T03:30:00Z",
       "kind": "system",
       "text": "Autonomous production line initialised. 16 features queued across economy, templates, gamification, payments, and AI."
-    },
-    {
-      "ts": "2026-06-24T03:30:00Z",
-      "kind": "scout",
-      "text": "Deep-scanned the codebase: economy backend is ~70% built and secure (on-chain USDC verify, Ed25519, server-authority, idempotency). Gaps are surgical."
     }
   ],
-  "lastTick": "2026-06-25T07:29:59.532Z"
+  "lastTick": "2026-06-25T09:25:40.016Z"
 }
