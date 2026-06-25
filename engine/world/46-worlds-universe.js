@@ -2,6 +2,7 @@
   //
   // A NEW mode layered beside the freeform builder: a "🌍 Worlds" launcher opens
   // the universe map (world cards), where players enter owner-held early-preview islands,
+  // the universe map (world cards), where players enter owner-held early-preview islands
   // name/tax/build/publish their drafts, and enter published worlds to play.
   //
   // Reuses existing globals: window.__tinyworldCloudApiCall (cloud API + auth),
@@ -436,7 +437,6 @@
       }).filter(Boolean);
       return parts.length ? parts.join(' · ') : T('worlds.noResources');
     }
-
 
     function visibleWorlds() {
       const q = worldSearch || '';
