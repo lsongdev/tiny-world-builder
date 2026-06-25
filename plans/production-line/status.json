@@ -216,6 +216,11 @@
   ],
   "feed": [
     {
+      "ts": "2026-06-25T21:53:41.312Z",
+      "kind": "tick",
+      "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-25T21-53-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
+    },
+    {
       "ts": "2026-06-25T20:57:02.614Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-25T20-57-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
@@ -409,12 +414,7 @@
       "ts": "2026-06-24T10:05:00Z",
       "kind": "shipped",
       "text": "T3a shipped to prod (PR #75): hero featured-worlds carousel + auto-latest-news teaser + public /api/worlds/featured. Verified in a real browser."
-    },
-    {
-      "ts": "2026-06-24T10:00:00Z",
-      "kind": "review",
-      "text": "Codex caught a MEDIUM DoS on the public endpoint (normalize-before-cap on 20MB data). Fixed: cap cells + clamp gridSize before processing. Leak/XSS checks passed."
     }
   ],
-  "lastTick": "2026-06-25T20:57:02.614Z"
+  "lastTick": "2026-06-25T21:53:41.312Z"
 }
