@@ -7234,8 +7234,8 @@
     position: absolute;
     left: 0; top: 0;
     transform: translate(-50%, -50%);
-    width: 54px;
-    height: 54px;
+    width: 48px;
+    height: 48px;
     margin: 0;
     padding: 0;
     display: flex;
@@ -7271,12 +7271,15 @@
     transform: translate(-50%, -50%) scale(1.08);
   }
   .radial-btn:active { transform: translate(-50%, -50%) scale(0.96); }
-  /* Close / Back sits in the top slot — slightly darker so it reads as chrome. */
-  .radial-btn.radial-top {
-    width: 44px;
-    height: 44px;
+  /* Close / Back sits in the centre — slightly darker so it reads as chrome. */
+  .radial-btn.radial-top,
+  .radial-btn.radial-center {
+    width: 40px;
+    height: 40px;
+    z-index: 2;
   }
-  .radial-btn.radial-top:hover { transform: translate(-50%, -50%) scale(1.1); }
+  .radial-btn.radial-top:hover,
+  .radial-btn.radial-center:hover { transform: translate(-50%, -50%) scale(1.1); }
   .radial-btn[data-pos-type] {
     --radial-outline: #2f3b57;
     --radial-ink: #17223a;
@@ -7347,8 +7350,8 @@
   }
   /* Colour swatch buttons (Color drill-down). */
   .radial-swatch {
-    width: 22px;
-    height: 22px;
+    width: 19px;
+    height: 19px;
     border-radius: 50%;
     box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12), inset 0 -2px 3px rgba(0, 0, 0, 0.18);
   }
@@ -7368,12 +7371,12 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
   }
   .radial-icon svg {
-    width: 21px;
-    height: 21px;
+    width: 19px;
+    height: 19px;
     fill: none;
     stroke: currentColor;
     stroke-width: 2.25;
@@ -7381,7 +7384,7 @@
     stroke-linejoin: round;
   }
   .radial-label {
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 800;
     line-height: 1;
     color: currentColor;
@@ -7519,7 +7522,8 @@
   body.ui-theme-dark .radial-btn:hover {
     background: rgba(47, 55, 72, 0.92) !important;
   }
-  body.ui-theme-dark .radial-btn.radial-top {
+  body.ui-theme-dark .radial-btn.radial-top,
+  body.ui-theme-dark .radial-btn.radial-center {
     color: rgba(242, 247, 255, 0.78) !important;
     background: rgba(118, 128, 145, 0.78) !important;
   }

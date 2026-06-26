@@ -73,6 +73,12 @@ class LandscapeEngine {
     this.pendingChunkKeys = new Set();
     this.pendingFarChunkBuilds = [];
     this.pendingFarChunkKeys = new Set();
+    // Avoid rebuilding wanted chunk Sets every frame when the camera is still
+    // inside the same near/far chunk. Landscape views are otherwise CPU-bound
+    // on string/Set churn even after all chunks have streamed in.
+    this._streamSignature = '';
+    this._lastWaterStepX = NaN;
+    this._lastWaterStepZ = NaN;
 
     // Configuration constants
     this.SEED_OX = (this.seed * 17.31) % 1000;
@@ -1512,6 +1518,7 @@ class LandscapeEngine {
     this.pendingChunkKeys.clear();
     this.pendingFarChunkBuilds = [];
     this.pendingFarChunkKeys.clear();
+    this._streamSignature = '';
   }
 
   /**
@@ -1528,12 +1535,36 @@ class LandscapeEngine {
     this.waterMat.uniforms.time.value += dt;
     this.waterMat.uniforms.cameraPos.value.copy(focusPos);
     const step = 40;
-    this.waterMesh.position.x = Math.round(px / step) * step;
-    this.waterMesh.position.z = Math.round(pz / step) * step;
+    const waterX = Math.round(px / step) * step;
+    const waterZ = Math.round(pz / step) * step;
+    if (waterX !== this._lastWaterStepX) { this.waterMesh.position.x = waterX; this._lastWaterStepX = waterX; }
+    if (waterZ !== this._lastWaterStepZ) { this.waterMesh.position.z = waterZ; this._lastWaterStepZ = waterZ; }
 
-    // --- 2. High-Detail Chunks Streaming ---
     const pcx = Math.floor(px / this.CHUNK_SIZE);
     const pcz = Math.floor(pz / this.CHUNK_SIZE);
+    const fpcx = Math.floor(px / this.FAR_CHUNK_SIZE);
+    const fpcz = Math.floor(pz / this.FAR_CHUNK_SIZE);
+    const signature = [
+      pcx, pcz, fpcx, fpcz,
+      this.RENDER_RADIUS, this.FAR_RADIUS,
+      this.CHUNK_SIZE, this.FAR_CHUNK_SIZE,
+      this.VOXEL ? 1 : 0,
+    ].join('|');
+
+    // Most frames orbit within the same streamed chunk set. In that steady
+    // state only process any queued builds; skip Set/string allocation and map
+    // scans until the camera crosses a chunk boundary or streaming settings
+    // change.
+    const needsStreamRefresh = signature !== this._streamSignature;
+    if (!needsStreamRefresh) {
+      if (this.pendingChunkBuilds.length || this.pendingFarChunkBuilds.length) {
+        this._processChunkBuildQueues(this.CHUNK_BUILD_BUDGET_NEAR, this.CHUNK_BUILD_BUDGET_FAR);
+      }
+      return;
+    }
+    this._streamSignature = signature;
+
+    // --- 2. High-Detail Chunks Streaming ---
     const wantedNear = new Set();
 
     for (let dz = -this.RENDER_RADIUS; dz <= this.RENDER_RADIUS; dz++) {
@@ -1564,8 +1595,6 @@ class LandscapeEngine {
     }
 
     // --- 3. Far LOD Chunks Streaming ---
-    const fpcx = Math.floor(px / this.FAR_CHUNK_SIZE);
-    const fpcz = Math.floor(pz / this.FAR_CHUNK_SIZE);
     const wantedFar = new Set();
 
     for (let dz = -this.FAR_RADIUS; dz <= this.FAR_RADIUS; dz++) {
@@ -1578,7 +1607,7 @@ class LandscapeEngine {
         const worldZMin = cz * this.FAR_CHUNK_SIZE;
         const worldZMax = (cz + 1) * this.FAR_CHUNK_SIZE;
 
-        const nearXMin = (pcx - this.RENDER_RADIUS) * this.CHUNK_SIZE - 200; 
+        const nearXMin = (pcx - this.RENDER_RADIUS) * this.CHUNK_SIZE - 200;
         const nearXMax = (pcx + this.RENDER_RADIUS + 1) * this.CHUNK_SIZE + 200;
         const nearZMin = (pcz - this.RENDER_RADIUS) * this.CHUNK_SIZE - 200;
         const nearZMax = (pcz + this.RENDER_RADIUS + 1) * this.CHUNK_SIZE + 200;

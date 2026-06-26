@@ -826,6 +826,22 @@
     });
   }
 
+  const landscapeCutCapSoilColor = new THREE.Color(0x5a4428);
+  function landscapeCutCapBaseColor(h, out) {
+    if (landscapeMeshEngine && landscapeMeshEngine._strataColor) {
+      landscapeMeshEngine._strataColor(h, out);
+    } else {
+      out.setHex(0x8a6a48);
+    }
+    const cliff = (landscapeMeshEngine && landscapeMeshEngine.CLIFF_TINT && landscapeMeshEngine.CLIFF_TINT.isColor)
+      ? landscapeMeshEngine.CLIFF_TINT
+      : landscapeCutCapSoilColor;
+    out.multiplyScalar(0.58).lerp(cliff, 0.68);
+    const lum = out.r * 0.2126 + out.g * 0.7152 + out.b * 0.0722;
+    if (lum > 0.34) out.multiplyScalar(0.34 / lum);
+    return out;
+  }
+
   function makeLandscapeCutCap(side, material, bounds) {
     const samples = Math.max(24, GRID * 4);
     const minX = bounds.minX;
@@ -851,11 +867,10 @@
       const localBottomY = Math.min(bottomY, h - 8);
       const ledgeY = h + (localBottomY - h) * 0.28;
       const midY = h + (localBottomY - h) * 0.66;
-      if (landscapeMeshEngine._strataColor) {
-        landscapeMeshEngine._strataColor(h, color);
-      } else {
-        color.setHex(0x8a6a48);
-      }
+      // Cut caps are vertical exposed earth, not top grass. Pull the sampled
+      // terrain colour toward the biome cliff/soil tint and cap luminance so
+      // grassland sides read as dark dirt instead of glowing green walls.
+      landscapeCutCapBaseColor(h, color);
       mid.copy(color).multiplyScalar(0.62).lerp(shadow, 0.18);
       deep.copy(color).multiplyScalar(0.32).lerp(shadow, 0.55);
       // Four vertical samples form a real opaque retaining wall at the clipped
