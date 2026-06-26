@@ -216,6 +216,11 @@
   ],
   "feed": [
     {
+      "ts": "2026-06-26T12:04:45.260Z",
+      "kind": "tick",
+      "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-26T12-04-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
+    },
+    {
       "ts": "2026-06-26T11:16:32.454Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-26T11-16-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
@@ -409,12 +414,7 @@
       "ts": "2026-06-24T12:25:00Z",
       "kind": "shipped",
       "text": "G2 shipped to prod (PR #80): public Top Builders leaderboard at /leaderboard. Codex info-leak/XSS pass: SHIP. Verified in a real browser (rank order + XSS literal). Nav link added."
-    },
-    {
-      "ts": "2026-06-24T12:05:00Z",
-      "kind": "build",
-      "text": "G2 top-builders leaderboard built (Sonnet agent, worktree) — public, ranks by published worlds, no email leak. Adversarial review + ship next."
     }
   ],
-  "lastTick": "2026-06-26T11:16:32.454Z"
+  "lastTick": "2026-06-26T12:04:45.260Z"
 }
