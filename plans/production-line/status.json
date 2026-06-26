@@ -216,6 +216,11 @@
   ],
   "feed": [
     {
+      "ts": "2026-06-26T03:27:13.413Z",
+      "kind": "tick",
+      "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-26T03-27-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
+    },
+    {
       "ts": "2026-06-26T01:26:52.135Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"Merge branch 'pr/94'\" -> plans/production-line/drafts/2026-06-26T01-26-merge-branch-pr-94.md. No economy paths touched."
@@ -409,12 +414,7 @@
       "ts": "2026-06-24T11:00:00Z",
       "kind": "shipped",
       "text": "T3b shipped to prod (PR #77): public /featured worlds gallery + shared preview renderer. Carousel 'Browse all' now points to it."
-    },
-    {
-      "ts": "2026-06-24T10:55:00Z",
-      "kind": "review",
-      "text": "Adversarial browser review caught a real bug the build agent missed: gallery previews rendered blank (rAF throttled in background tabs). Fixed to render synchronously; re-verified 4/4 draw."
     }
   ],
-  "lastTick": "2026-06-26T01:26:52.135Z"
+  "lastTick": "2026-06-26T03:27:13.413Z"
 }
