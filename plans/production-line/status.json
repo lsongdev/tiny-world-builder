@@ -216,6 +216,11 @@
   ],
   "feed": [
     {
+      "ts": "2026-06-26T20:52:04.994Z",
+      "kind": "tick",
+      "text": "Autonomous tick (safe scope): drafted news/tweet for \"Move Build Brush dock to top-center\" -> plans/production-line/drafts/2026-06-26T20-52-move-build-brush-dock-to-top-center.md. No economy paths touched."
+    },
+    {
       "ts": "2026-06-26T19:54:49.867Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-26T19-54-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
@@ -409,12 +414,7 @@
       "ts": "2026-06-24T17:30:00Z",
       "kind": "review",
       "text": "G1 referral rewards built (Opus) on EC1: earn Earned GOLD only after the referee completes a verified action (publishing). Codex caught a cap race + Sybil farming — fixed (atomic counter cap, verified-wallet gate). Live-DB verified. Also surfaced a PRE-EXISTING critical (editable profiles.email used for auth) -> SECURITY-NOTES.md. Staged (PR #86)."
-    },
-    {
-      "ts": "2026-06-24T16:30:00Z",
-      "kind": "review",
-      "text": "T2 template paid-remix built (Opus) on EC1: list a world for Earned GOLD; remix atomically debits buyer + credits author (5% treasury) + duplicates the world. Codex caught 5 marketplace holes (TOCTOU x2, world-unbound idempotency, free-remix retry, cap race) — all fixed (FOR UPDATE lock, durable world_remixes op table, buyer lock, predicate ownership). Staged (PR #85, depends on #84)."
     }
   ],
-  "lastTick": "2026-06-26T19:54:49.867Z"
+  "lastTick": "2026-06-26T20:52:04.994Z"
 }
