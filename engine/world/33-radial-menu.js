@@ -13,6 +13,8 @@
       move: '<path d="M12 2v20"/><path d="m15 19-3 3-3-3"/><path d="m19 9 3 3-3 3"/><path d="M2 12h20"/><path d="m5 9-3 3 3 3"/><path d="m9 5 3-3 3 3"/>',
       rotate: '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
       more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+      trash: '<path d="M3 6h18"/><path d="M8 6V4c0-.6.4-1 1-1h6c.6 0 1 .4 1 1v2"/><path d="M19 6l-1 14c-.1.6-.5 1-1.1 1H7.1c-.6 0-1-.4-1.1-1L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+      wand: '<path d="m15 4 5 5"/><path d="m14 5 1-1 5 5-1 1L8 21H3v-5Z"/><path d="M4 4v4"/><path d="M6 6H2"/><path d="M19 14v4"/><path d="M21 16h-4"/>',
       close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
       back: '<path d="m15 18-6-6 6-6"/>',
       edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
@@ -21,16 +23,22 @@
       plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
     };
 
+    function rt(key, fallback) {
+      return (typeof window.tx === 'function') ? window.tx(key, fallback) : (window.t ? window.t(key) : fallback);
+    }
+
     // Root ring — angles in screen degrees (0=right, 90=down, 270=up).
     // Close / Back sits at the centre; action buttons orbit it tightly.
     const ROOT = [
-      { id: 'color',     label: window.t('radial.color'),     icon: 'palette',  angle: 225, submenu: 'color', posType: 'primary' },
-      { id: 'style',     label: window.t('radial.style'),     icon: 'sparkles', angle: 315, action: 'style', posType: 'primary' },
-      { id: 'size',      label: window.t('radial.size'),      icon: 'size',     angle: 0,   submenu: 'size', posType: 'primary' },
-      { id: 'rotate',    label: window.t('radial.rotate'),    icon: 'rotate',   angle: 45,  action: 'rotate', posType: 'primary' },
-      { id: 'more',      label: window.t('radial.more'),      icon: 'more',     angle: 90,  action: 'more', posType: 'primary' },
-      { id: 'move',      label: window.t('radial.move'),      icon: 'move',     angle: 135, action: 'move', posType: 'primary' },
-      { id: 'duplicate', label: window.t('radial.duplicate'), icon: 'copy',     angle: 180, action: 'duplicate', posType: 'primary' },
+      { id: 'size',      label: window.t('radial.size'),          icon: 'size',     angle: 0,   submenu: 'size', posType: 'primary' },
+      { id: 'rotate',    label: window.t('radial.rotate'),        icon: 'rotate',   angle: 40,  action: 'rotate', posType: 'primary' },
+      { id: 'more',      label: window.t('radial.more'),          icon: 'more',     angle: 80,  action: 'more', posType: 'primary' },
+      { id: 'move',      label: window.t('radial.move'),          icon: 'move',     angle: 120, action: 'move', posType: 'primary' },
+      { id: 'duplicate', label: window.t('radial.duplicate'),     icon: 'copy',     angle: 160, action: 'duplicate', posType: 'primary' },
+      { id: 'delete',    label: rt('radial.delete', 'Delete'),    icon: 'trash',    angle: 200, action: 'delete', posType: 'danger' },
+      { id: 'color',     label: window.t('radial.color'),         icon: 'palette',  angle: 240, submenu: 'color', posType: 'primary' },
+      { id: 'generate',  label: rt('radial.generate', 'Generate'), icon: 'wand',    angle: 280, action: 'generate', posType: 'tertiary' },
+      { id: 'style',     label: window.t('radial.style'),         icon: 'sparkles', angle: 320, action: 'style', posType: 'primary' },
     ];
     const COLORS = [
       { label: window.t('radial.color.default'), hex: null },
@@ -297,6 +305,10 @@
     }
 
     function setSelectedColor(hex) {
+      if (typeof previewSelectedColorIntent === 'function') {
+        previewSelectedColorIntent(hex);
+        return;
+      }
       if (typeof updateSelectedBoardObjects !== 'function') return;
       updateSelectedBoardObjects(target => {
         const norm = (typeof normalizeAppearance === 'function') ? normalizeAppearance(target.cell.appearance) : target.cell.appearance;
@@ -329,10 +341,20 @@
           if (island) {
             island.rotationY = (island.rotationY || 0) + Math.PI / 2;
             if (typeof applyEditableIslandTransform === 'function') applyEditableIslandTransform(island);
+          } else if (typeof rotateActiveCellIntent === 'function') {
+            rotateActiveCellIntent(Math.PI / 2);
           } else {
             const sel = window.__tinyworldSelection;
             if (sel && typeof sel.rotate === 'function') sel.rotate(Math.PI / 2);
             else if (typeof rotateSelectedCells === 'function') rotateSelectedCells(Math.PI / 2);
+          }
+        } else if (id === 'delete') {
+          if (typeof deleteActiveCellIntent === 'function') deleteActiveCellIntent();
+        } else if (id === 'generate') {
+          if (typeof openGenerateModal === 'function') openGenerateModal();
+          else {
+            const btn = document.getElementById('generate');
+            if (btn) btn.click();
           }
         } else if (id === 'more' || id === 'style') {
           openSelectionPanel();

@@ -11,6 +11,17 @@ Use the existing board intent contract:
 - New asset edits must flow through `setCell(x, z, opts)` or helpers that call it.
 - Selection state is exposed through `window.__tinyworldSelection`; use `worldCoords()`, `materialize()`, and `replaceWorldCoords()`. Do not parse raw `selectedCells` keys in new code.
 - Select-tool dragging of an already-selected cell/object should be preview-first: clone the current rendered object/extras into a separate hologram group, update only that virtual offset during pointermove, and commit the real cut/paste once on pointerup. Do not call `shiftSelectedCellIntent()` repeatedly from pointermove, because intermediate cut/paste steps can wipe cells along the drag path.
+- Duplicate, paste, and latest-template placement should be preview-first: copy/normalize the payload into a pending placement state, show a holographic representation following hover (clone live meshes when available; otherwise use a lightweight clipboard footprint), and commit only on the next board click. Keep Escape as a cancel path and keep any immediate helper explicitly opt-in/fallback-only.
+- Radial color changes should be preview-first: swatches should arm a tinted hologram for the selected object/cells and commit through `updateSelectedBoardObjects()` only on the next board click; Escape cancels.
+
+- Selected-cell rotation should be preview-first too: radial/keyboard rotate arms a holographic rotated clone, commits the real `sel.rotate()` on the next board click, and cancels with Escape. Keep immediate rotation as an explicit fallback only.
+
+
+Contextual selected-object menus:
+
+- The selected-object popup is `engine/world/33-radial-menu.js`; prefer extending that radial menu over adding a second floating menu for object actions.
+- Radial actions should reuse existing edit helpers (`duplicateActiveCellIntent()`, `deleteActiveCellIntent()`, `openGenerateModal()`, selection API methods) rather than writing directly to `world`.
+- Keep destructive actions visually separated with `data-pos-type="danger"`; keep generation/AI actions on tertiary/orange styling so users can distinguish “create” from “mutate/delete”.
 
 Placement rules:
 

@@ -7606,6 +7606,14 @@
     --radial-bevel: rgba(47, 59, 87, 0.20);
     --radial-ring: rgba(84, 137, 230, 0.34);
   }
+  .radial-btn[data-pos-type="danger"] {
+    --radial-outline: #9b1c1c;
+    --radial-ink: #7f1d1d;
+    --radial-bg: rgba(255, 232, 232, 0.96);
+    --radial-hover-bg: rgba(255, 243, 243, 0.99);
+    --radial-bevel: rgba(155, 28, 28, 0.24);
+    --radial-ring: rgba(239, 68, 68, 0.42);
+  }
   /* Colour swatch buttons (Color drill-down). */
   .radial-swatch {
     width: 19px;

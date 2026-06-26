@@ -465,6 +465,7 @@
   let selectionDragAnchor = null;
   let selectionMoveDragLastCoord = null;
   let selectionMoveDragState = null;
+  let duplicatePlacementState = null;
   // Click-selection state (Select tool). lastSelectionAnchor is the last single
   // cell the user picked — the anchor for a Shift+click contiguous range.
   // pointerDownHit/Mods snapshot the press so we can resolve a click on pointerup
@@ -608,6 +609,7 @@
       hoverMesh.visible = false;
       currentHover = null;
     }
+    if (duplicatePlacementState) updateDuplicatePlacementPreview(currentHover);
     updateGhostPlacement();
   }
 
@@ -733,14 +735,20 @@
   xrWorldRoot.add(selectionMovePreviewGroup);
 
   function clearSelectionMovePreview() {
+    const geoms = new Set();
+    selectionMovePreviewGroup.traverse(o => {
+      if (o.userData && o.userData.placementPreviewGeometry && o.geometry) geoms.add(o.geometry);
+    });
     while (selectionMovePreviewGroup.children.length) {
       selectionMovePreviewGroup.remove(selectionMovePreviewGroup.children[0]);
     }
+    geoms.forEach(geom => { if (geom && typeof geom.dispose === 'function') geom.dispose(); });
     const mats = selectionMovePreviewGroup.userData.previewMaterials || [];
     mats.forEach(mat => { if (mat && typeof mat.dispose === 'function') mat.dispose(); });
     selectionMovePreviewGroup.userData.previewMaterials = [];
     selectionMovePreviewGroup.visible = false;
     selectionMovePreviewGroup.position.set(0, 0, 0);
+    selectionMovePreviewGroup.rotation.set(0, 0, 0);
   }
 
   function makeSelectionMovePreviewMaterial() {
@@ -761,6 +769,50 @@
       side: THREE.BackSide,
       transparent: true,
       opacity: 0.82,
+      depthWrite: false,
+      depthTest: true,
+    });
+  }
+
+  function makeSelectionDeletePreviewMaterial() {
+    return new THREE.MeshBasicMaterial({
+      color: 0xff5b4a,
+      transparent: true,
+      opacity: 0.30,
+      depthWrite: false,
+      depthTest: true,
+    });
+  }
+
+  function makeSelectionDeleteOutlineMaterial() {
+    return new THREE.MeshBasicMaterial({
+      color: 0xff2f2f,
+      side: THREE.BackSide,
+      transparent: true,
+      opacity: 0.88,
+      depthWrite: false,
+      depthTest: true,
+    });
+  }
+
+  function makeSelectionColorPreviewMaterial(hex) {
+    const color = hex || '#f4f0de';
+    return new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.36,
+      depthWrite: false,
+      depthTest: true,
+    });
+  }
+
+  function makeSelectionColorOutlineMaterial(hex) {
+    const color = hex || '#ffffff';
+    return new THREE.MeshBasicMaterial({
+      color,
+      side: THREE.BackSide,
+      transparent: true,
+      opacity: 0.84,
       depthWrite: false,
       depthTest: true,
     });
@@ -854,6 +906,315 @@
     };
     selectedTargets.forEach(({ x, z }) => clearCellForCut(x, z));
     return pasteClipboardPayloadAtTarget(payload, target, { animate: true, impactDust: true });
+  }
+
+  let selectionRotatePreviewState = null;
+
+  function selectionRotatePreviewPivot(targets) {
+    if (!targets || !targets.length) return { x: 0, z: 0 };
+    return {
+      x: targets.reduce((sum, t) => sum + t.x, 0) / targets.length,
+      z: targets.reduce((sum, t) => sum + t.z, 0) / targets.length,
+    };
+  }
+
+  function beginSelectionRotatePreview(delta) {
+    if (!mpEditAllowed()) return false;
+    const sel = window.__tinyworldSelection;
+    if (!sel || !sel.cells || !sel.cells.size || typeof sel.rotate !== 'function') return false;
+    const selectedTargets = selectedClipboardTargets(false).filter(t => t.cell && t.cell.kind);
+    if (!selectedTargets.length) return false;
+    clearSelectionMovePreview();
+    const holo = makeSelectionMovePreviewMaterial();
+    const outline = makeSelectionMoveOutlineMaterial();
+    selectionMovePreviewGroup.userData.previewMaterials = [holo, outline];
+    selectedTargets.forEach(({ x, z }) => {
+      const entry = cellMeshes[x + ',' + z];
+      if (!entry) return;
+      addSelectionMovePreviewNode(entry.object, holo, outline);
+      if (entry.extras) entry.extras.forEach(extra => addSelectionMovePreviewNode(extra, holo, outline));
+    });
+    const pivot = selectionRotatePreviewPivot(selectedTargets);
+    selectionRotatePreviewState = {
+      delta,
+      selectedTargets,
+      pivot,
+      shown: selectionMovePreviewGroup.children.length > 0,
+    };
+    selectionMovePreviewGroup.position.set(pivot.x * TILE, 0, pivot.z * TILE);
+    selectionMovePreviewGroup.rotation.set(0, delta, 0);
+    selectionMovePreviewGroup.children.forEach(child => {
+      child.position.x -= pivot.x * TILE;
+      child.position.z -= pivot.z * TILE;
+    });
+    selectionMovePreviewGroup.visible = selectionRotatePreviewState.shown;
+    return true;
+  }
+
+  function cancelSelectionRotatePreview() {
+    if (!selectionRotatePreviewState) return false;
+    selectionRotatePreviewState = null;
+    clearSelectionMovePreview();
+    return true;
+  }
+
+  function commitSelectionRotatePreview() {
+    if (!selectionRotatePreviewState) return false;
+    const state = selectionRotatePreviewState;
+    selectionRotatePreviewState = null;
+    clearSelectionMovePreview();
+    const sel = window.__tinyworldSelection;
+    if (sel && typeof sel.rotate === 'function') return sel.rotate(state.delta);
+    if (typeof rotateSelectedCells === 'function') return rotateSelectedCells(state.delta);
+    return false;
+  }
+
+  function rotateActiveCellIntent(delta = Math.PI / 2, opts = {}) {
+    if (opts && opts.immediate) {
+      const sel = window.__tinyworldSelection;
+      if (sel && typeof sel.rotate === 'function') return sel.rotate(delta);
+      if (typeof rotateSelectedCells === 'function') return rotateSelectedCells(delta);
+      return false;
+    }
+    return beginSelectionRotatePreview(delta) || rotateActiveCellIntent(delta, { immediate: true });
+  }
+
+  let selectionColorPreviewState = null;
+
+  function commitSelectedColorIntent(hex) {
+    if (typeof updateSelectedBoardObjects !== 'function') return false;
+    let changed = false;
+    updateSelectedBoardObjects(target => {
+      const norm = (typeof normalizeAppearance === 'function') ? normalizeAppearance(target.cell.appearance) : target.cell.appearance;
+      const ap = Object.assign({}, norm || {});
+      if (hex) ap.bodyColor = hex;
+      else delete ap.bodyColor;
+      changed = true;
+      return { appearance: Object.keys(ap).length ? ap : null };
+    });
+    return changed;
+  }
+
+  function beginSelectionColorPreview(hex) {
+    if (!mpEditAllowed()) return false;
+    const selectedTargets = selectedClipboardTargets(false).filter(t => t && t.cell && t.cell.kind);
+    if (!selectedTargets.length) return false;
+    clearSelectionMovePreview();
+    const holo = makeSelectionColorPreviewMaterial(hex);
+    const outline = makeSelectionColorOutlineMaterial(hex);
+    selectionMovePreviewGroup.userData.previewMaterials = [holo, outline];
+    addPlacementPreviewSources(selectedTargets, holo, outline);
+    selectionColorPreviewState = {
+      hex,
+      selectedTargets,
+      shown: selectionMovePreviewGroup.children.length > 0,
+    };
+    selectionMovePreviewGroup.position.set(0, 0, 0);
+    selectionMovePreviewGroup.rotation.set(0, 0, 0);
+    selectionMovePreviewGroup.visible = selectionColorPreviewState.shown;
+    return true;
+  }
+
+  function cancelSelectionColorPreview() {
+    if (!selectionColorPreviewState) return false;
+    selectionColorPreviewState = null;
+    clearSelectionMovePreview();
+    return true;
+  }
+
+  function commitSelectionColorPreview() {
+    if (!selectionColorPreviewState) return false;
+    const state = selectionColorPreviewState;
+    selectionColorPreviewState = null;
+    clearSelectionMovePreview();
+    return commitSelectedColorIntent(state.hex);
+  }
+
+  function previewSelectedColorIntent(hex, opts = {}) {
+    if (opts && opts.immediate) return commitSelectedColorIntent(hex);
+    return beginSelectionColorPreview(hex) || commitSelectedColorIntent(hex);
+  }
+
+  let selectionDeletePreviewState = null;
+
+  function deletePreviewTargets(materializeGhost) {
+    const selectedTargets = selectedClipboardTargets(materializeGhost);
+    if (selectedTargets.length) return selectedTargets;
+    const target = hoverWorldTarget(materializeGhost);
+    return target && target.cell ? [target] : [];
+  }
+
+  function beginSelectionDeletePreview() {
+    if (!mpEditAllowed()) return false;
+    const selectedTargets = deletePreviewTargets(false)
+      .filter(t => t && t.cell && (t.cell.kind || t.cell.terrain !== 'grass' || terrainLevelForCell(t.cell) !== 1 || (t.cell.extras && t.cell.extras.length)));
+    if (!selectedTargets.length) return false;
+    clearSelectionMovePreview();
+    const holo = makeSelectionDeletePreviewMaterial();
+    const outline = makeSelectionDeleteOutlineMaterial();
+    selectionMovePreviewGroup.userData.previewMaterials = [holo, outline];
+    addPlacementPreviewSources(selectedTargets, holo, outline);
+    const hasSelectedCells = !!(window.__tinyworldSelection && window.__tinyworldSelection.cells && window.__tinyworldSelection.cells.size);
+    selectionDeletePreviewState = {
+      selectedTargets,
+      useCurrentSelection: hasSelectedCells,
+      shown: selectionMovePreviewGroup.children.length > 0,
+    };
+    selectionMovePreviewGroup.position.set(0, 0, 0);
+    selectionMovePreviewGroup.rotation.set(0, 0, 0);
+    selectionMovePreviewGroup.visible = selectionDeletePreviewState.shown;
+    return true;
+  }
+
+  function cancelSelectionDeletePreview() {
+    if (!selectionDeletePreviewState) return false;
+    selectionDeletePreviewState = null;
+    clearSelectionMovePreview();
+    return true;
+  }
+
+  function commitSelectionDeletePreview() {
+    if (!selectionDeletePreviewState) return false;
+    const state = selectionDeletePreviewState;
+    selectionDeletePreviewState = null;
+    clearSelectionMovePreview();
+    const targets = state.useCurrentSelection ? selectedClipboardTargets(true) : state.selectedTargets;
+    if (!targets || !targets.length) return false;
+    targets.forEach(({ x, z }) => clearCellForCut(x, z));
+    if (window.__tinyworldSelection) window.__tinyworldSelection.clear();
+    return true;
+  }
+
+  function duplicatePreviewTargets() {
+    const selectedTargets = selectedClipboardTargets(false);
+    if (selectedTargets.length) return selectedTargets;
+    const target = hoverWorldTarget(false);
+    return target && target.cell ? [target] : [];
+  }
+
+  function payloadPreviewOrigin(payload, sourceTargets) {
+    if (payload && payload.origin && Number.isFinite(payload.origin.x) && Number.isFinite(payload.origin.z)) return payload.origin;
+    if (sourceTargets && sourceTargets.length) {
+      return {
+        x: Math.min(...sourceTargets.map(t => t.x)),
+        z: Math.min(...sourceTargets.map(t => t.z)),
+      };
+    }
+    return { x: 0, z: 0 };
+  }
+
+  function addPlacementPreviewSources(sourceTargets, holo, outline) {
+    (sourceTargets || []).forEach(({ x, z }) => {
+      const entry = cellMeshes[x + ',' + z];
+      if (!entry) return;
+      addSelectionMovePreviewNode(entry.tile, holo, outline);
+      addSelectionMovePreviewNode(entry.object, holo, outline);
+      if (entry.extras) entry.extras.forEach(extra => addSelectionMovePreviewNode(extra, holo, outline));
+    });
+  }
+
+  function addPlacementPreviewHull(mesh, outline) {
+    if (!mesh || !mesh.geometry) return;
+    const hull = new THREE.Mesh(mesh.geometry, outline);
+    hull.userData.placementPreviewGeometry = false;
+    hull.scale.setScalar(typeof GHOST_OUTLINE_SCALE === 'number' ? GHOST_OUTLINE_SCALE : 1.12);
+    hull.castShadow = false;
+    hull.receiveShadow = false;
+    hull.renderOrder = 1203;
+    mesh.add(hull);
+  }
+
+  function addClipboardPayloadPreviewCells(payload, holo, outline) {
+    const cells = normalizeClipboardCells(payload && payload.cells);
+    cells.forEach(item => {
+      const cell = item.cell || {};
+      const tileGeom = new THREE.BoxGeometry(TILE * 0.82, 0.08, TILE * 0.82);
+      const tile = new THREE.Mesh(tileGeom, holo);
+      tile.userData.placementPreviewGeometry = true;
+      tile.position.set(item.dx * TILE, 0.04, item.dz * TILE);
+      tile.castShadow = false;
+      tile.receiveShadow = false;
+      tile.renderOrder = 1202;
+      addPlacementPreviewHull(tile, outline);
+      selectionMovePreviewGroup.add(tile);
+      if (cell.kind || (cell.extras && cell.extras.length)) {
+        const objectHeight = cell.kind === 'house' ? 0.9 : 0.58;
+        const objectGeom = new THREE.BoxGeometry(TILE * 0.42, objectHeight, TILE * 0.42);
+        const object = new THREE.Mesh(objectGeom, holo);
+        object.userData.placementPreviewGeometry = true;
+        object.position.set(item.dx * TILE, 0.12 + objectHeight * 0.5, item.dz * TILE);
+        object.castShadow = false;
+        object.receiveShadow = false;
+        object.renderOrder = 1202;
+        addPlacementPreviewHull(object, outline);
+        selectionMovePreviewGroup.add(object);
+      }
+    });
+  }
+
+  function beginClipboardPlacementPreview(payload, sourceTargets = []) {
+    if (!mpEditAllowed()) return false;
+    const clipboard = normalizeClipboardPayload(payload);
+    if (!clipboard || !clipboard.cells || !clipboard.cells.length) return false;
+    clearSelectionMovePreview();
+    const holo = makeSelectionMovePreviewMaterial();
+    const outline = makeSelectionMoveOutlineMaterial();
+    selectionMovePreviewGroup.userData.previewMaterials = [holo, outline];
+    addPlacementPreviewSources(sourceTargets, holo, outline);
+    if (!selectionMovePreviewGroup.children.length) addClipboardPayloadPreviewCells(clipboard, holo, outline);
+    duplicatePlacementState = {
+      payload: clipboard,
+      origin: payloadPreviewOrigin(clipboard, sourceTargets),
+      sourceTargets,
+      shown: selectionMovePreviewGroup.children.length > 0,
+    };
+    updateDuplicatePlacementPreview(currentHover);
+    return true;
+  }
+
+  function beginDuplicatePlacementPreview() {
+    const selectedTargets = duplicatePreviewTargets();
+    const payload = makeClipboardPayload(selectedTargets);
+    return beginClipboardPlacementPreview(payload, selectedTargets);
+  }
+
+  function updateDuplicatePlacementPreview(hit) {
+    if (!duplicatePlacementState) return false;
+    const target = worldTargetFromHit(hit, false);
+    if (!target) {
+      selectionMovePreviewGroup.visible = false;
+      duplicatePlacementState.target = null;
+      return false;
+    }
+    const dx = target.x - duplicatePlacementState.origin.x;
+    const dz = target.z - duplicatePlacementState.origin.z;
+    if (duplicatePlacementState.shown) {
+      selectionMovePreviewGroup.position.set(dx * TILE, 0, dz * TILE);
+      selectionMovePreviewGroup.visible = true;
+    }
+    duplicatePlacementState.target = {
+      x: target.x,
+      z: target.z,
+      userEdited: !!target.userEdited || duplicatePlacementState.sourceTargets.some(t => isOutsideHomeGrid(t.x, t.z)),
+    };
+    return true;
+  }
+
+  function cancelDuplicatePlacementPreview() {
+    if (!duplicatePlacementState) return false;
+    duplicatePlacementState = null;
+    clearSelectionMovePreview();
+    return true;
+  }
+
+  function commitDuplicatePlacementPreview(hit) {
+    if (!duplicatePlacementState) return false;
+    updateDuplicatePlacementPreview(hit);
+    const state = duplicatePlacementState;
+    duplicatePlacementState = null;
+    clearSelectionMovePreview();
+    if (!state.target) return false;
+    return pasteClipboardPayloadAtTarget(state.payload, state.target, { animate: true, impactDust: true });
   }
 
   renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
@@ -1200,6 +1561,50 @@
         && dragMode !== 'subpart-select' && dragMode !== 'subpart-cancel') {
       const hit = pointerDownHit;
       const mods = pointerDownMods;
+      if (selectionRotatePreviewState) {
+        if (hit && commitSelectionRotatePreview()) {
+          e.preventDefault();
+        } else {
+          cancelSelectionRotatePreview();
+        }
+        pointerDown = null;
+        lastPointer = null;
+        dragMode = null;
+        return;
+      }
+      if (selectionColorPreviewState) {
+        if (hit && commitSelectionColorPreview()) {
+          e.preventDefault();
+        } else {
+          cancelSelectionColorPreview();
+        }
+        pointerDown = null;
+        lastPointer = null;
+        dragMode = null;
+        return;
+      }
+      if (selectionDeletePreviewState) {
+        if (hit && commitSelectionDeletePreview()) {
+          e.preventDefault();
+        } else {
+          cancelSelectionDeletePreview();
+        }
+        pointerDown = null;
+        lastPointer = null;
+        dragMode = null;
+        return;
+      }
+      if (duplicatePlacementState) {
+        if (hit && commitDuplicatePlacementPreview(hit)) {
+          e.preventDefault();
+        } else {
+          cancelDuplicatePlacementPreview();
+        }
+        pointerDown = null;
+        lastPointer = null;
+        dragMode = null;
+        return;
+      }
       // A placed plane is interactive: a plain (unmodified) click on it opens
       // the Enter / Fly menu regardless of the active tool — you still remove it
       // with the eraser. This must come before the place/select branches so a
@@ -1584,17 +1989,20 @@
     return true;
   }
 
-  function deleteActiveCellIntent() {
-    const selectedTargets = selectedClipboardTargets(true);
-    if (selectedTargets.length) {
-      selectedTargets.forEach(({ x, z }) => clearCellForCut(x, z));
-      if (window.__tinyworldSelection) window.__tinyworldSelection.clear();
+  function deleteActiveCellIntent(opts = {}) {
+    if (opts && opts.immediate) {
+      const selectedTargets = selectedClipboardTargets(true);
+      if (selectedTargets.length) {
+        selectedTargets.forEach(({ x, z }) => clearCellForCut(x, z));
+        if (window.__tinyworldSelection) window.__tinyworldSelection.clear();
+        return true;
+      }
+      const target = hoverWorldTarget(true);
+      if (!target || !target.cell) return false;
+      clearCellForCut(target.x, target.z);
       return true;
     }
-    const target = hoverWorldTarget(true);
-    if (!target || !target.cell) return false;
-    clearCellForCut(target.x, target.z);
-    return true;
+    return beginSelectionDeletePreview() || deleteActiveCellIntent({ immediate: true });
   }
 
   function pasteClipboardPayloadAtTarget(payload, target, opts = {}) {
@@ -1646,16 +2054,28 @@
     };
   }
 
-  function pasteClipboardAtActiveTarget() {
-    return pasteHoveredCellIntent() || pasteClipboardAtTarget(selectedPasteFallbackTarget(), { animate: true, impactDust: true });
+  function pasteClipboardAtActiveTarget(opts = {}) {
+    if (!assetClipboard && copiedHoverCell) {
+      setAssetClipboard(makeClipboardPayload([{ x: 0, z: 0, cell: copiedHoverCell }]));
+    }
+    if (!assetClipboard || !assetClipboard.cells || !assetClipboard.cells.length) return false;
+    if (opts && opts.immediate) {
+      return pasteHoveredCellIntent() || pasteClipboardAtTarget(selectedPasteFallbackTarget(), { animate: true, impactDust: true });
+    }
+    return beginClipboardPlacementPreview(assetClipboard) || pasteClipboardAtActiveTarget({ immediate: true });
   }
 
-  function pasteClipboardPayloadAtActiveTarget(payload) {
-    return pasteClipboardPayloadAtTarget(payload, hoverWorldTarget(true), { animate: true, impactDust: true })
-      || pasteClipboardPayloadAtTarget(payload, selectedPasteFallbackTarget(), { animate: true, impactDust: true });
+  function pasteClipboardPayloadAtActiveTarget(payload, opts = {}) {
+    const clipboard = normalizeClipboardPayload(payload);
+    if (!clipboard) return false;
+    if (opts && opts.immediate) {
+      return pasteClipboardPayloadAtTarget(clipboard, hoverWorldTarget(true), { animate: true, impactDust: true })
+        || pasteClipboardPayloadAtTarget(clipboard, selectedPasteFallbackTarget(), { animate: true, impactDust: true });
+    }
+    return beginClipboardPlacementPreview(clipboard) || pasteClipboardPayloadAtActiveTarget(clipboard, { immediate: true });
   }
 
-  function duplicateActiveCellIntent() {
+  function duplicateActiveCellIntentNow() {
     const selectedTargets = selectedClipboardTargets(true);
     if (!selectedTargets.length) {
       const target = hoverWorldTarget(false);
@@ -1669,6 +2089,11 @@
     const maxX = Math.max(...selectedTargets.map(t => t.x));
     const minZ = Math.min(...selectedTargets.map(t => t.z));
     return pasteClipboardPayloadAtTarget(payload, { x: maxX + 1, z: minZ, userEdited: selectedTargets.some(t => isOutsideHomeGrid(t.x, t.z)) });
+  }
+
+  function duplicateActiveCellIntent(opts = {}) {
+    if (opts && opts.immediate) return duplicateActiveCellIntentNow();
+    return beginDuplicatePlacementPreview() || duplicateActiveCellIntentNow();
   }
 
   function shiftSelectedCellIntent(dx, dz) {
@@ -1831,6 +2256,22 @@
       e.preventDefault();
       return;
     }
+    if (e.key === 'Escape' && cancelSelectionRotatePreview()) {
+      e.preventDefault();
+      return;
+    }
+    if (e.key === 'Escape' && cancelSelectionColorPreview()) {
+      e.preventDefault();
+      return;
+    }
+    if (e.key === 'Escape' && cancelSelectionDeletePreview()) {
+      e.preventDefault();
+      return;
+    }
+    if (e.key === 'Escape' && cancelDuplicatePlacementPreview()) {
+      e.preventDefault();
+      return;
+    }
     // Esc first closes/deselects the active edit target, then falls back to
     // disarming any hot build/paint/erase tool back to Select.
     if (e.key === 'Escape' && !(typeof fp !== 'undefined' && fp.active)) {
@@ -1884,7 +2325,7 @@
       }
     }
     if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && hasSelectedCells) {
-      if (selectionApi.rotate(e.key === 'ArrowLeft' ? -Math.PI / 2 : Math.PI / 2)) {
+      if (rotateActiveCellIntent(e.key === 'ArrowLeft' ? -Math.PI / 2 : Math.PI / 2)) {
         e.preventDefault();
         return;
       }
