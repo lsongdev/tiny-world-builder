@@ -216,6 +216,11 @@
   ],
   "feed": [
     {
+      "ts": "2026-06-26T13:58:10.065Z",
+      "kind": "tick",
+      "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-26T13-58-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
+    },
+    {
       "ts": "2026-06-26T13:00:21.575Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"Merge branch 'main' of https://github.com/jasonkneen/tiny-world-builder\" -> plans/production-line/drafts/2026-06-26T13-00-merge-branch-main-of-https-github-com-jasonkneen.md. No economy paths touched."
@@ -409,12 +414,7 @@
       "ts": "2026-06-24T12:45:00Z",
       "kind": "spec",
       "text": "E3 (GOLD-spend endpoint) spec authored: ledger-authoritative debit, per-wallet advisory-lock for the double-spend race, idempotency index, refund path, adversarial test plan. Ready to build (gated)."
-    },
-    {
-      "ts": "2026-06-24T12:40:00Z",
-      "kind": "build",
-      "text": "G3 achievement badges building (Sonnet agent + Codex for the pixel-art SVG icons): 6-badge showcase at /badges."
     }
   ],
-  "lastTick": "2026-06-26T13:00:21.575Z"
+  "lastTick": "2026-06-26T13:58:10.065Z"
 }
