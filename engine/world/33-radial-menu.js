@@ -332,6 +332,61 @@
       if (propTab) propTab.click();
     }
 
+    function selectedRadialWorldCoords() {
+      const sel = window.__tinyworldSelection;
+      if (sel && typeof sel.worldCoords === 'function') {
+        const coords = sel.worldCoords().filter(c => c && Number.isFinite(c.x) && Number.isFinite(c.z));
+        if (coords.length) return coords;
+      }
+      if (typeof selectedObjectKey === 'string' && selectedObjectKey.indexOf(',') !== -1) {
+        const parts = selectedObjectKey.split(',').map(v => parseInt(v, 10));
+        if (Number.isFinite(parts[0]) && Number.isFinite(parts[1])) return [{ x: parts[0], z: parts[1] }];
+      }
+      return [];
+    }
+
+    function radialCellSummary(coord) {
+      const cell = world && world[coord.x] && world[coord.x][coord.z];
+      if (!cell) return 'empty cell';
+      const bits = [];
+      if (cell.kind) bits.push(cell.kind);
+      if (cell.terrain) bits.push(cell.terrain + ' terrain');
+      if (Number.isFinite(cell.floors) && cell.floors > 1) bits.push(cell.floors + ' floors');
+      if (Number.isFinite(cell.terrainFloors) && cell.terrainFloors > 1) bits.push('height ' + cell.terrainFloors);
+      return bits.length ? bits.join(', ') : 'empty cell';
+    }
+
+    function openContextualGenerateModal() {
+      const coords = selectedRadialWorldCoords();
+      if (typeof openGenerateModal !== 'function') {
+        const btn = document.getElementById('generate');
+        if (btn) btn.click();
+        return;
+      }
+      if (!coords.length) {
+        openGenerateModal();
+        return;
+      }
+      let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
+      coords.forEach(c => {
+        minX = Math.min(minX, c.x); minZ = Math.min(minZ, c.z);
+        maxX = Math.max(maxX, c.x); maxZ = Math.max(maxZ, c.z);
+      });
+      const w = maxX - minX + 1;
+      const d = maxZ - minZ + 1;
+      const samples = coords.slice(0, 6).map(c => '(' + c.x + ',' + c.z + ': ' + radialCellSummary(c) + ')');
+      const prompt = [
+        'Improve the selected ' + w + 'x' + d + ' build area from x ' + minX + '-' + maxX + ', z ' + minZ + '-' + maxZ + '.',
+        'Keep the existing theme, preserve important objects, and add coherent nearby paths, terrain, props, and details.',
+        'Selected context: ' + samples.join('; ') + (coords.length > samples.length ? '; +' + (coords.length - samples.length) + ' more cells' : '') + '.',
+      ].join(' ');
+      openGenerateModal({
+        prompt,
+        gridSize: (typeof GRID === 'number') ? GRID : null,
+        status: 'Selection context added to the prompt. Review or edit it, then generate a preview.',
+      });
+    }
+
     function runAction(id) {
       try {
         if (id === 'duplicate') {
@@ -351,11 +406,7 @@
         } else if (id === 'delete') {
           if (typeof deleteActiveCellIntent === 'function') deleteActiveCellIntent();
         } else if (id === 'generate') {
-          if (typeof openGenerateModal === 'function') openGenerateModal();
-          else {
-            const btn = document.getElementById('generate');
-            if (btn) btn.click();
-          }
+          openContextualGenerateModal();
         } else if (id === 'more' || id === 'style') {
           openSelectionPanel();
         } else if (id === 'move') {

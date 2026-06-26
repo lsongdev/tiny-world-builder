@@ -510,9 +510,23 @@
     }
 
     function close() { closeTinyModal(modal); }
-    openGenerateModal = msg => {
+    openGenerateModal = opts => {
       open();
-      if (msg) setStatus(msg, 'error');
+      if (!opts) return;
+      if (typeof opts === 'string') {
+        setStatus(opts, 'error');
+        return;
+      }
+      if (opts.prompt && promptEl) {
+        const current = (promptEl.value || '').trim();
+        const hint = String(opts.prompt).trim();
+        promptEl.value = current && current.indexOf(hint) === -1 ? hint + '\n\n' + current : (current || hint);
+        try { promptEl.focus(); promptEl.setSelectionRange(0, 0); } catch (_) {}
+      }
+      if (opts.gridSize && gridSizeEl) {
+        gridSizeEl.value = String(coerceGridSize(parseInt(opts.gridSize, 10), GRID));
+      }
+      if (opts.status) setStatus(opts.status, opts.statusType || '');
     };
     window.__syncAiSettings = loadProviderState;
 
