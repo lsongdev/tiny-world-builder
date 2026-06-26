@@ -6633,12 +6633,19 @@
     pointer-events: none;
   }
   .new-world-reveal[hidden] { display: none; }
-  .new-world-reveal-card {
+  .new-world-reveal-stack {
     position: relative;
     width: min(420px, calc(100vw - 32px));
     max-height: min(720px, calc(100vh - 32px));
     overflow: auto;
     pointer-events: auto;
+    display: grid;
+    gap: 10px;
+    animation: new-world-reveal-in 0.26s ease-out;
+  }
+  .new-world-reveal-card,
+  .new-world-reveal-guide {
+    position: relative;
     color: #243047;
     background: rgba(255, 255, 255, 0.78);
     border: 1px solid rgba(255, 255, 255, 0.72);
@@ -6649,7 +6656,59 @@
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
     padding: 18px;
-    animation: new-world-reveal-in 0.26s ease-out;
+  }
+  .new-world-reveal-card {
+    --rarity-line: rgba(83, 97, 118, 0.22);
+    --rarity-glow: rgba(83, 97, 118, 0.10);
+    overflow: hidden;
+  }
+  .new-world-reveal-guide {
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.68);
+  }
+  .new-world-reveal-card[data-rarity="uncommon"] {
+    --rarity-line: #4aa777;
+    --rarity-glow: rgba(74, 167, 119, 0.18);
+    border-color: rgba(74, 167, 119, 0.32);
+  }
+  .new-world-reveal-card[data-rarity="rare"] {
+    --rarity-line: #2876d7;
+    --rarity-glow: rgba(40, 118, 215, 0.20);
+    border-color: rgba(40, 118, 215, 0.34);
+  }
+  .new-world-reveal-card[data-rarity="epic"] {
+    --rarity-line: #8756d8;
+    --rarity-glow: rgba(135, 86, 216, 0.22);
+    border-color: rgba(135, 86, 216, 0.36);
+  }
+  .new-world-reveal-card[data-rarity="legendary"] {
+    --rarity-line: #d69528;
+    --rarity-glow: rgba(214, 149, 40, 0.24);
+    border-color: rgba(214, 149, 40, 0.40);
+  }
+  .new-world-reveal-card::before {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border-radius: 14px;
+    pointer-events: none;
+    opacity: 0;
+    background:
+      linear-gradient(90deg, var(--rarity-line), transparent 70%) top left / 42% 1px no-repeat,
+      linear-gradient(180deg, var(--rarity-line), transparent 70%) top left / 1px 42% no-repeat,
+      linear-gradient(270deg, var(--rarity-line), transparent 70%) top right / 42% 1px no-repeat,
+      linear-gradient(180deg, var(--rarity-line), transparent 70%) top right / 1px 42% no-repeat,
+      linear-gradient(90deg, var(--rarity-line), transparent 70%) bottom left / 42% 1px no-repeat,
+      linear-gradient(0deg, var(--rarity-line), transparent 70%) bottom left / 1px 42% no-repeat,
+      linear-gradient(270deg, var(--rarity-line), transparent 70%) bottom right / 42% 1px no-repeat,
+      linear-gradient(0deg, var(--rarity-line), transparent 70%) bottom right / 1px 42% no-repeat;
+    box-shadow: 0 0 36px var(--rarity-glow) inset;
+  }
+  .new-world-reveal-card[data-rarity="uncommon"]::before,
+  .new-world-reveal-card[data-rarity="rare"]::before,
+  .new-world-reveal-card[data-rarity="epic"]::before,
+  .new-world-reveal-card[data-rarity="legendary"]::before {
+    opacity: 1;
   }
   @keyframes new-world-reveal-in {
     from { opacity: 0; transform: translateY(12px) scale(0.985); }
@@ -6704,8 +6763,13 @@
     line-height: 1;
     padding: 6px 8px;
   }
+  .new-world-reveal-meta-rarity {
+    color: #243047 !important;
+    border-color: color-mix(in srgb, var(--rarity-line) 45%, rgba(72, 89, 120, 0.16)) !important;
+    background: color-mix(in srgb, var(--rarity-glow) 70%, rgba(255, 255, 255, 0.70)) !important;
+  }
   .new-world-reveal-step-count {
-    margin-top: 4px;
+    margin-top: 0;
     color: #6a7690;
     font: 700 10px/1 ui-monospace, 'SF Mono', Menlo, monospace;
     text-transform: uppercase;
@@ -6718,8 +6782,8 @@
     color: #1d2940;
   }
   .new-world-reveal-step-body {
-    min-height: 42px;
-    margin: 0 0 14px;
+    min-height: 34px;
+    margin: 0;
     color: #536176;
     font-size: 13px;
     line-height: 1.45;
@@ -6774,7 +6838,7 @@
     display: flex;
     justify-content: flex-end;
     gap: 8px;
-    margin-top: 16px;
+    margin-top: 12px;
   }
   .new-world-reveal-actions button {
     min-height: 34px;
@@ -6796,13 +6860,17 @@
   }
   .new-world-reveal-secondary:hover { color: #243047; background: rgba(255, 255, 255, 0.86); }
   .new-world-reveal-primary:hover { background: #1f5fc5; }
-  body.ui-theme-dark .new-world-reveal-card {
+  body.ui-theme-dark .new-world-reveal-card,
+  body.ui-theme-dark .new-world-reveal-guide {
     color: #ecf3ff;
     background: rgba(22, 28, 42, 0.82);
     border-color: rgba(255, 255, 255, 0.14);
     box-shadow:
       0 1px 0 rgba(255, 255, 255, 0.12) inset,
       0 24px 70px -24px rgba(0, 0, 0, 0.62);
+  }
+  body.ui-theme-dark .new-world-reveal-guide {
+    background: rgba(22, 28, 42, 0.72);
   }
   body.ui-theme-dark .new-world-reveal-name,
   body.ui-theme-dark .new-world-reveal-step-title,
