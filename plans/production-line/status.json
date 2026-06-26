@@ -216,6 +216,11 @@
   ],
   "feed": [
     {
+      "ts": "2026-06-26T07:36:21.522Z",
+      "kind": "tick",
+      "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-26T07-36-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
+    },
+    {
       "ts": "2026-06-26T05:42:26.848Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-26T05-42-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
@@ -409,12 +414,7 @@
       "ts": "2026-06-24T11:45:00Z",
       "kind": "review",
       "text": "E2 (weekly GOLD payout) built + adversarially reviewed: Codex caught a CRITICAL stale-cache stacking exploit + 3 more. Fixed the concrete 3; documented the anti-stacking design as a hard pre-launch decision. Staged (PR #78), HELD."
-    },
-    {
-      "ts": "2026-06-24T11:30:00Z",
-      "kind": "build",
-      "text": "E2 built (Opus): idempotent weekly payout (partial unique index), pure planner with 6 unit tests, admin-gated /api/admin/gold-payout with a DRY-RUN preview so the owner can preview payouts before launch."
     }
   ],
-  "lastTick": "2026-06-26T05:42:26.848Z"
+  "lastTick": "2026-06-26T07:36:21.522Z"
 }
