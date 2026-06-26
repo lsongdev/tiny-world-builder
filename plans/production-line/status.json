@@ -216,6 +216,11 @@
   ],
   "feed": [
     {
+      "ts": "2026-06-26T19:54:49.867Z",
+      "kind": "tick",
+      "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-26T19-54-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
+    },
+    {
       "ts": "2026-06-26T18:55:12.241Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"Merge branch 'main' of https://github.com/jasonkneen/tiny-world-builder\" -> plans/production-line/drafts/2026-06-26T18-55-merge-branch-main-of-https-github-com-jasonkneen.md. No economy paths touched."
@@ -409,12 +414,7 @@
       "ts": "2026-06-24T16:30:00Z",
       "kind": "review",
       "text": "T2 template paid-remix built (Opus) on EC1: list a world for Earned GOLD; remix atomically debits buyer + credits author (5% treasury) + duplicates the world. Codex caught 5 marketplace holes (TOCTOU x2, world-unbound idempotency, free-remix retry, cap race) — all fixed (FOR UPDATE lock, durable world_remixes op table, buyer lock, predicate ownership). Staged (PR #85, depends on #84)."
-    },
-    {
-      "ts": "2026-06-24T15:30:00Z",
-      "kind": "review",
-      "text": "EC1 Earned GOLD ledger + atomic credit/debit/transfer built (Opus). Codex caught 5 money-primitive holes (in-tx safety, fingerprint idempotency, transfer half-apply, missing-ref, ledger sign integrity) — all fixed and VERIFIED against the live DB (guarded, nothing persisted). Staged (PR #84). Keystone for templates/referrals/paid-AI."
     }
   ],
-  "lastTick": "2026-06-26T18:55:12.241Z"
+  "lastTick": "2026-06-26T19:54:49.867Z"
 }
