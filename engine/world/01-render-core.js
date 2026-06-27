@@ -227,25 +227,25 @@
     crowdEnabled: 'tinyworld:crowd:enabled',
     version: 'tinyworld:render:version',
   };
-  const RENDER_SETTINGS_VERSION = '26';
+  const RENDER_SETTINGS_VERSION = '27';
   const RENDER_DEFAULTS = {
-    // Defaults tuned from the light-mode render panel: lower internal
-    // resolution, softer direct light, full ambient fill, brighter canvas, and
-    // stronger directional fills so objects do not sink into dark silhouettes.
+    // Defaults tuned for a bright, legible edit surface: lower internal
+    // resolution, stronger direct/fill lighting, full ambient fill, brighter
+    // canvas output, and reduced contrast so shadows do not crush to black.
     // Colour sliders are direct CSS filters on the canvas.
     resolution: '0.75',
     dynamicResolution: '1',
     targetFps: '55',
-    saturation: '1.09',
-    contrast: '1.16',
-    brightness: '1.08',
+    saturation: '1.10',
+    contrast: '1.08',
+    brightness: '1.18',
     uiTheme: 'auto',
     shadow: 'balanced',
-    lighting: '0.62',
+    lighting: '0.78',
     ambientFill: '1.00',
-    frontFill: '0.34',
-    sideFill: '0.26',
-    backFill: '0.22',
+    frontFill: '0.48',
+    sideFill: '0.40',
+    backFill: '0.34',
     visibleDistance: '0',
     visibleSize: '0',
     clouds: '0.4',
