@@ -216,6 +216,11 @@
   ],
   "feed": [
     {
+      "ts": "2026-06-27T09:11:15.160Z",
+      "kind": "tick",
+      "text": "Autonomous tick (safe scope): drafted news/tweet for \"Merge branch 'main-jason'\" -> plans/production-line/drafts/2026-06-27T09-11-merge-branch-main-jason.md. ECONOMY TRIPWIRE: packages/tinyworld-mmo-core/src/economy.js"
+    },
+    {
       "ts": "2026-06-27T07:23:49.212Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-27T07-23-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
@@ -409,12 +414,7 @@
       "ts": "2026-06-25T07:29:59.532Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"Merge branch 'main' of https://github.com/jasonkneen/tiny-world-builder\" -> plans/production-line/drafts/2026-06-25T07-29-merge-branch-main-of-https-github-com-jasonkneen.md. No economy paths touched."
-    },
-    {
-      "ts": "2026-06-25T00:00:00Z",
-      "kind": "review",
-      "text": "P1 Stripe -> buy Earned GOLD built (Opus), test-mode-first (inert until keys; 503 otherwise). Two Codex rounds: SHIP-for-threat-model then 3 hardening fixes (provenance pending-order, async payments, multi-v1 signature) -> all fixed + live-DB verified (credit-once, replay no-op, forged session can't mint GOLD). Folded into economy-preview (deploy-preview-90). Only the economy half left unbuilt is Stripe GOING LIVE, which needs the owner's keys."
     }
   ],
-  "lastTick": "2026-06-27T07:23:49.212Z"
+  "lastTick": "2026-06-27T09:11:15.160Z"
 }
