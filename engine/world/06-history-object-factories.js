@@ -241,13 +241,19 @@
       if (terrain === 'path')  topMat = M.path;
       if (terrain === 'water') {
         const flow = waterFlowVectorForCell(x, z, terrainN);
-        topMat = waterFlowMaterial(M.water, flow.dx, flow.dz);
+        const waterMat = typeof terrainCellVariantMaterial === 'function'
+          ? terrainCellVariantMaterial(M.water, 'water', 'water', x, z, 2)
+          : M.water;
+        topMat = waterFlowMaterial(waterMat, flow.dx, flow.dz);
       }
       if (terrain === 'dirt')  topMat = M.dirtRich;
       if (terrain === 'stone') topMat = M.stone;
       if (terrain === 'lava')  topMat = M.lava;
       if (terrain === 'sand')  topMat = M.sand;
       if (terrain === 'snow')  topMat = M.snow;
+      if (terrain !== 'water' && typeof terrainCellVariantMaterial === 'function') {
+        topMat = terrainCellVariantMaterial(topMat, terrain, terrain, x, z, 6);
+      }
 
       // One whole logical tile panel: no artificial gaps inside a cell. The
       // voxel resolution belongs to objects/stamps; terrain/path cells must

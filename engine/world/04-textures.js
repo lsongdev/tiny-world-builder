@@ -1207,8 +1207,8 @@
             vec3 refr = refract(-vdir, rn, 0.7502);
             float refrLean = clamp(length(refr.xz) * 1.35 + (1.0 - rn.y) * 3.4, 0.0, 1.0);
             vec2 refrBend = refr.xz * (0.070 + refrLean * 0.120);
-            vec2 refrUv = vUv + refrBend + vec2(t * 0.020, -t * 0.015);
             #ifdef USE_MAP
+              vec2 refrUv = vMapUv + refrBend + vec2(t * 0.020, -t * 0.015);
               vec3 refrTex = vec3(
                 texture2D(map, refrUv + refrBend * 0.80 + vec2(0.006, -0.003)).r,
                 texture2D(map, refrUv + refrBend * 0.18).g,
@@ -1398,11 +1398,58 @@
     return tex;
   }
 
+  function createTerrainVariantImageTexture(src) {
+    const tex = new THREE.TextureLoader().load(src, () => {
+      repaintAfterTextureLoad();
+    });
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    twSetTextureSRGB(tex);
+    tuneWorldTextureFiltering(tex);
+    return tex;
+  }
+
   const texAtlasNatureWood = createMaterialImageTexture('textures/HJCliEibkAAmqIj.jpeg');
   const texAtlasTileSet = createMaterialImageTexture('textures/HJCliEjbEAA9Ah2.jpeg');
   const texAtlasRoofStrips = createMaterialImageTexture('textures/HJCliEqagAAE8e4.jpeg');
   const texAtlasReference = createMaterialImageTexture('textures/reference.jpeg');
   const texIslandUndersideVoxel = createMaterialImageTexture('textures/island-underside-voxel.png');
+  const terrainSheetTextureNames = [
+    'grass-plain-01',
+    'grass-plain-02',
+    'grass-mushrooms-01',
+    'grass-flowers-01',
+    'grass-mushrooms-02',
+    'grass-flower-01',
+    'dirt-blocks-01',
+    'dirt-clean-01',
+    'dirt-clean-02',
+    'dirt-pebbles-01',
+    'stone-blocks-01',
+    'stone-broken-01',
+    'stone-slabs-01',
+    'stone-moss-01',
+    'rock-cliff-01',
+    'rock-cliff-02',
+    'rock-cliff-moss-01',
+    'rock-cliff-moss-02',
+    'path-pavers-01',
+    'path-pavers-02',
+    'path-pavers-03',
+    'path-pavers-04',
+    'wood-planks-01',
+    'wood-planks-02',
+    'wood-rings-01',
+    'wood-crate-01',
+    'water-flat-01',
+    'water-flat-02',
+    'water-ripples-01',
+    'water-deep-01',
+  ];
+  const terrainSheetTextureMap = {};
+  for (const name of terrainSheetTextureNames) {
+    terrainSheetTextureMap['terrain-sheet-' + name] = createTerrainVariantImageTexture('textures/terrain-variants/' + name + '.png');
+  }
   const proceduralPixelTextures = {
     checkered: texCheckered,
     noise: texNoise,
@@ -1482,6 +1529,19 @@
     { key: 'atlas-tiles', label: 'Texture folder: tile set' },
     { key: 'atlas-roofs', label: 'Texture folder: roof strips' },
     { key: 'atlas-reference', label: 'Texture folder: reference board' },
+    { key: 'terrain-sheet-grass-plain-01', label: 'Sheet grass plain 1' },
+    { key: 'terrain-sheet-grass-mushrooms-01', label: 'Sheet grass mushrooms' },
+    { key: 'terrain-sheet-grass-flowers-01', label: 'Sheet grass flowers' },
+    { key: 'terrain-sheet-dirt-blocks-01', label: 'Sheet mud blocks' },
+    { key: 'terrain-sheet-dirt-pebbles-01', label: 'Sheet mud pebbles' },
+    { key: 'terrain-sheet-stone-blocks-01', label: 'Sheet stone blocks' },
+    { key: 'terrain-sheet-stone-moss-01', label: 'Sheet stone moss' },
+    { key: 'terrain-sheet-path-pavers-01', label: 'Sheet path pavers 1' },
+    { key: 'terrain-sheet-path-pavers-04', label: 'Sheet path pavers 4' },
+    { key: 'terrain-sheet-water-flat-01', label: 'Sheet water flat' },
+    { key: 'terrain-sheet-water-ripples-01', label: 'Sheet water ripples' },
+    { key: 'terrain-sheet-wood-planks-01', label: 'Sheet wood planks' },
+    { key: 'terrain-sheet-wood-rings-01', label: 'Sheet wood rings' },
   ];
 
   const ISLAND_SIDE_STRATA_TOP_Y = TOP_H;
@@ -1578,7 +1638,7 @@
     'atlas-tiles': texAtlasTileSet,
     'atlas-roofs': texAtlasRoofStrips,
     'atlas-reference': texAtlasReference,
-  });
+  }, terrainSheetTextureMap);
 
   function normalizeMaterialTextureKey(value) {
     const key = String(value || 'default').toLowerCase();
@@ -1596,6 +1656,134 @@
     return materialTextureMap[normalizeMaterialTextureKey(key)] || null;
   }
 
+  function terrainSheetTexture(name) {
+    return terrainSheetTextureMap['terrain-sheet-' + name] || null;
+  }
+
+  function applySheetWorldUVs(material, sheetName, textureScale, opts = {}) {
+    const tex = terrainSheetTexture(sheetName);
+    if (!tex) return false;
+    applyWorldUVs(material, tex, textureScale, opts);
+    return true;
+  }
+
+  function applySheetTerrainUVs(materialName, material, sheetName, textureScale) {
+    const tex = terrainSheetTexture(sheetName);
+    if (!tex) return false;
+    applyTerrainWorldUVs(materialName, material, tex, textureScale);
+    return true;
+  }
+
+  const TERRAIN_SHEET_VARIANT_SETS = {
+    grass: [
+      'terrain-sheet-grass-plain-01',
+      'terrain-sheet-grass-plain-02',
+      'terrain-sheet-grass-mushrooms-01',
+      'terrain-sheet-grass-flowers-01',
+      'terrain-sheet-grass-mushrooms-02',
+      'terrain-sheet-grass-flower-01',
+    ],
+    dirt: [
+      'terrain-sheet-dirt-blocks-01',
+      'terrain-sheet-dirt-clean-01',
+      'terrain-sheet-dirt-clean-02',
+      'terrain-sheet-dirt-pebbles-01',
+    ],
+    stone: [
+      'terrain-sheet-stone-blocks-01',
+      'terrain-sheet-stone-broken-01',
+      'terrain-sheet-stone-slabs-01',
+      'terrain-sheet-stone-moss-01',
+    ],
+    rock: [
+      'terrain-sheet-rock-cliff-01',
+      'terrain-sheet-rock-cliff-02',
+      'terrain-sheet-rock-cliff-moss-01',
+      'terrain-sheet-rock-cliff-moss-02',
+    ],
+    path: [
+      'terrain-sheet-path-pavers-01',
+      'terrain-sheet-path-pavers-02',
+      'terrain-sheet-path-pavers-03',
+      'terrain-sheet-path-pavers-04',
+    ],
+    water: [
+      'terrain-sheet-water-flat-01',
+      'terrain-sheet-water-flat-02',
+      'terrain-sheet-water-ripples-01',
+      'terrain-sheet-water-deep-01',
+    ],
+    wood: [
+      'terrain-sheet-wood-planks-01',
+      'terrain-sheet-wood-planks-02',
+      'terrain-sheet-wood-rings-01',
+      'terrain-sheet-wood-crate-01',
+    ],
+  };
+  const TERRAIN_SHEET_VARIANT_SCALES = {
+    grass: 4.0,
+    dirt: 4.0,
+    stone: 2.0,
+    rock: 2.8,
+    path: 2.0,
+    water: 4.0,
+    wood: 2.0,
+  };
+  // Only hard-surface terrain gets deterministic per-cell sheet variants.
+  // Grass/dirt stay on one material so fields do not turn into patchwork.
+  const TERRAIN_SHEET_AUTO_MIX_TERRAINS = new Set(['path', 'stone', 'water']);
+  const terrainSheetVariantMaterialCache = new Map();
+
+  function terrainSheetVariantsAllowed(terrain) {
+    if (!TERRAIN_SHEET_AUTO_MIX_TERRAINS.has(terrain)) return false;
+    if (terrain === 'grass' && typeof renderTexturedGrass !== 'undefined' && !renderTexturedGrass) return false;
+    const adjustment = (typeof renderTerrainMaterialAdjustments !== 'undefined' && renderTerrainMaterialAdjustments)
+      ? renderTerrainMaterialAdjustments[terrain]
+      : null;
+    return normalizeMaterialTextureKey(adjustment && adjustment.texture) === 'default';
+  }
+
+  function terrainSheetVariantTextureKey(terrain, x = 0, z = 0, salt = 0) {
+    const set = TERRAIN_SHEET_VARIANT_SETS[terrain];
+    if (!set || !set.length || !terrainSheetVariantsAllowed(terrain)) return null;
+    const n = typeof cellRand === 'function'
+      ? cellRand(x, z, 3300 + salt)
+      : Math.abs(Math.sin((x + 1) * 91.7 + (z + 1) * 53.3 + salt * 11.1));
+    return set[Math.min(set.length - 1, Math.floor((n % 1) * set.length))];
+  }
+
+  function terrainSheetVariantMaterial(base, terrain, materialName, x = 0, z = 0, salt = 0) {
+    const textureKey = terrainSheetVariantTextureKey(terrain, x, z, salt);
+    const tex = textureKey ? materialTextureForKey(textureKey) : null;
+    if (!base || !base.clone || !tex) return base;
+    const scale = TERRAIN_SHEET_VARIANT_SCALES[terrain] || 1;
+    const color = base.color ? base.color.getHexString() : 'none';
+    const programState = materialName === 'water' || materialName === 'waterDk'
+      ? (renderEnhancedWater ? 'water-fx' : 'water-plain')
+      : 'plain';
+    const key = [
+      base.uuid || base.id || 'mat',
+      terrain,
+      materialName || '',
+      textureKey,
+      scale.toFixed(3),
+      color,
+      programState,
+    ].join(':');
+    if (!terrainSheetVariantMaterialCache.has(key)) {
+      const mat = base.clone();
+      if (base.onBeforeCompile) mat.onBeforeCompile = base.onBeforeCompile;
+      if (typeof base.customProgramCacheKey === 'function') mat.customProgramCacheKey = base.customProgramCacheKey;
+      if (base.extensions) mat.extensions = base.extensions;
+      mat.userData = Object.assign({}, base.userData || {}, mat.userData || {}, {
+        terrainSheetVariant: textureKey,
+      });
+      applyTerrainWorldUVs(materialName || terrain, mat, tex, scale);
+      terrainSheetVariantMaterialCache.set(key, mat);
+    }
+    return terrainSheetVariantMaterialCache.get(key);
+  }
+
   M.grass.color.set(0x57842b);
   M.grassEdge.color.set(0x46701f);
   M.grassHi.color.set(0x6a9632);
@@ -1607,32 +1795,34 @@
   M.trunk.color.set(0x7b4b2a);
 
   const initialGrassTex = texCottageGrass;
-  applyWorldUVs(M.grass, initialGrassTex, 1.0);
-  applyWorldUVs(M.grassEdge, initialGrassTex, 1.0);
-  applyWorldUVs(M.grassHi, initialGrassTex, 1.0);
+  if (!applySheetWorldUVs(M.grass, 'grass-plain-01', 4.0)) applyWorldUVs(M.grass, initialGrassTex, 1.0);
+  if (!applySheetWorldUVs(M.grassEdge, 'grass-plain-02', 4.0)) applyWorldUVs(M.grassEdge, initialGrassTex, 1.0);
+  if (!applySheetWorldUVs(M.grassHi, 'grass-plain-01', 4.0)) applyWorldUVs(M.grassHi, initialGrassTex, 1.0);
   M.boardSide.color.set(0xffffff);
-  applyWorldUVs(M.boardSide, texSoilSide, 0.22, { voxelSeams: true });
+  if (!applySheetWorldUVs(M.boardSide, 'dirt-blocks-01', 3.6, { voxelSeams: true })) {
+    applyWorldUVs(M.boardSide, texSoilSide, 0.22, { voxelSeams: true });
+  }
   M.boardSideEdge = makeIslandSideStrataMaterial();
 
   M.path.color.set(0xf2d29c);
   M.pathTrim.color.set(0xd9b780);
   M.pathScuff.color.set(0xc9aa70);
-  applyWorldUVs(M.path, texPathPavers, 0.22);
-  applyWorldUVs(M.pathTrim, texPathPavers, 0.22);
-  applyWorldUVs(M.pathScuff, texPathPavers, 0.22);
+  if (!applySheetTerrainUVs('path', M.path, 'path-pavers-01', 2.0)) applyWorldUVs(M.path, texPathPavers, 0.22);
+  if (!applySheetTerrainUVs('pathTrim', M.pathTrim, 'path-pavers-02', 2.0)) applyWorldUVs(M.pathTrim, texPathPavers, 0.22);
+  if (!applySheetTerrainUVs('pathScuff', M.pathScuff, 'path-pavers-03', 2.0)) applyWorldUVs(M.pathScuff, texPathPavers, 0.22);
 
   M.dirt.color.set(0xffffff);
   M.dirtRich.color.set(0xffffff);
-  applyWorldUVs(M.dirt, texSoilSide, 0.22);
-  applyWorldUVs(M.dirtRich, texSoilSide, 0.20);
+  if (!applySheetWorldUVs(M.dirt, 'dirt-clean-01', 4.0)) applyWorldUVs(M.dirt, texSoilSide, 0.22);
+  if (!applySheetWorldUVs(M.dirtRich, 'dirt-blocks-01', 4.0)) applyWorldUVs(M.dirtRich, texSoilSide, 0.20);
 
-  applyFlowingWaterUVs(M.water, texRipples, 1.0);
-  applyFlowingWaterUVs(M.waterDk, texRipples, 1.0);
+  if (!applySheetTerrainUVs('water', M.water, 'water-flat-01', 4.0)) applyFlowingWaterUVs(M.water, texRipples, 1.0);
+  if (!applySheetTerrainUVs('waterDk', M.waterDk, 'water-deep-01', 4.0)) applyFlowingWaterUVs(M.waterDk, texRipples, 1.0);
 
   M.wallCream.color.set(0xffffff);
   M.wallTrim.color.set(0xf4f3ee);
-  applyWorldUVs(M.wallCream, texCastleBlock, 0.86);
-  applyWorldUVs(M.wallTrim, texCastleBlock, 0.86);
+  if (!applySheetWorldUVs(M.wallCream, 'stone-blocks-01', 2.2)) applyWorldUVs(M.wallCream, texCastleBlock, 0.86);
+  if (!applySheetWorldUVs(M.wallTrim, 'stone-slabs-01', 2.2)) applyWorldUVs(M.wallTrim, texCastleBlock, 0.86);
   applyWorldUVs(M.roofBlue, texRoofShingles, 0.34);
   applyWorldUVs(M.roofBlueD, texRoofShingles, 0.34);
   M.islandUnder.color.set(0xffffff);
@@ -1655,18 +1845,18 @@
 
   M.castleStone.color.set(0xffffff);
   M.castleStoneD.color.set(0xe8e7df);
-  applyWorldUVs(M.castleStone, texCastleBlock, 0.86);
-  applyWorldUVs(M.castleStoneD, texCastleBlock, 0.86);
+  if (!applySheetWorldUVs(M.castleStone, 'stone-blocks-01', 2.4)) applyWorldUVs(M.castleStone, texCastleBlock, 0.86);
+  if (!applySheetWorldUVs(M.castleStoneD, 'stone-slabs-01', 2.4)) applyWorldUVs(M.castleStoneD, texCastleBlock, 0.86);
   M.stone.color.set(0x8b8d88);
   M.stoneDk.color.set(0x5f6668);
-  applyWorldUVs(M.stone, texCastleBlock, 0.86);
-  applyWorldUVs(M.stoneDk, texCastleBlock, 0.86);
+  if (!applySheetTerrainUVs('stone', M.stone, 'stone-blocks-01', 2.0)) applyWorldUVs(M.stone, texCastleBlock, 0.86);
+  if (!applySheetTerrainUVs('stoneDk', M.stoneDk, 'stone-broken-01', 2.0)) applyWorldUVs(M.stoneDk, texCastleBlock, 0.86);
   M.stoneSide = M.stone.clone();
   M.stoneSide.color.set(0x8c8980);
-  applyWorldUVs(M.stoneSide, texCastleBlock, 0.86, { voxelSeams: true });
-  applyWorldUVs(M.rock, texRockFace, 3.8);
-  applyWorldUVs(M.rockDk, texRockFace, 3.8);
-  applyWorldUVs(M.rockHi, texRockFace, 3.8);
+  if (!applySheetTerrainUVs('stoneSide', M.stoneSide, 'stone-slabs-01', 2.2)) applyWorldUVs(M.stoneSide, texCastleBlock, 0.86, { voxelSeams: true });
+  if (!applySheetWorldUVs(M.rock, 'rock-cliff-01', 2.8)) applyWorldUVs(M.rock, texRockFace, 3.8);
+  if (!applySheetWorldUVs(M.rockDk, 'rock-cliff-02', 2.8)) applyWorldUVs(M.rockDk, texRockFace, 3.8);
+  if (!applySheetWorldUVs(M.rockHi, 'rock-cliff-moss-01', 2.8)) applyWorldUVs(M.rockHi, texRockFace, 3.8);
 
   M.manorBrick.color.set(0xffffff);
   M.manorBrickD.color.set(0xd0a096);
@@ -1683,27 +1873,27 @@
 
   applyWorldUVs(M.leaves, texLeaves, 4.0);
   applyWorldUVs(M.leavesDk, texLeaves, 4.0);
-  applyWorldUVs(M.trunk, texCottageWood, 3.0);
-  applyWorldUVs(M.bridgeWood, texCottageWood, 3.0);
-  applyWorldUVs(M.bridgeWoodD, texCottageWood, 3.0);
+  if (!applySheetWorldUVs(M.trunk, 'wood-rings-01', 2.4)) applyWorldUVs(M.trunk, texCottageWood, 3.0);
+  if (!applySheetWorldUVs(M.bridgeWood, 'wood-planks-01', 3.0)) applyWorldUVs(M.bridgeWood, texCottageWood, 3.0);
+  if (!applySheetWorldUVs(M.bridgeWoodD, 'wood-planks-02', 3.0)) applyWorldUVs(M.bridgeWoodD, texCottageWood, 3.0);
   M.fence.color.set(0xffffff);
   M.fenceGarden.color.set(0xffffff);
   M.fenceGardenD.color.set(0xe0bd91);
-  applyWorldUVs(M.fence, texFenceTimber, 1.4);
-  applyWorldUVs(M.fenceGarden, texFenceTimber, 1.4);
-  applyWorldUVs(M.fenceGardenD, texFenceTimber, 1.4);
-  applyWorldUVs(M.door, texCottageWood, 3.0);
-  applyWorldUVs(M.woodTrim, texCottageWood, 3.0);
+  if (!applySheetWorldUVs(M.fence, 'wood-planks-01', 2.6)) applyWorldUVs(M.fence, texFenceTimber, 1.4);
+  if (!applySheetWorldUVs(M.fenceGarden, 'wood-planks-01', 2.6)) applyWorldUVs(M.fenceGarden, texFenceTimber, 1.4);
+  if (!applySheetWorldUVs(M.fenceGardenD, 'wood-planks-02', 2.6)) applyWorldUVs(M.fenceGardenD, texFenceTimber, 1.4);
+  if (!applySheetWorldUVs(M.door, 'wood-planks-02', 3.0)) applyWorldUVs(M.door, texCottageWood, 3.0);
+  if (!applySheetWorldUVs(M.woodTrim, 'wood-planks-01', 3.0)) applyWorldUVs(M.woodTrim, texCottageWood, 3.0);
   applyWorldUVs(M.sand, texSand, 1.8);
   applyWorldUVs(M.sandDk, texSand, 1.8);
   M.towerStone.color.set(0xffffff);
   M.towerStoneD.color.set(0xe8e7df);
-  applyWorldUVs(M.towerStone, texCastleBlock, 0.86);
-  applyWorldUVs(M.towerStoneD, texCastleBlock, 0.86);
+  if (!applySheetWorldUVs(M.towerStone, 'stone-blocks-01', 2.6)) applyWorldUVs(M.towerStone, texCastleBlock, 0.86);
+  if (!applySheetWorldUVs(M.towerStoneD, 'stone-slabs-01', 2.6)) applyWorldUVs(M.towerStoneD, texCastleBlock, 0.86);
   M.chimney.color.set(0xffffff);
   M.step.color.set(0xf4f3ee);
-  applyWorldUVs(M.chimney, texCastleBlock, 1.0);
-  applyWorldUVs(M.step, texCastleBlock, 0.86);
+  if (!applySheetWorldUVs(M.chimney, 'stone-blocks-01', 2.4)) applyWorldUVs(M.chimney, texCastleBlock, 1.0);
+  if (!applySheetWorldUVs(M.step, 'stone-slabs-01', 2.2)) applyWorldUVs(M.step, texCastleBlock, 0.86);
   M.windowB.map = texWindowUnlit;
   M.windowB.color.set(0xffffff);
   M.windowB.emissive.set(0x07101a);
@@ -1883,27 +2073,61 @@
   const partMaterialBaseScales = new Map();
 
   const SURFACE_TEXTURE_DEFAULTS = {
-    grass: { texture: 'cottage-grass', fallbackTexture: 'checkered', scale: 1.0, materials: ['grass', 'grassEdge', 'grassHi'] },
-    dirt: { texture: 'soil-side', scale: 0.22, materials: ['dirt', 'dirtRich'] },
+    grass: {
+      texture: 'terrain-sheet-grass-plain-01',
+      fallbackTexture: 'checkered',
+      scale: 4.0,
+      materials: ['grass', 'grassEdge', 'grassHi'],
+      materialTextures: {
+        grassEdge: 'terrain-sheet-grass-plain-02',
+      },
+    },
+    dirt: {
+      texture: 'terrain-sheet-dirt-blocks-01',
+      scale: 4.0,
+      materials: ['dirt', 'dirtRich'],
+      materialTextures: {
+        dirt: 'terrain-sheet-dirt-clean-01',
+      },
+    },
     sand: { texture: 'sand', scale: 1.8, materials: ['sand', 'sandDk'] },
-    stone: { texture: 'castle-block', scale: 0.86, materials: ['stone', 'stoneDk'] },
+    stone: {
+      texture: 'terrain-sheet-stone-blocks-01',
+      scale: 2.0,
+      materials: ['stone', 'stoneDk'],
+      materialTextures: {
+        stoneDk: 'terrain-sheet-stone-broken-01',
+      },
+    },
   };
   const SURFACE_LINKED_MODEL_DEFAULT_TEXTURES = {
-    stone: 'rock-face',
+    stone: 'terrain-sheet-stone-blocks-01',
+  };
+  const SURFACE_LINKED_MODEL_MATERIAL_TEXTURES = {
+    stone: {
+      rock: 'terrain-sheet-rock-cliff-01',
+      rockDk: 'terrain-sheet-rock-cliff-02',
+      rockHi: 'terrain-sheet-rock-cliff-moss-01',
+      castleStone: 'terrain-sheet-stone-blocks-01',
+      castleStoneD: 'terrain-sheet-stone-slabs-01',
+      towerStone: 'terrain-sheet-stone-blocks-01',
+      towerStoneD: 'terrain-sheet-stone-slabs-01',
+      chimney: 'terrain-sheet-stone-blocks-01',
+    },
   };
   const SURFACE_LINKED_MODEL_MATERIALS = {
     stone: ['rock', 'rockDk', 'rockHi', 'castleStone', 'castleStoneD', 'towerStone', 'towerStoneD', 'chimney'],
   };
   const SURFACE_LINKED_MODEL_SCALES = {
     stone: {
-      rock: 4.0,
-      rockDk: 4.0,
-      rockHi: 4.0,
-      castleStone: 0.86,
-      castleStoneD: 0.86,
-      towerStone: 0.86,
-      towerStoneD: 0.86,
-      chimney: 1.0,
+      rock: 2.8,
+      rockDk: 2.8,
+      rockHi: 2.8,
+      castleStone: 2.4,
+      castleStoneD: 2.4,
+      towerStone: 2.6,
+      towerStoneD: 2.6,
+      chimney: 2.4,
     },
   };
 
@@ -1966,10 +2190,13 @@
       const def = SURFACE_TEXTURE_DEFAULTS[surface];
       if (!def) continue;
       const adjustedTexture = normalizeMaterialTextureKey(renderTerrainMaterialAdjustments && renderTerrainMaterialAdjustments[surface] && renderTerrainMaterialAdjustments[surface].texture);
-      const textureKey = adjustedTexture === 'default'
-        ? (SURFACE_LINKED_MODEL_DEFAULT_TEXTURES[surface] || terrainSurfaceTextureKey(surface))
-        : adjustedTexture;
-      for (const name of names) applySurfaceTextureToMaterial(name, textureKey, linkedSurfaceMaterialTextureScale(surface, name));
+      const materialTextures = SURFACE_LINKED_MODEL_MATERIAL_TEXTURES[surface] || {};
+      for (const name of names) {
+        const textureKey = adjustedTexture === 'default'
+          ? (materialTextures[name] || SURFACE_LINKED_MODEL_DEFAULT_TEXTURES[surface] || terrainSurfaceTextureKey(surface))
+          : adjustedTexture;
+        applySurfaceTextureToMaterial(name, textureKey, linkedSurfaceMaterialTextureScale(surface, name));
+      }
     }
     if (typeof customMaterialCache !== 'undefined') customMaterialCache.clear();
     if (typeof fadeMatCache !== 'undefined') fadeMatCache.clear();

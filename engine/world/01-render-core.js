@@ -227,7 +227,7 @@
     crowdEnabled: 'tinyworld:crowd:enabled',
     version: 'tinyworld:render:version',
   };
-  const RENDER_SETTINGS_VERSION = '27';
+  const RENDER_SETTINGS_VERSION = '28';
   const RENDER_DEFAULTS = {
     // Defaults tuned for a bright, legible edit surface: lower internal
     // resolution, stronger direct/fill lighting, full ambient fill, brighter
@@ -261,8 +261,8 @@
     cloudRimLight: '0.78',
     accentLights: '0.65',
     underCloudSpread: '1.35',
-    skyBlueDepth: '0.58',
-    skyBlueSaturation: '1',
+    skyBlueDepth: '0.82',
+    skyBlueSaturation: '1.38',
     distanceMist: '0.36',
     backdrop: '0.78',
     backdropVignette: '0.24',
@@ -485,8 +485,8 @@
   let renderCloudRimLight = storedNumber(RENDER_LS.cloudRimLight, 0.78, 0, 1.2);
   let renderAccentLights = storedNumber(RENDER_LS.accentLights, 0.65, 0, 1.2);
   let renderUnderCloudSpread = storedNumber(RENDER_LS.underCloudSpread, 1.35, 0.7, 2.2);
-  let renderSkyBlueDepth = storedNumber(RENDER_LS.skyBlueDepth, 0.58, 0, 1);
-  let renderSkyBlueSaturation = storedNumber(RENDER_LS.skyBlueSaturation, 1, 0.25, 2.2);
+  let renderSkyBlueDepth = storedNumber(RENDER_LS.skyBlueDepth, 0.82, 0, 1);
+  let renderSkyBlueSaturation = storedNumber(RENDER_LS.skyBlueSaturation, 1.38, 0.25, 2.2);
   let renderDistanceMist = storedNumber(RENDER_LS.distanceMist, 0.28, 0, 2);
   let renderBackdrop = storedNumber(RENDER_LS.backdrop, 0.78, 0, 2);
   let renderBackdropVignette = storedNumber(RENDER_LS.backdropVignette, 0.18, 0, 3);
@@ -512,9 +512,9 @@
   function applyBackdropSettings() {
     const d = Math.max(0, Math.min(1, renderSkyBlueDepth || 0));
     const satMul = Math.max(0.25, Math.min(2.2, renderSkyBlueSaturation || 1));
-    const strong = new THREE.Color().setHSL(0.585, Math.min(1, (0.54 + d * 0.30) * satMul), 0.48 - d * 0.08);
-    const base = new THREE.Color().setHSL(0.585, Math.min(1, (0.44 + d * 0.18) * satMul), 0.66 - d * 0.08);
-    const low = new THREE.Color().setHSL(0.565, Math.min(1, (0.34 + d * 0.14) * satMul), 0.86 - d * 0.10);
+    const strong = new THREE.Color().setHSL(0.585, Math.min(1, (0.60 + d * 0.34) * satMul), 0.45 - d * 0.06);
+    const base = new THREE.Color().setHSL(0.585, Math.min(1, (0.50 + d * 0.24) * satMul), 0.62 - d * 0.07);
+    const low = new THREE.Color().setHSL(0.565, Math.min(1, (0.42 + d * 0.20) * satMul), 0.82 - d * 0.08);
     const cssRgb = color => [
       Math.round(color.r * 255),
       Math.round(color.g * 255),
@@ -697,13 +697,13 @@
   function applySkyBubbleSettings() {
     const d = Math.max(0, Math.min(1, renderSkyBlueDepth || 0));
     const satMul = Math.max(0.25, Math.min(2.2, renderSkyBlueSaturation || 1));
-    const topSat = Math.min(1, (0.50 + d * 0.32) * satMul);
-    const lowSat = Math.min(1, (0.38 + d * 0.18) * satMul);
+    const topSat = Math.min(1, (0.58 + d * 0.34) * satMul);
+    const lowSat = Math.min(1, (0.46 + d * 0.24) * satMul);
     const uniforms = skyBubble.material && skyBubble.material.uniforms;
     if (!uniforms) return;
-    uniforms.blueTop.value.setHSL(0.585, topSat, 0.80 - d * 0.24);
-    uniforms.blueLow.value.setHSL(0.565, lowSat, 0.88 - d * 0.12);
-    scene.background = new THREE.Color().setHSL(0.565, lowSat, 0.88 - d * 0.12);
+    uniforms.blueTop.value.setHSL(0.585, topSat, 0.76 - d * 0.20);
+    uniforms.blueLow.value.setHSL(0.565, lowSat, 0.84 - d * 0.10);
+    scene.background = new THREE.Color().setHSL(0.565, lowSat, 0.84 - d * 0.10);
     defaultSceneBackground = scene.background.clone();
   }
   applySkyBubbleSettings();

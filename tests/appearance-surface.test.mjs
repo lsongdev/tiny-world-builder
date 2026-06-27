@@ -25,16 +25,16 @@ const { normalizeAppearance } = buildEngineFns(
   'const materialTextureMap = {};'
 );
 
-test('stone terrain defaults to masonry while rock props default to rock-face', () => {
-  assert.match(texturesJs, /stone:\s*\{\s*texture:\s*'castle-block',\s*scale:\s*0\.86,\s*materials:\s*\['stone', 'stoneDk'\]\s*\}/);
-  assert.match(texturesJs, /const SURFACE_LINKED_MODEL_DEFAULT_TEXTURES = \{\s*stone:\s*'rock-face'/);
+test('stone terrain and linked rock props default to supplied sheet crops', () => {
+  assert.match(texturesJs, /stone:\s*\{\s*texture:\s*'terrain-sheet-stone-blocks-01',\s*scale:\s*2\.0,/);
+  assert.match(texturesJs, /const SURFACE_LINKED_MODEL_MATERIAL_TEXTURES = \{\s*stone:\s*\{[\s\S]*rock:\s*'terrain-sheet-rock-cliff-01'[\s\S]*castleStone:\s*'terrain-sheet-stone-blocks-01'/);
 });
 
 test('material wear defaults to 100 percent for shipped and fresh settings', () => {
-  assert.match(renderCoreJs, /const RENDER_SETTINGS_VERSION = '27'/);
+  assert.match(renderCoreJs, /const RENDER_SETTINGS_VERSION = '28'/);
   assert.match(renderCoreJs, /materialWear:\s*'1'/);
   assert.match(texturesJs, /let renderMaterialWear = storedNumber\(RENDER_LS\.materialWear,\s*1,\s*0,\s*1\)/);
-  assert.equal(defaultsJson.settings['tinyworld:render:version'], '27');
+  assert.equal(defaultsJson.settings['tinyworld:render:version'], '28');
   assert.equal(defaultsJson.settings['tinyworld:render:materialWear'], '1.00');
 });
 

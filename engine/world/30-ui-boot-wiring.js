@@ -2935,7 +2935,7 @@ syncTinyworldOwnerToolControls();
       const ANCHORS = [
         { t: 0,    c: 0x0c1226 }, // deep night
         { t: 420,  c: 0xf2c2a0 }, // dawn
-        { t: 780,  c: 0xc7e1f4 }, // bright day
+        { t: 780,  c: 0x86c7f6 }, // saturated bright day
         { t: 1170, c: 0xd9784a }, // dusk
         { t: 1380, c: 0x0e1330 },
         { t: 1440, c: 0x0c1226 },

@@ -46,10 +46,10 @@
 
   body {
     background:
-      radial-gradient(circle at 86% 15%, rgba(255, 214, 154, min(1, calc(var(--backdrop-strength, 0.78) * 0.58))), transparent 32%),
-      radial-gradient(circle at 18% 18%, rgba(var(--sky-blue-strong-rgb, 26, 103, 210), min(1, calc(var(--backdrop-strength, 0.78) * var(--sky-blue-depth, 0.58) * 0.72))), transparent 36%),
-      radial-gradient(circle at 70% 86%, rgba(255, 188, 126, min(1, calc(var(--backdrop-strength, 0.78) * 0.22))), transparent 36%),
-      linear-gradient(135deg, rgb(var(--sky-blue-base-rgb, 106, 168, 235)) 0%, rgb(var(--sky-blue-low-rgb, 188, 220, 244)) 48%, #fff0d1 100%);
+      radial-gradient(circle at 86% 15%, rgba(255, 214, 154, min(1, calc(var(--backdrop-strength, 0.78) * 0.34))), transparent 30%),
+      radial-gradient(circle at 18% 18%, rgba(var(--sky-blue-strong-rgb, 26, 103, 210), min(1, calc(var(--backdrop-strength, 0.78) * var(--sky-blue-depth, 0.82) * 0.92))), transparent 40%),
+      radial-gradient(circle at 70% 86%, rgba(255, 188, 126, min(1, calc(var(--backdrop-strength, 0.78) * 0.12))), transparent 34%),
+      linear-gradient(135deg, rgb(var(--sky-blue-base-rgb, 86, 158, 240)) 0%, rgb(var(--sky-blue-low-rgb, 156, 207, 246)) 56%, #d8ecff 100%);
     color: var(--ink);
     font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -101,14 +101,14 @@
     z-index: 8;
     opacity: 1;
     background:
-      radial-gradient(circle at 14% 18%, rgba(var(--sky-blue-strong-rgb, 28, 99, 205), min(1, calc(var(--backdrop-strength, 0.78) * var(--sky-blue-depth, 0.58) * 0.38))), transparent 34%),
-      radial-gradient(circle at 88% 12%, rgba(255, 218, 158, min(1, calc(var(--backdrop-strength, 0.78) * 0.46))), transparent 34%),
-      radial-gradient(circle at 72% 88%, rgba(255, 190, 128, min(1, calc(var(--backdrop-strength, 0.78) * 0.16))), transparent 36%),
+      radial-gradient(circle at 14% 18%, rgba(var(--sky-blue-strong-rgb, 28, 99, 205), min(1, calc(var(--backdrop-strength, 0.78) * var(--sky-blue-depth, 0.82) * 0.56))), transparent 38%),
+      radial-gradient(circle at 88% 12%, rgba(255, 218, 158, min(1, calc(var(--backdrop-strength, 0.78) * 0.28))), transparent 32%),
+      radial-gradient(circle at 72% 88%, rgba(255, 190, 128, min(1, calc(var(--backdrop-strength, 0.78) * 0.08))), transparent 34%),
       radial-gradient(
         ellipse at center,
         rgba(224, 241, 255, 0) 48%,
-        rgba(224, 241, 255, min(1, calc(var(--backdrop-strength, 0.78) * 0.24))) 78%,
-        rgba(255, 238, 212, min(1, calc(var(--backdrop-strength, 0.78) * 0.58))) 100%
+        rgba(190, 224, 255, min(1, calc(var(--backdrop-strength, 0.78) * 0.18))) 78%,
+        rgba(214, 235, 255, min(1, calc(var(--backdrop-strength, 0.78) * 0.34))) 100%
       ),
       radial-gradient(
         ellipse at center,

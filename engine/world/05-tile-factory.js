@@ -57,6 +57,12 @@
     return customMaterial(base, shaded) || base;
   }
 
+  function terrainCellVariantMaterial(base, terrain, materialName, x, z, salt = 0) {
+    return (typeof terrainSheetVariantMaterial === 'function')
+      ? terrainSheetVariantMaterial(base, terrain, materialName, x, z, salt)
+      : base;
+  }
+
   function voxelTreeLeafMaterials() {
     return [
       M.leaves,
@@ -70,40 +76,48 @@
 
   function terrainVoxelMaterials(terrain, x = 0, z = 0, terrainN = null) {
     if (terrain === 'path') {
+      const base = terrainCellVariantMaterial(M.path, 'path', 'path', x, z, 1);
+      const trim = terrainCellVariantMaterial(M.pathTrim, 'path', 'pathTrim', x, z, 1);
+      const scuff = terrainCellVariantMaterial(M.pathScuff, 'path', 'pathScuff', x, z, 1);
       return {
-        base: M.path,
-        hi: terrainShadeMaterial(M.path, 10),
-        low: M.pathTrim,
-        edge: M.pathTrim,
-        scuff: M.pathScuff,
+        base,
+        hi: terrainShadeMaterial(base, 10),
+        low: trim,
+        edge: trim,
+        scuff,
       };
     }
     if (terrain === 'water') {
       const flow = waterFlowVectorForCell(x, z, terrainN);
+      const base = terrainCellVariantMaterial(M.water, 'water', 'water', x, z, 2);
+      const dark = terrainCellVariantMaterial(M.waterDk, 'water', 'waterDk', x, z, 2);
       return {
-        base: waterFlowMaterial(M.water, flow.dx, flow.dz),
-        hi: waterFlowMaterial(terrainShadeMaterial(M.water, 16), flow.dx, flow.dz),
-        low: waterFlowMaterial(M.waterDk, flow.dx, flow.dz),
+        base: waterFlowMaterial(base, flow.dx, flow.dz),
+        hi: waterFlowMaterial(terrainShadeMaterial(base, 16), flow.dx, flow.dz),
+        low: waterFlowMaterial(dark, flow.dx, flow.dz),
         edge: M.waterFoam,
-        scuff: waterFlowMaterial(terrainShadeMaterial(M.waterDk, -10), flow.dx, flow.dz),
+        scuff: waterFlowMaterial(terrainShadeMaterial(dark, -10), flow.dx, flow.dz),
       };
     }
     if (terrain === 'dirt') {
+      const base = terrainCellVariantMaterial(M.dirtRich, 'dirt', 'dirtRich', x, z, 3);
       return {
-        base: M.dirtRich,
-        hi: terrainShadeMaterial(M.dirtRich, 18),
-        low: M.dirtRich,
-        edge: terrainShadeMaterial(M.dirtRich, -16),
-        scuff: terrainShadeMaterial(M.dirtRich, 8),
+        base,
+        hi: terrainShadeMaterial(base, 18),
+        low: base,
+        edge: terrainShadeMaterial(base, -16),
+        scuff: terrainShadeMaterial(base, 8),
       };
     }
     if (terrain === 'stone') {
+      const base = terrainCellVariantMaterial(M.stone, 'stone', 'stone', x, z, 4);
+      const dark = terrainCellVariantMaterial(M.stoneDk, 'stone', 'stoneDk', x, z, 4);
       return {
-        base: M.stone,
-        hi: terrainShadeMaterial(M.stone, 14),
-        low: M.stoneDk,
-        edge: M.stoneDk,
-        scuff: terrainShadeMaterial(M.stone, -8),
+        base,
+        hi: terrainShadeMaterial(base, 14),
+        low: dark,
+        edge: dark,
+        scuff: terrainShadeMaterial(base, -8),
       };
     }
     if (terrain === 'lava') {
@@ -133,12 +147,15 @@
         scuff: terrainShadeMaterial(M.snowDk, -10),
       };
     }
+    const grass = terrainCellVariantMaterial(M.grass, 'grass', 'grass', x, z, 5);
+    const grassHi = terrainCellVariantMaterial(M.grassHi, 'grass', 'grassHi', x, z, 5);
+    const grassEdge = terrainCellVariantMaterial(M.grassEdge, 'grass', 'grassEdge', x, z, 5);
     return {
-      base: M.grass,
-      hi: M.grassHi,
-      low: terrainShadeMaterial(M.grass, -10),
-      edge: M.grassEdge,
-      scuff: terrainShadeMaterial(M.grassEdge, -10),
+      base: grass,
+      hi: grassHi,
+      low: terrainShadeMaterial(grass, -10),
+      edge: grassEdge,
+      scuff: terrainShadeMaterial(grassEdge, -10),
     };
   }
 
@@ -160,7 +177,7 @@
         base,
         hi: terrainShadeMaterial(base, 10),
         low: terrainShadeMaterial(base, -12),
-        edge: terrainShadeMaterial(base, -8),
+        edge: M.grassEdge || terrainShadeMaterial(base, -8),
       };
     }
     return {

@@ -560,7 +560,7 @@ if (/\.minimap-wrap\.collapsed\s*\{[^}]*translateX/.test(cssRaw) || !/function c
   fail('minimap must clamp restored/dragged/collapsed positions without translating off-screen');
 }
 const renderDefaults = {
-  'tinyworld:render:version': '27',
+  'tinyworld:render:version': '28',
   'tinyworld:render:resolution': '0.75',
   'tinyworld:render:dynamicResolution': '1',
   'tinyworld:render:targetFps': '55',
@@ -575,6 +575,8 @@ const renderDefaults = {
   'tinyworld:render:tiltBlur': '2.1',
   'tinyworld:render:tiltFocus': '65',
   'tinyworld:render:planesEnabled': '0',
+  'tinyworld:render:skyBlueDepth': '0.82',
+  'tinyworld:render:skyBlueSaturation': '1.38',
   'tinyworld:render:materialWear': '1.00',
 };
 for (const [key, value] of Object.entries(renderDefaults)) {
@@ -591,8 +593,8 @@ try {
 if (!shippedCamera || !shippedCamera.target || shippedCamera.target.x !== 0 || shippedCamera.target.z !== 0 || !/const DEFAULT_TARGET = new THREE\.Vector3\(0, 0, 0\)/.test(html) || !/clampTargetToHomeBoard\(\);\s*updateCamera\(\);/.test(html)) {
   fail('camera defaults must start centered and clamp stale off-board targets before first render');
 }
-if (!/const RENDER_SETTINGS_VERSION = '27'/.test(html) || !/resolution:\s*'0\.75'/.test(html) || !/dynamicResolution:\s*'1'/.test(html) || !/targetFps:\s*'55'/.test(html) || !/brightness:\s*'1\.18'/.test(html) || !/tiltBlur:\s*'2\.1'/.test(html) || !/tiltFocus:\s*'65'/.test(html) || !/materialWear:\s*'1'/.test(html)) {
-  fail('hard-coded render defaults must match the shipped v27 defaults');
+if (!/const RENDER_SETTINGS_VERSION = '28'/.test(html) || !/resolution:\s*'0\.75'/.test(html) || !/dynamicResolution:\s*'1'/.test(html) || !/targetFps:\s*'55'/.test(html) || !/brightness:\s*'1\.18'/.test(html) || !/skyBlueDepth:\s*'0\.82'/.test(html) || !/skyBlueSaturation:\s*'1\.38'/.test(html) || !/tiltBlur:\s*'2\.1'/.test(html) || !/tiltFocus:\s*'65'/.test(html) || !/materialWear:\s*'1'/.test(html)) {
+  fail('hard-coded render defaults must match the shipped v28 defaults');
 }
 if (!/<div id="welcome-modal" class="modal launch-modal" hidden aria-hidden="true">[\s\S]*<img class="welcome-logo" src="assets\/twlogo\.png" alt="Tiny World Builder"[\s\S]*id="welcome-tinyverse"[^>]*>Tinyverse<\/button>[\s\S]*id="welcome-battleworlds"[^>]*>Battleworlds<\/button>[\s\S]*id="welcome-build"[^>]*>Build<\/button>[\s\S]*id="welcome-play"[^>]*>Play<\/button>[\s\S]*class="welcome-credit"[\s\S]*Created by Jason Kneen[\s\S]*https:\/\/x\.com\/jasonkneen[\s\S]*@jasonkneen[\s\S]*https:\/\/x\.com\/tinyworldsapp[\s\S]*@tinyworldsapp/.test(htmlRaw)) {
   fail('welcome launcher must render the Tiny World logo, Tinyverse/Battleworlds/Build/Play buttons, creator credit, and social links');
