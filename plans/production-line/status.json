@@ -216,6 +216,11 @@
   ],
   "feed": [
     {
+      "ts": "2026-06-27T09:57:15.257Z",
+      "kind": "tick",
+      "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-27T09-57-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
+    },
+    {
       "ts": "2026-06-27T09:11:15.160Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"Merge branch 'main-jason'\" -> plans/production-line/drafts/2026-06-27T09-11-merge-branch-main-jason.md. ECONOMY TRIPWIRE: packages/tinyworld-mmo-core/src/economy.js"
@@ -409,12 +414,7 @@
       "ts": "2026-06-25T09:25:40.016Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-06-25T09-25-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
-    },
-    {
-      "ts": "2026-06-25T07:29:59.532Z",
-      "kind": "tick",
-      "text": "Autonomous tick (safe scope): drafted news/tweet for \"Merge branch 'main' of https://github.com/jasonkneen/tiny-world-builder\" -> plans/production-line/drafts/2026-06-25T07-29-merge-branch-main-of-https-github-com-jasonkneen.md. No economy paths touched."
     }
   ],
-  "lastTick": "2026-06-27T09:11:15.160Z"
+  "lastTick": "2026-06-27T09:57:15.257Z"
 }
