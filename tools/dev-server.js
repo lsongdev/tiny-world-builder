@@ -241,6 +241,7 @@ const EXCLUDED_DEFAULT_KEY_PATTERNS = [
   /^tinyworld:audio:music-track$/,     // per-user manual music choice
   /^tinyworld:audio:music-mode$/,      // random vs manual music mode
   /^tinyworld:welcome:dismissedId$/,   // per-user welcome dismissal
+  /^tinyworld:onboarding:driver\.v\d+$/, // per-user Driver.js tour dismissal
   /:backup$/,                          // explicit backups
   // Panel/widget positions — inherently viewport-specific. Shipping a
   // dev's left:1525 position would land off-screen for users on narrower

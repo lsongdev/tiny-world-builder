@@ -1442,6 +1442,7 @@
       sound: '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>',
       layers: '<svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 16 9 5 9-5"/></svg>',
       settings: '<svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>',
+      guide: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.4 9.1a2.8 2.8 0 0 1 5.3 1.3c0 2-2.7 2.2-2.7 4.1"/><path d="M12 18h.01"/></svg>',
       account: '<svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
     };
     return icons[id] || '';
@@ -1805,6 +1806,10 @@
     }, { posType: 'neutral' }));
     bar.appendChild(buildToolbarUtilityButton('toolbar-settings', 'Settings', 'settings', () => {
       clickLegacyControlButton('render-settings');
+    }, { posType: 'neutral' }));
+    bar.appendChild(buildToolbarUtilityButton('toolbar-guide', 'Guide', 'guide', () => {
+      const guide = window.__tinyworldOnboarding;
+      if (guide && typeof guide.start === 'function') guide.start({ force: true });
     }, { posType: 'neutral' }));
     bar.appendChild(buildToolbarUtilityButton('toolbar-account', 'My account', 'account', () => {
       clickLegacyControlButton('account-btn');
