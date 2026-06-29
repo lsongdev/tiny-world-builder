@@ -2944,6 +2944,19 @@ syncTinyworldOwnerToolControls();
       if (min < 1080) return 'tod-day';                  // 08:00 - 18:00
       return 'tod-dusk';                                 // 18:00 - 21:00
     }
+    function isSunriseHours(min) {
+      return todClassFromMinutes(clampTodMinutes(min)) === 'tod-dawn';
+    }
+    function syncSunStrengthControlVisibility() {
+      const control = document.querySelector('.sun-strength-control');
+      if (!control) return;
+      const flagOn = !!(window.__tinyworldFlags && window.__tinyworldFlags.feature
+        && window.__tinyworldFlags.feature.sunSlider);
+      const show = flagOn && isSunriseHours(currentTodMinutes);
+      control.hidden = !show;
+      control.setAttribute('aria-hidden', show ? 'false' : 'true');
+    }
+    window.__tinyworldSyncSunStrengthControl = syncSunStrengthControlVisibility;
     function isUiAfterHours(min) {
       return min >= 1080 || min < 480;
     }
@@ -2963,6 +2976,7 @@ syncTinyworldOwnerToolControls();
       document.body.classList.add(todClassFromMinutes(min));
       applyUiThemeMode();
       applyLights();
+      syncSunStrengthControlVisibility();
       if (typeof updateAllBuildingWindowLights === 'function') updateAllBuildingWindowLights();
       if (typeof requestMinimapRepaint === 'function') requestMinimapRepaint();
     }

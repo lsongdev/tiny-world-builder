@@ -7,6 +7,16 @@ const multiplayerJs = readFileSync(new URL('../engine/world/38-multiplayer-party
 const html = readFileSync(new URL('../tiny-world-builder.html', import.meta.url), 'utf8');
 const i18nEn = readFileSync(new URL('../engine/i18n/en.js', import.meta.url), 'utf8');
 
+test('sun strength slider only appears during sunrise hours when enabled', () => {
+  assert.match(bootJs, /function isSunriseHours\(min\)/);
+  assert.match(bootJs, /tod-dawn/);
+  assert.match(bootJs, /syncSunStrengthControlVisibility/);
+  assert.match(bootJs, /window\.__tinyworldSyncSunStrengthControl = syncSunStrengthControlVisibility/);
+  assert.match(bootJs, /syncSunStrengthControlVisibility\(\)/);
+  const flagsJs = readFileSync(new URL('../engine/world/00b-feature-flags.js', import.meta.url), 'utf8');
+  assert.match(flagsJs, /__tinyworldSyncSunStrengthControl/);
+});
+
 test('time of day is editable in Build mode and accelerated island cycle in Play mode', () => {
   assert.match(bootJs, /const UK_TIME_ZONE = 'Europe\/London'/);
   assert.match(bootJs, /function ukClockParts\(now\) \{[\s\S]*timeZone: UK_TIME_ZONE/);

@@ -276,7 +276,7 @@
     height: 42px;
     width: 178px;
     box-sizing: border-box;
-    display: inline-flex;
+    display: none;
     align-items: center;
     gap: 8px;
     padding: 0 12px;
@@ -316,6 +316,9 @@
   }
   body.ui-theme-dark .sun-strength-control output {
     color: rgba(244, 247, 255, 0.72);
+  }
+  body.tod-dawn .sun-strength-control:not([hidden]) {
+    display: inline-flex;
   }
   /* Keyboard/mouse tips — discreet pill above the appbar. */
   .tips-panel {

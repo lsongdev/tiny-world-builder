@@ -34,7 +34,7 @@
     stamps: { label: 'Stamps', hint: 'Stamp browser and toolbar button' },
     movableMap: { label: 'Movable Map', hint: 'Draggable minimap under top nav' },
     buildBrush: { label: 'Build Brush', hint: 'Brush shape dock and toolbar' },
-    sunSlider: { label: 'Sun Setting Slider', hint: 'Directional sun strength control' },
+    sunSlider: { label: 'Sun Setting Slider', hint: 'Directional sun strength control during sunrise (06:00–08:00)' },
     weather: { label: 'Weather', hint: 'Weather controls in time popup' },
     elapsingTime: { label: 'Elapsing Time', hint: 'Live UK/BST time progression' },
     generatePrompt: { label: 'Generate from Prompt', hint: 'Separate AI world generator menu' },
@@ -271,7 +271,11 @@
     twGateFeatureModal(['#render-settings'], '#render-modal', enabled.settings);
     twSetElementsHidden(['#stamp-builder', '#stamp-builder-panel', '#toolbar-stamps'], !enabled.stamps);
     twSetElementsHidden(['#brush-mode-dock', '#brush-mode-toolbar'], !enabled.buildBrush);
-    twSetElementsHidden(['.sun-strength-control'], !enabled.sunSlider);
+    if (typeof window.__tinyworldSyncSunStrengthControl === 'function') {
+      window.__tinyworldSyncSunStrengthControl();
+    } else {
+      twSetElementsHidden(['.sun-strength-control'], !enabled.sunSlider);
+    }
     twSetElementsHidden(['#minimap-wrap'], !enabled.movableMap);
     twGateFeatureModal(
       ['[data-feature-flag="generate-prompt"]', '#generate', '.world-menu-item[data-action="generate"]', '#toolbar-generate'],
