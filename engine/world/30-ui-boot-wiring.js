@@ -3594,6 +3594,15 @@ syncTinyworldOwnerToolControls();
       if (!on && isCollectibleSessionActive()) on = true;
       playModeActive = !!on;
       document.body.classList.toggle('tw-play-mode', playModeActive);
+      if (playModeActive) {
+        if (window.__tinyworldIslandViewTimeCycle
+          && typeof window.__tinyworldIslandViewTimeCycle.isIslandViewTimeCycleContext === 'function'
+          && window.__tinyworldIslandViewTimeCycle.isIslandViewTimeCycleContext()) {
+          beginIslandViewTimeCycle();
+        }
+      } else if (!isCollectibleSessionActive()) {
+        endIslandViewTimeCycle();
+      }
       syncBuildPlayButton();
       if (opts.persist !== false) {
         try { localStorage.setItem(BUILD_PLAY_LS, playModeActive ? 'play' : 'build'); } catch (_) {}
@@ -4867,11 +4876,11 @@ syncTinyworldOwnerToolControls();
         this.profile = draftProfile;
         dismissWelcomeLaunchForNewWorld();
         leaveWorldRoomForMenuLoad();
+        if (typeof window.__tinyworldSyncCollectibleChrome === 'function') window.__tinyworldSyncCollectibleChrome();
         if (window.__tinyworldMode && typeof window.__tinyworldMode.setPlay === 'function') {
           window.__tinyworldCollectible._resumeBuild = window.__tinyworldMode.isBuild && window.__tinyworldMode.isBuild();
           window.__tinyworldMode.setPlay();
         }
-        if (typeof window.__tinyworldSyncCollectibleChrome === 'function') window.__tinyworldSyncCollectibleChrome();
         beginIslandViewTimeCycle();
         return true;
       },

@@ -7,7 +7,7 @@ const multiplayerJs = readFileSync(new URL('../engine/world/38-multiplayer-party
 const html = readFileSync(new URL('../tiny-world-builder.html', import.meta.url), 'utf8');
 const i18nEn = readFileSync(new URL('../engine/i18n/en.js', import.meta.url), 'utf8');
 
-test('time of day is editable in Build mode and live UK/BST in Play mode', () => {
+test('time of day is editable in Build mode and accelerated island cycle in Play mode', () => {
   assert.match(bootJs, /const UK_TIME_ZONE = 'Europe\/London'/);
   assert.match(bootJs, /function ukClockParts\(now\) \{[\s\S]*timeZone: UK_TIME_ZONE/);
   assert.match(bootJs, /function ukTodMinutes\(now\) \{/);

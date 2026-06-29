@@ -31,6 +31,8 @@ test('island view time cycle maps 30 real minutes to a full virtual day starting
   assert.equal(cycle.ISLAND_VIEW_CYCLE_MS, 30 * 60 * 1000);
   assert.equal(cycle.ISLAND_VIEW_PHASE_NIGHT_MS, 10 * 60 * 1000);
   assert.equal(cycle.isIslandViewTimeCycleContext(), true);
+  assert.equal(loadCycleApi(['tw-play-mode']).isIslandViewTimeCycleContext(), true);
+  assert.equal(loadCycleApi(['tw-worlds-play']).isIslandViewTimeCycleContext(), true);
   assert.equal(cycle.islandViewTodMinutesFromElapsed(0), 720);
   assert.equal(Math.round(cycle.islandViewTodMinutesFromElapsed(12 * 60 * 1000)), 1260);
   assert.equal(Math.round(cycle.islandViewTodMinutesFromElapsed(22 * 60 * 1000)), 360);
@@ -52,7 +54,9 @@ test('island view night phase stays within 10 real minutes', () => {
 test('builder wires island view cycle module and tick hook', () => {
   assert.match(html, /26c-island-view-time-cycle\.js/);
   assert.match(bootJs, /beginIslandViewTimeCycle/);
+  assert.match(bootJs, /endIslandViewTimeCycle/);
   assert.match(bootJs, /__tinyworldTickIslandViewTime/);
+  assert.match(bootJs, /setPlayModeActive\(on, opts = \{\}\) \{[\s\S]*beginIslandViewTimeCycle\(\)/);
   assert.match(animateJs, /__tinyworldTickIslandViewTime/);
 });
 

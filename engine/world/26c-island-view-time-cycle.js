@@ -11,7 +11,9 @@
     const body = document.body;
     if (!body) return false;
     return body.classList.contains('tinyverse-collectible')
-      || body.classList.contains('random-island-preview-mode');
+      || body.classList.contains('random-island-preview-mode')
+      || body.classList.contains('tw-play-mode')
+      || body.classList.contains('tw-worlds-play');
   }
 
   function islandViewTodMinutesFromElapsed(elapsedMs) {
