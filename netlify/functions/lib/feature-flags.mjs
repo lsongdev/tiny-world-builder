@@ -27,6 +27,7 @@ export const FEATURE_FLAG_IDS = [
   'settingsEnvironment',
   'settingsCrowd',
   'settingsAi',
+  'thirdPersonView',
 ];
 
 export const FEATURE_FLAG_META = {
@@ -55,6 +56,7 @@ export const FEATURE_FLAG_META = {
   settingsEnvironment: { label: 'Settings · Environment', hint: 'Environment tab inside Settings' },
   settingsCrowd: { label: 'Settings · Crowd', hint: 'Crowd tab inside Settings' },
   settingsAi: { label: 'Settings · AI', hint: 'AI config tab inside Settings' },
+  thirdPersonView: { label: 'Third-person View', hint: 'Third-person walk camera option in the view picker' },
 };
 
 export const DEFAULT_FEATURE_FLAGS = {
@@ -83,6 +85,7 @@ export const DEFAULT_FEATURE_FLAGS = {
   settingsEnvironment: { everyone: false, admin: false },
   settingsCrowd: { everyone: false, admin: false },
   settingsAi: { everyone: false, admin: false },
+  thirdPersonView: { everyone: false, admin: false },
 };
 
 function cleanFlagEntry(raw, fallback) {

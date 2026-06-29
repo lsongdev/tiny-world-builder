@@ -91,6 +91,13 @@ svg {
   height: auto;
 }
 
+/* Hidden nav items: Badges, Rewards, Suggest. "Suggest" always links to
+   /features (the Features item uses #features / /#features), so this targets
+   only Suggest. */
+.site-nav a[href="/badges"],
+.site-nav a[href="/rewards"],
+.site-nav a[href="/features"] { display: none !important; }
+
 .site-nav {
   display: flex;
   align-items: center;
@@ -280,6 +287,180 @@ svg {
   z-index: 1;
   width: min(640px, 100%);
   margin-left: max(0px, calc((100vw - 1200px) / 2));
+}
+
+/* Binky mascot — decorative, anchored bottom-right of the hero. The wrapper
+   holds both Binky and her speech bubble so the bubble tracks her. */
+.hero-binky-wrap {
+  position: absolute;
+  z-index: 1;
+  bottom: -3vw;
+  right: max(24px, calc((100vw - 1200px) / 2));
+  width: clamp(300px, 38vw, 560px);
+}
+.hero-binky {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  filter: drop-shadow(0 18px 36px rgba(17, 27, 69, 0.28));
+}
+
+/* Speech bubble above Binky's head, pixel display type, with a tail pointing
+   down toward her. pointer-events stay live so the Claim button works. */
+.hero-speech {
+  position: absolute;
+  bottom: 102%;
+  right: 4%;
+  width: max-content;
+  max-width: 320px;
+  padding: 18px 20px 20px;
+  background: #fffdf3;
+  border: 5px solid #2a2540;
+  border-radius: 14px;
+  box-shadow: 7px 7px 0 rgba(42, 37, 64, 0.28);
+  text-align: center;
+}
+.hero-speech::after {
+  /* tail — points down toward Binky's head (to the lower-left) */
+  content: '';
+  position: absolute;
+  bottom: -16px;
+  left: 38px;
+  width: 22px;
+  height: 22px;
+  background: #fffdf3;
+  border-right: 5px solid #2a2540;
+  border-bottom: 5px solid #2a2540;
+  transform: rotate(45deg);
+}
+.hero-speech-text {
+  margin: 0 0 14px;
+  font-family: var(--display-font);
+  font-size: 19px;
+  line-height: 1.25;
+  color: #2a2540;
+}
+.hero-speech-text strong { color: #155dd4; }
+.hero-speech-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #2d7ef5 0%, var(--accent, #155dd4) 100%);
+  color: #fff;
+  font-family: var(--display-font);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 8px 18px -8px rgba(22, 76, 170, 0.8);
+}
+.hero-speech-cta svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.hero-speech-cta:hover { filter: brightness(1.06); }
+
+/* Below the two-column breakpoint the copy fills the width; hide Binky so it
+   doesn't crowd the text. */
+@media (max-width: 900px) {
+  .hero-binky-wrap { display: none; }
+}
+
+/* Binky mascots peeking in from the page gutter on each home section,
+   alternating left/right down the page. They sit beside the 1200px content
+   box (out in the gutter), so they don't overlap cards or copy. */
+.section-binky {
+  position: absolute;
+  bottom: 0;
+  z-index: 0;
+  width: clamp(160px, 16vw, 250px);
+  height: auto;
+  pointer-events: none;
+  filter: drop-shadow(0 14px 28px rgba(17, 27, 69, 0.22));
+}
+.section-binky--left { right: calc(100% - 26px); }
+.section-binky--right { left: calc(100% - 26px); }
+/* binky_info is a wide (landscape) frame — give it more room. */
+.section-binky--wide { width: clamp(220px, 24vw, 360px); }
+
+/* Once the content box hits the viewport gutters there's no room to peek; hide. */
+@media (max-width: 1320px) {
+  .section-binky { display: none; }
+}
+
+/* Binky on the simple page headers (docs / worlds / news). Anchored to the
+   inner edge of the centred hero so she stays visible across widths — the
+   page title is centred, leaving the sides free. */
+.page-binky {
+  position: absolute;
+  /* Sit below the fixed header row, in the side margin beside the centred
+     title — the top corners are taken by the logo (left) and nav (right). */
+  top: 96px;
+  bottom: auto;
+  z-index: 1;
+  width: clamp(150px, 14vw, 220px);
+  height: auto;
+  pointer-events: none;
+  filter: drop-shadow(0 14px 28px rgba(17, 27, 69, 0.22));
+}
+.page-binky--left { left: 0; }
+.page-binky--right { right: 0; }
+/* News header is shallow; drop Binky down beside the intro paragraph. */
+.page-binky--intro { top: 176px; }
+@media (max-width: 1040px) {
+  .page-binky { display: none; }
+}
+
+/* Binky figures that live INSIDE a CTA banner (not in the gutter). */
+.cta-figure {
+  height: auto;
+  pointer-events: none;
+  filter: drop-shadow(0 14px 28px rgba(17, 27, 69, 0.22));
+}
+
+/* Economy banner: stack the two buttons and let Binky sit at the bottom-right
+   of the banner, reading her map. */
+.cta-actions--stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+.cta-actions--stack .primary-action,
+.cta-actions--stack .secondary-action {
+  justify-content: center;
+}
+.cta-section.cta-section--book {
+  padding-right: 210px;
+}
+.cta-figure--book {
+  position: absolute;
+  right: 18px;
+  bottom: 0;
+  width: 176px;
+  z-index: 0;
+}
+
+/* Final banner: Binky centred along the bottom edge, in the empty middle
+   between the copy (left) and the buttons (right). */
+.cta-figure--center {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: clamp(240px, 26vw, 340px);
+  z-index: 0;
+}
+
+@media (max-width: 900px) {
+  /* Tight layouts: drop the in-banner figures so they don't crowd content. */
+  .cta-figure { display: none; }
+  .cta-section.cta-section--book { padding-right: 30px; }
 }
 
 .hero-copy h1 {
@@ -1372,6 +1553,7 @@ svg {
 /* -------- roadmap page -------- */
 
 .page-hero-section {
+  position: relative;
   width: min(1200px, calc(100% - 48px));
   margin: 0 auto;
   padding: 124px 0 56px;
@@ -1475,6 +1657,7 @@ svg {
 /* -------- docs page -------- */
 
 .docs-section {
+  position: relative;
   width: min(1200px, calc(100% - 48px));
   margin: 0 auto;
   padding: 8px 0 64px;

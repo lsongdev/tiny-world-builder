@@ -51,6 +51,20 @@
     padding: 0 0 0 48px;
     position: relative;
   }
+  /* Reporter Binky perched on the top-left, sitting flush on the first card. */
+  .news-binky {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    width: clamp(220px, 24vw, 340px);
+    height: auto;
+    pointer-events: none;
+    z-index: 2;
+    filter: drop-shadow(0 14px 28px rgba(17, 27, 69, 0.22));
+  }
+  @media (max-width: 860px) {
+    .news-binky { display: none; }
+  }
   /* The connecting spine: a neutral soft line so the coloured dots read
      against it without clashing. */
   .news-timeline::before {
@@ -155,6 +169,16 @@
     line-height: 1.65;
   }
   .news-entry p:last-child { margin-bottom: 0; }
+  .news-list {
+    margin: 0 0 12px;
+    padding-left: 22px;
+    max-width: 74ch;
+    color: var(--ink);
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  .news-list li { margin: 0 0 7px; }
+  .news-list li:last-child { margin-bottom: 0; }
   .news-quote {
     margin: 14px 0 0;
     max-width: 74ch;
@@ -228,10 +252,51 @@
       <p class="news-intro">
         Tiny World Builder started as a tiny voxel editor in May 2026. Since then it has grown
         into a whole tinyverse you can build, fly through, and explore with other people. This is
-        the story of how we got here, newest first, with WAVE 1 arriving and WAVE 2 on the way.
+        the story of how we got here, newest first, with WAVE 2 here and WAVE 3 on the way.
       </p>
 
       <ol class="news-timeline">
+        <img class="news-binky" src="assets/binky_news.png" alt="" aria-hidden="true" loading="lazy" width="1536" height="1024" />
+
+        <li class="news-entry is-featured cat-tinyverse" id="wave2-shipped">
+          <div class="news-meta">
+            <span class="news-date">June 29, 2026</span>
+            <span class="news-tag">Wave 2</span>
+          </div>
+          <h2>Wave 2 is here — the Tinyverse takes shape</h2>
+          <p>
+            Wave 2 is live, and it delivers on the promise we made: turning
+            <strong>Tinyverse</strong> into the home for your island collection. The loop is
+            now real — discover a tiny world, read its traits, sense its potential, and make it
+            yours. This is the foundation every future wave builds on.
+          </p>
+
+          <h3>What shipped in Wave 2</h3>
+          <ul class="news-list">
+            <li><strong>Tinyverse as home base</strong> — a single place for the islands you collect, explore, and show off.</li>
+            <li><strong>Island reveal &amp; discovery flow</strong> — a proper moment of finding a new world, not just loading one.</li>
+            <li><strong>Unique generated 8&times;8 floating islands</strong> — every island is its own, no two alike.</li>
+            <li><strong>Rarity, traits &amp; identity</strong> — islands now have character: one strong in food, one built to defend, one simply rare and beautiful.</li>
+            <li><strong>Economic potential previews</strong> — readable value on every island, so you can sense what it could become before the deeper economy arrives.</li>
+            <li><strong>Stable vs experimental, clearly split</strong> — the polished core stays understandable while new ideas get room to be tested.</li>
+          </ul>
+
+          <h3>Under the hood</h3>
+          <p>
+            The island generator got a cleaner technical foundation too: stronger day-night sun
+            lighting, flatter and more buildable generated terrain, merged terrain surfaces for
+            far lower draw calls, fewer no-effect props cluttering generated islands, a simpler
+            non-build generation flow, and a progress bar so even large islands render without
+            freezing the screen.
+          </p>
+
+          <h3>Next: Wave 3</h3>
+          <p>
+            With the collection foundation in place, Wave 3 begins building on top of it — deeper
+            island identity and the first steps toward a living economy. The countdown is on:
+            <strong>Wave 3 lands in 7 days.</strong>
+          </p>
+        </li>
 
         <li class="news-entry is-featured cat-tinyverse" id="wave2-message">
           <div class="news-meta">

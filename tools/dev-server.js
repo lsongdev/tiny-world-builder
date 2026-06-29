@@ -232,7 +232,7 @@ const FEATURE_FLAG_IDS = [
   'weather', 'elapsingTime', 'generatePrompt', 'spotlights', 'connections', 'lamps',
   'lava', 'developerSettings', 'playersMenu', 'partyCreation', 'playerSearch',
   'settingsWorkspace', 'settingsRendering', 'settingsWorld', 'settingsMaterials',
-  'settingsEnvironment', 'settingsCrowd', 'settingsAi',
+  'settingsEnvironment', 'settingsCrowd', 'settingsAi', 'thirdPersonView',
 ];
 
 const DEFAULT_FEATURE_FLAGS = {
@@ -261,6 +261,7 @@ const DEFAULT_FEATURE_FLAGS = {
   settingsEnvironment: { everyone: false, admin: false },
   settingsCrowd: { everyone: false, admin: false },
   settingsAi: { everyone: false, admin: false },
+  thirdPersonView: { everyone: false, admin: false },
 };
 
 const WORLD_ADMIN_EMAILS = new Set([

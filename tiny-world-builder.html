@@ -137,6 +137,32 @@
     <span class="token-corner-text"><span class="ticker">$TINYWORLD</span><span class="token-sep">·</span><span class="ca">CA: 7bK4jRMa3aY85wJMQEQqWsmY9mmrRT32AFWZ23cBpump</span></span>
   </div>
 
+  <!-- Explorer Binky: prompt to go unpack/claim worlds. Bottom-left of the build screen. -->
+  <div class="unpack-prompt" id="unpack-prompt">
+    <button type="button" class="unpack-prompt-close" id="unpack-prompt-close" aria-label="Dismiss">&times;</button>
+    <a class="unpack-prompt-bubble" href="/card_reveal">
+      <span class="unpack-prompt-text">Time to claim your <strong>FREE</strong> worlds!</span>
+      <span class="unpack-prompt-cta">Unpack now
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+      </span>
+    </a>
+    <img class="unpack-prompt-binky" src="assets/binky_explore1.png" alt="" aria-hidden="true" width="1414" height="1113" />
+  </div>
+  <script>
+    (function () {
+      var KEY = 'tinyworld:unpack-prompt-dismissed.v1';
+      var el = document.getElementById('unpack-prompt');
+      var x = document.getElementById('unpack-prompt-close');
+      if (!el || !x) return;
+      try { if (localStorage.getItem(KEY) === '1') el.hidden = true; } catch (_) {}
+      x.addEventListener('click', function (e) {
+        e.preventDefault();
+        el.hidden = true;
+        try { localStorage.setItem(KEY, '1'); } catch (_) {}
+      });
+    }());
+  </script>
+
   <!-- View modes popup -->
   <div class="topbar-popup" id="view-popup" hidden role="menu">
     <div class="topbar-popup-title" data-i18n="view.title">Camera view</div>
@@ -158,7 +184,7 @@
       </span>
       <span class="view-body"><strong data-i18n="view.perspective">Perspective</strong><em data-i18n="view.perspective.desc">close orbit</em></span>
     </button>
-    <button class="view-option" data-view="tp" role="menuitem">
+    <button class="view-option" data-view="tp" role="menuitem" data-feature-flag="third-person-view" hidden aria-hidden="true" tabindex="-1">
       <span class="view-thumb" aria-hidden="true">
         <svg viewBox="0 0 32 28" width="36" height="32"><circle cx="16" cy="13" r="3" fill="#cdb98a"/><path d="M14 17h4l2 7h-8z" fill="#a08454"/><path d="M8 19l8-5 8 5" stroke="#8a6f44" stroke-width="1.5" fill="none"/><path d="M16 6 23 3" stroke="#6f87a8" stroke-width="1.5" stroke-linecap="round"/></svg>
       </span>

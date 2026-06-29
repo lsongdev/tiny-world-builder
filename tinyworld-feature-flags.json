@@ -26,6 +26,7 @@
     "settingsMaterials": { "everyone": false, "admin": false },
     "settingsEnvironment": { "everyone": false, "admin": false },
     "settingsCrowd": { "everyone": false, "admin": false },
-    "settingsAi": { "everyone": false, "admin": false }
+    "settingsAi": { "everyone": false, "admin": false },
+    "thirdPersonView": { "everyone": false, "admin": false }
   }
 }

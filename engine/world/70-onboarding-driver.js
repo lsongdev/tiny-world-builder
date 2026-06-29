@@ -75,13 +75,14 @@
       step('#app', 'bottom', 'center', 'Your TinyWorld canvas', 'Orbit with left-drag, pan with right-drag or Space-drag, and zoom with the wheel or pinch. The home island is where building happens.'),
       step('#world-menu-btn', 'bottom', 'center', 'World menu', 'Open saved worlds, switch worlds, and manage the current build from here.'),
       step('#toolbar-build-play-mode', 'top', 'center', 'Build or play', 'Build mode edits the island. Play mode hides build controls so you can explore what you made.'),
-      step('#toolbar-stamps', 'top', 'center', 'Stamps', 'Place reusable models and voxel stamps without leaving the main build flow.'),
+      step('#unpack-prompt', 'top', 'start', 'Claim free worlds', 'Open a free pack to reveal and collect your very first tiny island — yours to keep.'),
       step('.tool-group-btn[data-group="terrain"]', 'top', 'center', 'Terrain tools', 'Paint grass, paths, water, stone, dirt, snow, sand, lava, rocks, and mesh terrain from one grouped menu.'),
       step('.tool-group-btn[data-group="build"]', 'top', 'center', 'Buildings', 'Drop houses, towers, bridges, fences, roofs, and city pieces, then use Select to edit details.'),
       step('#toolbar-view-modes', 'top', 'center', 'Camera views', 'Switch between perspective, walk modes, and overhead views when you need a different angle.'),
       step('#toolbar-layers', 'top', 'center', 'World items', 'Open the scene list and properties panel to find, select, and tune placed objects.'),
       step('#minimap-wrap', 'left', 'center', 'Minimap', 'Use the minimap to keep your bearings and jump around larger boards.'),
       step('#toolbar-settings', 'top', 'center', 'Settings', 'Tune workspace size, rendering quality, materials, environment, controls, and other app defaults.'),
+      step('#sound-icon', 'top', 'center', 'Sound', 'Toggle music and effects and tune the volume to taste.'),
       step('#toolbar-guide', 'top', 'center', 'Replay this guide', 'Use this Guide button whenever you want to run the onboarding again.'),
     ];
     return raw.filter(item => isElementUsable(item.element));
@@ -112,6 +113,18 @@
       prevBtnText: 'Back',
       doneBtnText: 'Done',
       popoverClass: 'tinyworld-driver-popover',
+      onPopoverRender: (popover) => {
+        try {
+          const wrap = popover && popover.wrapper;
+          if (!wrap || wrap.querySelector('.tw-tour-binky')) return;
+          const img = document.createElement('img');
+          img.className = 'tw-tour-binky';
+          img.src = 'assets/binky_thumbs.png';
+          img.alt = '';
+          img.setAttribute('aria-hidden', 'true');
+          wrap.appendChild(img);
+        } catch (_) {}
+      },
       onDestroyed: () => {
         activeTour = null;
         if (!force) markDone();

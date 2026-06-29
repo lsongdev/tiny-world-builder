@@ -25,6 +25,7 @@
     'settingsEnvironment',
     'settingsCrowd',
     'settingsAi',
+    'thirdPersonView',
   ];
 
   const TW_FEATURE_FLAG_META = {
@@ -53,6 +54,7 @@
     settingsEnvironment: { label: 'Settings · Environment', hint: 'Environment tab inside Settings' },
     settingsCrowd: { label: 'Settings · Crowd', hint: 'Crowd tab inside Settings' },
     settingsAi: { label: 'Settings · AI', hint: 'AI config tab inside Settings' },
+    thirdPersonView: { label: 'Third-person View', hint: 'Third-person walk camera option in the view picker' },
   };
 
   const TW_SETTINGS_SECTION_FLAG_IDS = {
@@ -91,6 +93,7 @@
     settingsEnvironment: { everyone: false, admin: false },
     settingsCrowd: { everyone: false, admin: false },
     settingsAi: { everyone: false, admin: false },
+    thirdPersonView: { everyone: false, admin: false },
   };
 
   const TW_FEATURE_FLAG_TOOL_IDS = {
@@ -277,6 +280,15 @@
       twSetElementsHidden(['.sun-strength-control'], !enabled.sunSlider);
     }
     twSetElementsHidden(['#minimap-wrap'], !enabled.movableMap);
+    twSetElementsHidden(['.view-option[data-view="tp"]'], !enabled.thirdPersonView);
+    // If third-person is gated off but the active camera is third-person
+    // (e.g. restored from a saved world or set before flags resolved),
+    // drop back to first-person.
+    if (!enabled.thirdPersonView
+      && typeof cameraMode !== 'undefined' && cameraMode === 'tp'
+      && typeof setCameraMode === 'function') {
+      try { setCameraMode('fp'); } catch (_) {}
+    }
     twGateFeatureModal(
       ['[data-feature-flag="generate-prompt"]', '#generate', '.world-menu-item[data-action="generate"]', '#toolbar-generate'],
       '#gen-modal',

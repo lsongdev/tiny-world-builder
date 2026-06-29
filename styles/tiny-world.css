@@ -5314,10 +5314,109 @@
   .view-body strong { font-size: 12.5px; font-weight: 500; color: var(--ink); }
   .view-body em { font-style: normal; font-size: 11px; color: var(--muted); }
 
+  /* Explorer Binky unpack prompt — bottom-left of the build screen. */
+  .unpack-prompt {
+    position: fixed;
+    left: 16px;
+    bottom: 82px;
+    z-index: 40;
+    width: 230px;
+    pointer-events: none;
+  }
+  .unpack-prompt[hidden] { display: none !important; }
+  .unpack-prompt-binky {
+    display: block;
+    width: 100%;
+    height: auto;
+    pointer-events: auto;
+    filter: drop-shadow(0 14px 26px rgba(8, 14, 30, 0.55));
+  }
+  .unpack-prompt-bubble {
+    position: absolute;
+    left: 124px;
+    bottom: 150px;
+    width: max-content;
+    max-width: 240px;
+    padding: 15px 17px 17px;
+    background: #fffdf3;
+    border: 5px solid #2a2540;
+    border-radius: 14px;
+    box-shadow: 6px 6px 0 rgba(8, 14, 30, 0.4);
+    text-align: center;
+    text-decoration: none;
+    pointer-events: auto;
+  }
+  .unpack-prompt-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -15px;
+    left: 26px;
+    width: 20px;
+    height: 20px;
+    background: #fffdf3;
+    border-right: 5px solid #2a2540;
+    border-bottom: 5px solid #2a2540;
+    transform: rotate(45deg);
+  }
+  .unpack-prompt-text {
+    display: block;
+    margin-bottom: 12px;
+    font-family: var(--display-font, 'Space Grotesk', system-ui, sans-serif);
+    font-size: 18px;
+    line-height: 1.25;
+    color: #2a2540;
+  }
+  .unpack-prompt-text strong { color: #155dd4; }
+  .unpack-prompt-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #2d7ef5 0%, #155dd4 100%);
+    color: #fff;
+    font-family: var(--display-font, 'Space Grotesk', system-ui, sans-serif);
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .unpack-prompt-cta svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .unpack-prompt-bubble:hover .unpack-prompt-cta { filter: brightness(1.06); }
+  .unpack-prompt-close {
+    position: absolute;
+    left: 0;
+    bottom: 170px;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 2px solid #2a2540;
+    border-radius: 7px;
+    background: #fffdf3;
+    color: #2a2540;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 1;
+  }
+  /* Hide the prompt in non-build presentation modes. */
+  body.showcase .unpack-prompt,
+  body.random-island-preview-mode .unpack-prompt,
+  body.tw-worlds-play .unpack-prompt,
+  body.xr-active .unpack-prompt { display: none !important; }
+
   .live-time-clock {
     position: fixed;
     top: 14px;
-    right: 14px;
+    /* Sit left of the top-right corner chrome (Menu button) so they don't overlap. */
+    right: 104px;
     z-index: 24;
     display: inline-flex;
     align-items: center;
@@ -10785,6 +10884,16 @@ body.surface-roam-fp { cursor: none; }
 }
 .driver-popover.tinyworld-driver-popover * {
   font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+}
+/* Binky peeking from the top-right corner of each tour card. */
+.driver-popover.tinyworld-driver-popover .tw-tour-binky {
+  position: absolute;
+  top: -54px;
+  right: -6px;
+  width: 76px;
+  height: auto;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 12px rgba(42, 39, 34, 0.45));
 }
 .driver-popover.tinyworld-driver-popover .driver-popover-title {
   padding-right: 32px;

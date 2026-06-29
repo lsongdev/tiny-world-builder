@@ -2919,6 +2919,12 @@
     const requested = mode === 'soft' ? 'perspective' : mode;
     let effective = ['ortho', 'topdown', 'perspective', 'tp', 'fp'].includes(requested) ? requested : 'perspective';
     if (effective === 'ortho' || effective === 'topdown') effective = 'perspective';
+    // Third-person walk is behind a feature flag (default off); fall back to first-person.
+    if (effective === 'tp') {
+      const ff = window.__tinyworldFeatureFlagsApi;
+      const tpOn = ff && typeof ff.isEnabled === 'function' ? ff.isEnabled('thirdPersonView') : false;
+      if (!tpOn) effective = 'fp';
+    }
     if (effective !== 'fp' && effective !== 'tp' && fp.active) exitFP();
     cameraMode = effective;
     camera = cameraMode === 'ortho' ? orthoCam

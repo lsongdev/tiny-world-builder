@@ -249,7 +249,7 @@
   }
   body.tinyverse-hub-active .tv-hub-shell,
   body.tinyverse-gate-locked:not(.tinyverse-theater-active) .tinyverse-auth-gate {
-    padding-top: 78px;
+    padding-top: 122px;
   }
 
   .tv-hub-shell {
@@ -465,6 +465,23 @@
     list-style: none; display: flex; flex-direction: column; gap: 8px;
     max-height: min(72vh, 640px); overflow: auto; padding-right: 2px;
   }
+  .tv-activity-empty {
+    padding: 18px 12px; text-align: center; color: #8a8478; font-size: 13px;
+    line-height: 1.5; background: rgba(255,255,255,0.4);
+    border: 1px dashed rgba(120,110,90,0.35); border-radius: 14px;
+  }
+  /* Binky pulling cards — decorative, bottom-right of the unpack screen. */
+  .reveal-binky-cards {
+    position: fixed;
+    right: 8px;
+    bottom: 0;
+    width: clamp(300px, 30vw, 480px);
+    height: auto;
+    z-index: 2;
+    pointer-events: none;
+    filter: drop-shadow(0 16px 30px rgba(8, 14, 30, 0.45));
+  }
+  @media (max-width: 1180px) { .reveal-binky-cards { display: none; } }
   .tv-activity-item {
     display: grid; grid-template-columns: 36px 1fr; gap: 10px; align-items: start;
     padding: 10px; border-radius: 14px;
@@ -560,6 +577,7 @@
 </style>
 </head>
 <body class="tinyverse-reveal-page tinyverse-gate-locked tinyverse-chrome-active">
+<img class="reveal-binky-cards" src="assets/binky_cards.png" alt="" aria-hidden="true" width="1373" height="1145" />
 <button type="button" class="brand brand-home-btn" id="brand-home-btn" data-pos-type="neutral" data-tooltip="Home" data-i18n-tooltip="chrome.home" aria-label="Home" data-i18n-aria-label="chrome.home">
   <img class="brand-logo" src="assets/twlogo-wordmark.png" alt="" width="1064" height="403" aria-hidden="true">
 </button>

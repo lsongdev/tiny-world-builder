@@ -162,16 +162,8 @@
   }
 
   function seedActivityEvents() {
-    activityEvents = [
-      createActivityEvent(8),
-      createActivityEvent(24),
-      createActivityEvent(41),
-      createActivityEvent(63),
-      createActivityEvent(88),
-      createActivityEvent(112),
-      createActivityEvent(146),
-      createActivityEvent(181),
-    ];
+    // Only real opens are shown — no simulated/preview activity.
+    activityEvents = [];
   }
 
   function pushActivityEvent() {
@@ -265,9 +257,11 @@
             '<h2>Live opens</h2>' +
             '<span class="tv-activity-live">Live</span>' +
           '</div>' +
-          '<p class="tv-activity-sub">Simulated activity for tonight\'s preview — real multiplayer opens land later.</p>' +
+          '<p class="tv-activity-sub">Live pack opens from across the tinyverse.</p>' +
           '<ul class="tv-activity-list" id="tvActivityList">' +
-            activityEvents.map(activityItemHtml).join('') +
+            (activityEvents.length
+              ? activityEvents.map(activityItemHtml).join('')
+              : '<li class="tv-activity-empty">No opens yet — be the first to crack a pack.</li>') +
           '</ul>' +
         '</div>' +
       '</aside>'
@@ -278,6 +272,13 @@
     if (!root) return;
     const list = root.querySelector('#tvActivityList');
     if (!list) return;
+    if (!activityEvents.length) {
+      const empty = document.createElement('li');
+      empty.className = 'tv-activity-empty';
+      empty.textContent = 'No opens yet — be the first to crack a pack.';
+      list.replaceChildren(empty);
+      return;
+    }
     list.replaceChildren(...activityEvents.map(evt => createActivityItem(evt)));
   }
 
@@ -305,11 +306,8 @@
 
   function startActivityTicker() {
     stopActivityTicker();
-    activityTicker = setInterval(() => {
-      if (!visible) return;
-      pushActivityEvent();
-      prependActivityItem(activityEvents[0]);
-    }, 9000 + Math.floor(Math.random() * 5000));
+    // No simulated event generation — real opens are pushed via prependActivityItem.
+    // Keep only the age refresher so real entries' timestamps stay current.
     activityAgeTicker = setInterval(() => {
       if (!visible) return;
       refreshActivityAges();
@@ -354,8 +352,8 @@
         '<div class="tv-pack-visual">' +
           '<div class="tv-pack-art-wrap">' +
             '<img class="tv-pack-art" src="' + esc(PACK_ART_URL) + '" alt="" width="280" height="360" decoding="async">' +
-            '<span class="tv-pack-title tv-pack-title-top" aria-hidden="true">?</span>' +
-            '<span class="tv-pack-title tv-pack-title-mid" aria-hidden="true">?</span>' +
+            '<span class="tv-pack-title tv-pack-title-top" aria-hidden="true">????</span>' +
+            '<span class="tv-pack-title tv-pack-title-mid" aria-hidden="true">????</span>' +
           '</div>' +
           '<span class="tv-pack-badge">' + esc(pack.badge) + '</span>' +
           '<span class="tv-pack-cards-label">' + esc(pack.cardsLabel) + '</span>' +
