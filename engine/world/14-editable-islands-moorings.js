@@ -695,6 +695,7 @@
     }
     if (typeof rebuildCropPositions === 'function') rebuildCropPositions();
     if (typeof rebuildMaxPumpkinCache === 'function') rebuildMaxPumpkinCache();
+    const idx = editableIslands.indexOf(island);
     if (idx >= 0) editableIslands.splice(idx, 1);
     editableIslandById.delete(island.id);
     editableIslandByBoardKey.delete(editableIslandBoardKey(island.boardX, island.boardZ));
