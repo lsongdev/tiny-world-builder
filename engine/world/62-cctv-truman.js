@@ -446,7 +446,7 @@
             try { tick(now / 1000, dt); } catch (_) {}
             requestAnimationFrame(driveTick);
           })();
-          console.log('[cctv] demo active — 4 feeds watching the test subject');
+          if (window.__tinyworldDebug) console.log('[cctv] demo active — 4 feeds watching the test subject');
         }, 800));
       }
     } catch (_) {}

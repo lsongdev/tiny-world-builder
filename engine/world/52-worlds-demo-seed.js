@@ -160,7 +160,7 @@
 
       if (added.length > 0) {
         data.cells = [...cells, ...added];
-        console.log('[demo-seed] Seeded rich demo world (' + added.length + ' cells) into', world.slug);
+        if (window.__tinyworldDebug) console.log('[demo-seed] Seeded rich demo world (' + added.length + ' cells) into', world.slug);
       }
       return added;
     }

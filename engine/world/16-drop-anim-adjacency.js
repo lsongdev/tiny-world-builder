@@ -352,41 +352,11 @@
   // morph into castle walls / turrets based on what's placed next to them.
   // The explicit Castle house variant (buildingType 'turret' -> makeTurret) and
   // fence wall/boundary levels (makeFence) are unaffected by this flag.
-  const CASTLE_AUTO_PROMOTION = false;
-  function isTurretHouse(x, z) {
-    if (!CASTLE_AUTO_PROMOTION) return false;
-    if (getWorldCell(x, z).kind !== 'house') return false;
-    const n = getWorldCell(x, z - 1);
-    const s = getWorldCell(x, z + 1);
-    const e = getWorldCell(x + 1, z);
-    const w = getWorldCell(x - 1, z);
-    const fN = n.kind === 'fence' && normalizeFenceSide(n.fenceSide) === 's';
-    const fS = s.kind === 'fence' && normalizeFenceSide(s.fenceSide) === 'n';
-    const fE = e.kind === 'fence' && normalizeFenceSide(e.fenceSide) === 'w';
-    const fW = w.kind === 'fence' && normalizeFenceSide(w.fenceSide) === 'e';
-    return (fN && fE) || (fN && fW) || (fS && fE) || (fS && fW);
-  }
-
-  function isCastleFence(x, z) {
-    if (!CASTLE_AUTO_PROMOTION) return false;
-    if (getWorldCell(x, z).kind !== 'fence') return false;
-    const seen = new Set();
-    const stack = [[x, z]];
-    seen.add(x + ',' + z);
-    while (stack.length) {
-      const [cx, cz] = stack.pop();
-      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const nx = cx + dx, nz = cz + dz;
-        if (isTurretHouse(nx, nz)) return true;
-        const k = nx + ',' + nz;
-        if (getWorldCell(nx, nz).kind === 'fence' && !seen.has(k)) {
-          seen.add(k);
-          stack.push([nx, nz]);
-        }
-      }
-    }
-    return false;
-  }
+  // Castle auto-promotion (fence→castle-wall, house→turret based on fence adjacency)
+  // is permanently disabled. The functions remain as no-ops so call sites in
+  // 09b/17/18/07 don't need changes, but the expensive neighbor scans are gone.
+  function isTurretHouse(x, z) { return false; }
+  function isCastleFence(x, z) { return false; }
 
   function isClusterableHouseCell(cell) {
     return !!(cell && cell.kind === 'house' && !cell.buildingType);

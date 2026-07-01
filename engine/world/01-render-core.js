@@ -814,7 +814,7 @@
     }
   }
 
-  var landscapeGhostBoardsSuppressed = false;
+  let landscapeGhostBoardsSuppressed = false;
   function ghostBoardsEnabledForGrid() {
     return false;
   }

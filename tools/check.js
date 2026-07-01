@@ -744,7 +744,7 @@ if (!fs.existsSync(path.join(root, 'assets', 'twlogo.png')) || !/if \[\[ -d asse
 if (!/#account-modal \.modal-card/.test(cssRaw) || !/#profile-photo-file::file-selector-button/.test(cssRaw) || !/#account-modal \.tab-bar button\.active/.test(cssRaw)) {
   fail('account modal must use scoped block-button styling, including the photo picker');
 }
-if (!/var CLOUD_OCCLUSION_RENDER_ORDER = 18/.test(html) || !/mesh\.renderOrder = CLOUD_OCCLUSION_RENDER_ORDER/.test(html) || !/foreground clouds veil full-opacity terrain/.test(html)) {
+if (!/(?:var|const|let) CLOUD_OCCLUSION_RENDER_ORDER = 18/.test(html) || !/mesh\.renderOrder = CLOUD_OCCLUSION_RENDER_ORDER/.test(html) || !/foreground clouds veil full-opacity terrain/.test(html)) {
   fail('foreground clouds must render late enough to obscure terrain while keeping depth testing');
 }
 if (!/function queueActiveSnapshotUpdate/.test(html) || !/window\.addEventListener\('tinyworld:world-changed', queueActiveSnapshotUpdate\)/.test(html) || !/setInterval\(updateActiveSnapshot, 5000\)/.test(html)) {
@@ -934,7 +934,7 @@ if (!/id="render-ambient-fill"/.test(html) || !/id="render-front-fill"/.test(htm
 if (!/const frontFill = makeFillLight/.test(html) || !/sideFillA\.intensity = renderSideFill/.test(html) || !/backFill\.intensity = renderBackFill/.test(html)) {
   fail('lighting controls must drive non-shadowing directional fill lights');
 }
-if (!/MODEL_STAMP_IMPORT_AMBIENT_BASE = [0-9.]+/.test(html) || !/MODEL_STAMP_IMPORT_DIRECTIONAL_BASE = [0-9.]+/.test(html) || !/var modelStampImportAmbientFill = new THREE\.AmbientLight/.test(html) || !/var modelStampImportDirFill = new THREE\.DirectionalLight/.test(html) || !/modelStampImportDirFill\.castShadow = false/.test(html) || !/modelStampImportDirFill\.position\.copy\(target\)\.add\(MODEL_STAMP_IMPORT_LIGHT_OFFSET\)/.test(html)) {
+if (!/MODEL_STAMP_IMPORT_AMBIENT_BASE = [0-9.]+/.test(html) || !/MODEL_STAMP_IMPORT_DIRECTIONAL_BASE = [0-9.]+/.test(html) || !/(?:var|const|let) modelStampImportAmbientFill = new THREE\.AmbientLight/.test(html) || !/(?:var|const|let) modelStampImportDirFill = new THREE\.DirectionalLight/.test(html) || !/modelStampImportDirFill\.castShadow = false/.test(html) || !/modelStampImportDirFill\.position\.copy\(target\)\.add\(MODEL_STAMP_IMPORT_LIGHT_OFFSET\)/.test(html)) {
   fail('model-stamp import lighting must add the supplied ambient/directional safety fill without a shadow caster');
 }
 if (!/modelStampImportAmbientFill\.intensity = MODEL_STAMP_IMPORT_AMBIENT_BASE \* renderAmbientFill/.test(html) || !/modelStampImportDirFill\.intensity = MODEL_STAMP_IMPORT_DIRECTIONAL_BASE \* renderLighting/.test(html) || !/lightBase\.modelStampDirI/.test(html)) {

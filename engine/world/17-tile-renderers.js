@@ -3,7 +3,7 @@
   // should read across every rendered element through shared material tinting.
   // The old always-on tile overlay slabs are deliberately disabled below; only
   // real rain/snow impacts create visible surface marks.
-  var tileWeatherMode = 'clear';
+  let tileWeatherMode = 'clear';
   let weatherTileAssets = null;
   function ensureWeatherTileAssets() {
     if (weatherTileAssets) return weatherTileAssets;
@@ -1111,7 +1111,6 @@
     if (window.__tinyworldSetTerrainDetailsDeferred) window.__tinyworldSetTerrainDetailsDeferred(false);
 
     const ms = Math.round(performance.now() - t0);
-    console.log('[terrain-bake] baked', bakedTerrainCells.size, 'cells in', ms + 'ms');
     if (ms > 50) console.warn('[terrain-bake] bake took', ms + 'ms (>50ms threshold; consider chunked v2)');
     terrainBakeRequested = false;
   }

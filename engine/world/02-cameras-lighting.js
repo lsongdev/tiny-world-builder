@@ -214,10 +214,10 @@
   const MODEL_STAMP_IMPORT_AMBIENT_BASE = 0.30;
   const MODEL_STAMP_IMPORT_DIRECTIONAL_BASE = 0.30;
   const MODEL_STAMP_IMPORT_LIGHT_OFFSET = new THREE.Vector3(10, 10, 10);
-  var modelStampImportAmbientFill = new THREE.AmbientLight(0xffffff, 0);
+  const modelStampImportAmbientFill = new THREE.AmbientLight(0xffffff, 0);
   modelStampImportAmbientFill.name = 'model-stamp-import-ambient-fill';
   scene.add(modelStampImportAmbientFill);
-  var modelStampImportDirFill = new THREE.DirectionalLight(0xefefff, 0);
+  const modelStampImportDirFill = new THREE.DirectionalLight(0xefefff, 0);
   modelStampImportDirFill.name = 'model-stamp-import-directional-fill';
   modelStampImportDirFill.position.copy(target).add(MODEL_STAMP_IMPORT_LIGHT_OFFSET);
   modelStampImportDirFill.target = fillTarget;
@@ -257,7 +257,7 @@
   // assignment (hoisted to `undefined`) so updateCamera() — which may
   // be called before the lighting block has run — sees a falsy value
   // for `typeof` and skips the call safely.
-  var updateSunFollow = function () {
+  const updateSunFollow = function () {
     // Fixed sun direction in WORLD space — shadows cast from the same
     // angle regardless of how the camera is orbited or panned.  The sun
     // position translates with the target only so the shadow camera's

@@ -53,7 +53,7 @@
         currentGold = g;
         if (g.tinyworldHeld != null) { tokenHeld = Number(g.tinyworldHeld) || tokenHeld; emit("token", tokenHeld); }
         emit("gold", currentGold);
-        console.log("[worlds] GOLD allowance:", currentGold.available, "tier:", currentGold.tier);
+        if (window.__tinyworldDebug) console.log("[worlds] GOLD allowance:", currentGold.available, "tier:", currentGold.tier);
       }
     } catch (e) { /* offline or no auth — normal in pure static */ }
   }

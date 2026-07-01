@@ -2297,7 +2297,7 @@ syncTinyworldOwnerToolControls();
   function minimapThemeCss(css) {
     return minimapHexToCss(minimapThemeHex(minimapCssToHex(css, 0x9ec74b)));
   }
-  var minimapRepaintQueued = false;
+  let minimapRepaintQueued = false;
   let minimapState = null;
   function requestMinimapRepaint() {
     if (minimapRepaintQueued) return;

@@ -354,15 +354,15 @@
   // letting applyCloudSettings() safely no-op when it's called before this
   // block runs (early-init order: applyCloudSettings runs at ~line 1545,
   // this block runs much later). syncCloudPopulation guards on `clouds`.
-  var cloudGroup = new THREE.Group();
+  const cloudGroup = new THREE.Group();
   cloudGroup.name = 'clouds';
   xrWorldRoot.add(cloudGroup);
-  var clouds = [];
-  var CLOUD_MAX = 14;
-  var CLOUD_RANGE_X = 24; // wrap-around x extent (centred on 0)
-  var CLOUD_Z_RANGE = 18;
-  var SKY_CLOUD_MIN_HEIGHT = 9.5;
-  var CLOUD_OCCLUSION_RENDER_ORDER = 18;
+  let clouds = [];
+  const CLOUD_MAX = 14;
+  const CLOUD_RANGE_X = 24; // wrap-around x extent (centred on 0)
+  const CLOUD_Z_RANGE = 18;
+  const SKY_CLOUD_MIN_HEIGHT = 9.5;
+  const CLOUD_OCCLUSION_RENDER_ORDER = 18;
 
   function skyCloudHeight() {
     return Math.max(SKY_CLOUD_MIN_HEIGHT, renderCloudHeight || 0);
@@ -575,10 +575,10 @@
 
   // Vertical jitter applied on top of the height slider so a band of
   // clouds at the same setting doesn't all sit at the exact same y.
-  var CLOUD_Y_JITTER = 1.5;
+  const CLOUD_Y_JITTER = 1.5;
   // Permanent flatten on the Y axis — clouds read more "stretched"
   // and sky-like than puffy at half height.
-  var CLOUD_FLATTEN = 0.62;
+  const CLOUD_FLATTEN = 0.62;
 
   function spawnCloud(initial) {
     const c = makeCloud();
@@ -628,11 +628,11 @@
     if (typeof applyCloudRimLightSetting === 'function') applyCloudRimLightSetting();
   }
 
-  var underIslandCloudGroup = new THREE.Group();
+  const underIslandCloudGroup = new THREE.Group();
   underIslandCloudGroup.name = 'under-island-clouds';
   underIslandCloudGroup.renderOrder = UNDER_ISLAND_EFFECT_RENDER_ORDER;
   xrWorldRoot.add(underIslandCloudGroup);
-  var underIslandClouds = [];
+  let underIslandClouds = [];
 
   function buildUnderIslandClouds() {
     if (!underIslandCloudGroup || typeof makeCloud !== 'function') return;
