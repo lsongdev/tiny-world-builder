@@ -73,14 +73,65 @@ function sourceFunctionBody(source, name) {
   if (signatureEnd < 0) fail('function signature malformed: ' + name);
   const open = source.indexOf('{', signatureEnd);
   if (open < 0) fail('function body malformed: ' + name);
+  // Brace-aware scan: skip strings, template literals, comments, and regex
+  // so a `}` inside a string/template/comment doesn't miscount depth.
   let depth = 0;
-  for (let i = open; i < source.length; i++) {
+  let i = open;
+  while (i < source.length) {
     const ch = source[i];
+    const next = source[i + 1];
+    // Line comment
+    if (ch === '/' && next === '/') {
+      i = source.indexOf('\n', i);
+      if (i < 0) fail('function body unterminated: ' + name);
+      i++;
+      continue;
+    }
+    // Block comment
+    if (ch === '/' && next === '*') {
+      i = source.indexOf('*/', i + 2);
+      if (i < 0) fail('function body unterminated: ' + name);
+      i += 2;
+      continue;
+    }
+    // String literal (single or double quoted)
+    if (ch === "'" || ch === '"') {
+      const quote = ch;
+      i++;
+      while (i < source.length) {
+        if (source[i] === '\\') { i += 2; continue; }
+        if (source[i] === quote) { i++; break; }
+        i++;
+      }
+      continue;
+    }
+    // Template literal (backtick) — skip ${...} interpolations by depth
+    if (ch === '`') {
+      i++;
+      while (i < source.length) {
+        if (source[i] === '\\') { i += 2; continue; }
+        if (source[i] === '$' && source[i + 1] === '{') {
+          // Count braces inside the interpolation
+          let d = 1;
+          i += 2;
+          while (i < source.length && d > 0) {
+            if (source[i] === '{') d++;
+            else if (source[i] === '}') d--;
+            i++;
+          }
+          continue;
+        }
+        if (source[i] === '`') { i++; break; }
+        i++;
+      }
+      continue;
+    }
     if (ch === '{') depth++;
     else if (ch === '}') {
       depth--;
       if (depth === 0) return source.slice(open + 1, i);
     }
+    i++;
   }
   fail('function body unterminated: ' + name);
 }

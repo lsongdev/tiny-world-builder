@@ -582,6 +582,15 @@
     })) : [];
   }
 
+  // Shared kind-dependent normalization: clear buildingType for non-houses,
+  // clear fenceSide for non-fences. Used by both writeWorldIntentCell (load)
+  // and setCellImpl (edit) so the rules can't drift between the two paths.
+  function normalizeCellIntentKind(cell) {
+    if (cell.kind !== 'house') cell.buildingType = null;
+    if (cell.kind !== 'fence') cell.fenceSide = null;
+    return cell;
+  }
+
   function writeWorldIntentCell(x, z, src, userEdited = false) {
     if (!world[x]) world[x] = [];
     const cell = {
@@ -604,8 +613,7 @@
       if (src && src.dest != null) cell.dest = src.dest;
       if (src && src.label != null) cell.label = src.label;
     }
-    if (cell.kind !== 'house') cell.buildingType = null;
-    if (cell.kind !== 'fence') cell.fenceSide = null;
+    normalizeCellIntentKind(cell);
     if (userEdited || (src && src.userEdited)) cell.userEdited = true;
     world[x][z] = cell;
     return cell;

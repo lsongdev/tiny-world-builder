@@ -869,10 +869,11 @@
     // since a house's turret status depends on neighbouring fences.
     const fenceVisited = new Set();
     const fenceStack = [[x, z]];
+    const FENCE_FLOOD_CAP = 64; // bound the synchronous fence-component walk
     for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       fenceStack.push([x + dx, z + dz]);
     }
-    while (fenceStack.length) {
+    while (fenceStack.length && fenceVisited.size < FENCE_FLOOD_CAP) {
       const [cx, cz] = fenceStack.pop();
       const fk = cx + ',' + cz;
       if (fenceVisited.has(fk)) continue;
@@ -1106,6 +1107,9 @@
 
     if (typeof requestShadowMapUpdate === 'function') requestShadowMapUpdate();
 
+    // Re-enable per-tile surface details now that the bake is complete.
+    if (window.__tinyworldSetTerrainDetailsDeferred) window.__tinyworldSetTerrainDetailsDeferred(false);
+
     const ms = Math.round(performance.now() - t0);
     console.log('[terrain-bake] baked', bakedTerrainCells.size, 'cells in', ms + 'ms');
     if (ms > 50) console.warn('[terrain-bake] bake took', ms + 'ms (>50ms threshold; consider chunked v2)');
@@ -1114,6 +1118,10 @@
 
   function unbakeAllTerrain() {
     if (bakedTerrainCells.size === 0) return;
+
+    // Defer per-tile surface detail InstancedMeshes during the unbake→rebake window
+    // to avoid creating 2000+ transient meshes that will be replaced by the bake.
+    if (window.__tinyworldSetTerrainDetailsDeferred) window.__tinyworldSetTerrainDetailsDeferred(true);
 
     // Dispose merged bake meshes (geometries only — materials are shared)
     if (terrainBakeRoot) {
@@ -1153,6 +1161,11 @@
     terrainBakeSettleTimer = setTimeout(function () {
       terrainBakeSettleTimer = null;
       bakeHomeTerrainNow();
+      // If the bake was skipped (conditions not met), still re-enable details
+      // so subsequent live tile renders aren't missing their surface details.
+      if (bakedTerrainCells.size === 0 && window.__tinyworldSetTerrainDetailsDeferred) {
+        window.__tinyworldSetTerrainDetailsDeferred(false);
+      }
     }, 1200);
   }
 

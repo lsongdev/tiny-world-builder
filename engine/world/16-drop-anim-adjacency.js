@@ -612,8 +612,9 @@
     const result = [];
     const seen = new Set();
     const queue = [{ x, z, isStart: true }];
-    while (queue.length) {
-      const c = queue.shift();
+    let head = 0; // head-pointer BFS avoids O(n) queue.shift() per dequeue
+    while (head < queue.length) {
+      const c = queue[head++];
       const k = c.x + ',' + c.z;
       if (seen.has(k)) continue;
       seen.add(k);

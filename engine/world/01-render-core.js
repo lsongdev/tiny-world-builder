@@ -1924,55 +1924,46 @@
     const sceneRenderStart = repaintProfileBegin();
     renderer.render(scene, camera);
     repaintProfileEnd('render.scene', sceneRenderStart);
-    if (wantDepthEdge && pixelState.depthTarget && pixelState.depthMaterial) {
+    if ((wantDepthEdge || wantNormals) && pixelState.depthTarget) {
+      // Combine depth and normal passes under a single state save/restore
+      // to avoid double state-swapping overhead. Each still renders to its
+      // own target, but the scene state (overrideMaterial, background, fog,
+      // skyBubble) is saved/restored once.
       const prevOverride = scene.overrideMaterial;
       const prevBackground = scene.background;
       const prevFog = scene.fog;
       const prevSkyBubbleVisible = skyBubble ? skyBubble.visible : false;
-      if (landscapeMeshEngine && landscapeMeshEngine._clipEnabled && landscapeMeshEngine._clipPlanes) {
-        pixelState.depthMaterial.clippingPlanes = landscapeMeshEngine._clipPlanes;
-      } else {
+      const clipPlanes = (landscapeMeshEngine && landscapeMeshEngine._clipEnabled && landscapeMeshEngine._clipPlanes) ? landscapeMeshEngine._clipPlanes : null;
+
+      if (wantDepthEdge && pixelState.depthMaterial) {
+        pixelState.depthMaterial.clippingPlanes = clipPlanes;
+        scene.overrideMaterial = pixelState.depthMaterial;
+        scene.background = null;
+        scene.fog = null;
+        if (skyBubble) skyBubble.visible = false;
+        renderer.setRenderTarget(pixelState.depthTarget);
+        renderer.clear();
+        const depthRenderStart = repaintProfileBegin();
+        renderer.render(scene, camera);
+        repaintProfileEnd('render.depth', depthRenderStart);
         pixelState.depthMaterial.clippingPlanes = null;
       }
-      scene.overrideMaterial = pixelState.depthMaterial;
-      scene.background = null;
-      scene.fog = null;
-      if (skyBubble) skyBubble.visible = false;
-      renderer.setRenderTarget(pixelState.depthTarget);
-      renderer.clear();
-      const depthRenderStart = repaintProfileBegin();
-      renderer.render(scene, camera);
-      repaintProfileEnd('render.depth', depthRenderStart);
-      scene.overrideMaterial = prevOverride;
-      scene.background = prevBackground;
-      scene.fog = prevFog;
-      if (skyBubble) skyBubble.visible = prevSkyBubbleVisible;
-      pixelState.depthMaterial.clippingPlanes = null;
-    }
-    if (wantNormals && pixelState.normalTarget) {
-      const prevOverride = scene.overrideMaterial;
-      const prevBackground = scene.background;
-      const prevFog = scene.fog;
-      const prevSkyBubbleVisible = skyBubble ? skyBubble.visible : false;
-      if (landscapeMeshEngine && landscapeMeshEngine._clipEnabled && landscapeMeshEngine._clipPlanes) {
-        pixelState.normalMaterial.clippingPlanes = landscapeMeshEngine._clipPlanes;
-      } else {
-        pixelState.normalMaterial.clippingPlanes = null;
+
+      if (wantNormals && pixelState.normalTarget) {
+        if (clipPlanes && pixelState.normalMaterial) pixelState.normalMaterial.clippingPlanes = clipPlanes;
+        scene.overrideMaterial = pixelState.normalMaterial || prevOverride;
+        renderer.setRenderTarget(pixelState.normalTarget);
+        renderer.clear();
+        const normalRenderStart = repaintProfileBegin();
+        renderer.render(scene, camera);
+        repaintProfileEnd('render.normals', normalRenderStart);
+        if (pixelState.normalMaterial) pixelState.normalMaterial.clippingPlanes = null;
       }
-      scene.overrideMaterial = pixelState.normalMaterial;
-      scene.background = null;
-      scene.fog = null;
-      if (skyBubble) skyBubble.visible = false;
-      renderer.setRenderTarget(pixelState.normalTarget);
-      renderer.clear();
-      const normalRenderStart = repaintProfileBegin();
-      renderer.render(scene, camera);
-      repaintProfileEnd('render.normals', normalRenderStart);
+
       scene.overrideMaterial = prevOverride;
       scene.background = prevBackground;
       scene.fog = prevFog;
       if (skyBubble) skyBubble.visible = prevSkyBubbleVisible;
-      pixelState.normalMaterial.clippingPlanes = null;
     }
     const uniforms = pixelState.quadMaterial.uniforms;
     uniforms.tColor.value = pixelState.target.texture;

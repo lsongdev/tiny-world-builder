@@ -285,8 +285,15 @@
     }
   }
 
+  let terrainDetailsDeferred = false;
+  window.__tinyworldSetTerrainDetailsDeferred = function (v) { terrainDetailsDeferred = !!v; };
+
   function addVoxelTerrainSurfaceDetails(g, terrain, x, z, topSize, y, pathN = null, terrainN = null) {
     if (terrain === 'water' || terrain === 'lava' || terrain === 'snow') return;
+    // Skip per-tile InstancedMesh detail creation during the unbake→rebake window.
+    // The rebake creates a single merged mesh anyway, so these would be disposed
+    // in ~1200ms. Skipping them avoids 2000+ transient InstancedMeshes during editing.
+    if (terrainDetailsDeferred) return;
     const half = topSize * 0.5;
     const wear = Math.max(0, Math.min(1, renderMaterialWear || 0));
     const dummy = addVoxelTerrainSurfaceDetails._dummy || (addVoxelTerrainSurfaceDetails._dummy = new THREE.Object3D());

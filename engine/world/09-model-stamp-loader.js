@@ -1955,8 +1955,17 @@
     };
   };
 
+  const modelStampRefreshPending = new Set();
+  let modelStampRefreshTimer = null;
   function scheduleModelStampRefresh(modelStampId) {
-    setTimeout(() => {
+    if (!modelStampId) return;
+    modelStampRefreshPending.add(modelStampId);
+    if (modelStampRefreshTimer) return; // already scheduled — will pick up all pending ids
+    modelStampRefreshTimer = setTimeout(() => {
+      modelStampRefreshTimer = null;
+      const ids = modelStampRefreshPending.size ? Array.from(modelStampRefreshPending) : null;
+      modelStampRefreshPending.clear();
+      if (!ids) return;
       for (const key in cellMeshes) {
         const parts = key.split(',');
         const x = parseInt(parts[0], 10);
@@ -1964,11 +1973,11 @@
         if (!Number.isFinite(x) || !Number.isFinite(z)) continue;
         const cell = getWorldCell(x, z);
         const appearance = normalizeAppearance(cell.appearance);
-        if (cell.kind === 'model-stamp' && appearance && appearance.modelStampId === modelStampId) {
+        if (cell.kind === 'model-stamp' && appearance && ids.includes(appearance.modelStampId)) {
           renderCellObject(x, z, { animate: false, impactDust: false });
         }
       }
-      if (selectedTool && selectedTool.kind === 'model-stamp' && selectedTool.modelStampId === modelStampId) {
+      if (selectedTool && selectedTool.kind === 'model-stamp' && ids.includes(selectedTool.modelStampId)) {
         ghostPreviewKey = null;
         ensureGhostPreview();
         updateGhostPlacement();
