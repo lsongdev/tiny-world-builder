@@ -40,13 +40,14 @@ const preamble = `
   function tileLevelForCell(cell) { return (cell.terrainFloors || 1) + (cell.floors ? cell.floors - 1 : 0); }
   function repaintProfileBegin() { return 0; }
   function repaintProfileEnd() {}
+  const _renderLog = [];
   function pushWorldHistorySnapshot() {}
   function saveState() {}
   function emitCellWebhook() {}
   function notifyWorldChanged() {}
-  function renderCellTile() {}
-  function renderCellObject() {}
-  function renderCellExtras() {}
+  function renderCellTile(x, z) { _renderLog.push({ type: 'tile', x, z }); }
+  function renderCellObject(x, z) { _renderLog.push({ type: 'object', x, z }); }
+  function renderCellExtras(x, z) { _renderLog.push({ type: 'extras', x, z }); }
   function shouldRenderCellMesh() { return true; }
   function isVehicleDrivableCell(cell) { return cell && cell.terrain === 'path' && !cell.kind; }
   function refreshVehiclesForWorldObstacleChange() {}
@@ -67,6 +68,16 @@ const preamble = `
   function findHouseCluster(x, z) { return { isAnchor: true, anchorX: x, anchorZ: z, kind: 'solo', length: 1, orientation: 'x', topology: null }; }
   function bfsHouseCluster(x, z) { return [{ x, z }]; }
   function findFenceRenderSpan(x, z) { return { anchorX: x, anchorZ: z }; }
+  const _cropPositions = new Set();
+  const _maxPumpkinPositions = new Set();
+  function addCropPosition(x, z) { _cropPositions.add(x + ',' + z); }
+  function removeCropPosition(x, z) { _cropPositions.delete(x + ',' + z); }
+  function updateCarriageAfterChange(x, z, wasMax, isMax) {
+    const key = x + ',' + z;
+    if (wasMax && !isMax) _maxPumpkinPositions.delete(key);
+    if (!wasMax && isMax) _maxPumpkinPositions.add(key);
+  }
+  function eachMaxPumpkin(cb) { for (const key of _maxPumpkinPositions) { const [px, pz] = key.split(',').map(Number); cb(px, pz); } }
   function eachMaxPumpkin(cb) {}
   function addCropPosition() {}
   function removeCropPosition() {}
@@ -85,8 +96,16 @@ const preamble = `
     }
   }
   function __getWorldCell(x, z) { return world[x] && world[x][z]; }
+  function __getRenderLog() { return _renderLog.slice(); }
+  function __clearRenderLog() { _renderLog.length = 0; }
+  function __getCropPositions() { return Array.from(_cropPositions); }
+  function __getMaxPumpkinPositions() { return Array.from(_maxPumpkinPositions); }
   globalThis.__resetWorld = __resetWorld;
   globalThis.__getWorldCell = __getWorldCell;
+  globalThis.__getRenderLog = __getRenderLog;
+  globalThis.__clearRenderLog = __clearRenderLog;
+  globalThis.__getCropPositions = __getCropPositions;
+  globalThis.__getMaxPumpkinPositions = __getMaxPumpkinPositions;
 `;
 
 const { setCellImpl } = buildEngineFns(file, ['setCellImpl'], preamble);
