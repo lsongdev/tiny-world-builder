@@ -580,6 +580,194 @@
     stop: stopFlightEngineAudio,
   };
 
+  // -------- one-shot combat SFX (guns / missiles / explosions / impacts), synthesised --------
+  // Each call builds a tiny throwaway node graph, schedules an amplitude
+  // envelope, and disconnects every node once its sources end — so nothing
+  // accumulates however fast the guns fire. All route through _audioMaster and
+  // honour the shared "sfx" bus volume/mute (these are one-shot SFX, not the
+  // continuous engine drone), read fresh at trigger time. An optional
+  // opts.gain (0..1, distance attenuation) multiplies on top of the bus level.
+  let _combatNoise = null;
+  function _combatNoiseBuffer(ctx) {
+    if (_combatNoise && _combatNoise.sampleRate === ctx.sampleRate) return _combatNoise;
+    const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 1.2), ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    _combatNoise = buf;
+    return buf;
+  }
+  function _combatLevel(opts) {
+    if (audioSfxMuted) return 0;
+    let g = (opts && typeof opts.gain === 'number') ? opts.gain : 1;
+    g = Math.max(0, Math.min(1, g));
+    return audioSfxVolume * g;
+  }
+
+  // Voice budget: a firefight can call gun() hundreds of times a second across
+  // several planes. Cap concurrent combat voices so we never spawn unbounded
+  // node graphs, and gate rapid gun fire with a small inter-call floor so a
+  // burst doesn't turn into a solid buzz. Both are cheap early-outs.
+  const COMBAT_VOICE_CAP = 24;
+  const COMBAT_GUN_MIN_GAP = 40; // ms
+  let _combatVoices = 0;
+  let _combatLastGun = 0;
+  let _combatGunIdx = 0;
+  // One voice = one node graph. `nodes` lists EVERY node the caller created;
+  // `count` is how many of its sources have their onended wired to onended().
+  // Teardown is idempotent (the `done` latch) so it can run from the last
+  // onended OR the start()-failure fallback without double-counting the voice,
+  // guaranteeing the counter can never leak and permanently silence combat.
+  function _combatVoice(nodes, count) {
+    _combatVoices++;
+    let ended = 0, done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      for (const n of nodes) { try { n.disconnect(); } catch (_) {} }
+      _combatVoices--;
+    };
+    return { onended: () => { if (++ended >= count) finish(); }, finish };
+  }
+
+  function combatGun(opts) {
+    const nowMs = performance.now();
+    if (nowMs - _combatLastGun < COMBAT_GUN_MIN_GAP) return;
+    const ctx = ensureAudioCtx(); if (!ctx) return;
+    const lvl = _combatLevel(opts); if (lvl <= 0) return;
+    if (_combatVoices >= COMBAT_VOICE_CAP) return;
+    _combatLastGun = nowMs;
+    resumeAudioCtxIfNeeded();
+    const now = ctx.currentTime;
+    // Per-call timbre variation so a sustained burst reads as distinct cracks
+    // rather than a single machine buzz: a rotating index nudges the bandpass
+    // centre, jittered a little more by random each shot.
+    _combatGunIdx = (_combatGunIdx + 1) % 5;
+    const center = 1350 + _combatGunIdx * 150 + (Math.random() - 0.5) * 260;
+    const out = ctx.createGain(); out.gain.value = 0.0001; out.connect(_audioMaster);
+    const noise = ctx.createBufferSource(); noise.buffer = _combatNoiseBuffer(ctx);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = center; bp.Q.value = 0.8 + Math.random() * 0.4;
+    noise.connect(bp).connect(out);
+    const click = ctx.createOscillator(); click.type = 'square';
+    click.frequency.setValueAtTime(210 + Math.random() * 70, now);
+    click.frequency.exponentialRampToValueAtTime(58 + Math.random() * 26, now + 0.05);
+    const clickG = ctx.createGain(); clickG.gain.setValueAtTime(0.5 * lvl, now);
+    clickG.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+    click.connect(clickG).connect(out);
+    const peak = 0.22 * lvl;
+    out.gain.setValueAtTime(0.0001, now);
+    out.gain.exponentialRampToValueAtTime(peak, now + 0.004);
+    out.gain.exponentialRampToValueAtTime(0.0001, now + 0.11);
+    const off = now + 0.13;
+    const v = _combatVoice([out, noise, bp, click, clickG], 2);
+    noise.onended = v.onended; click.onended = v.onended;
+    try { noise.start(now, Math.random() * 0.6); noise.stop(off); } catch (_) { v.finish(); return; }
+    try { click.start(now); click.stop(off); } catch (_) {}
+  }
+
+  function combatMissile(opts) {
+    const ctx = ensureAudioCtx(); if (!ctx) return;
+    const lvl = _combatLevel(opts); if (lvl <= 0) return;
+    if (_combatVoices >= COMBAT_VOICE_CAP) return;
+    resumeAudioCtxIfNeeded();
+    const now = ctx.currentTime;
+    const out = ctx.createGain(); out.gain.value = 0.0001; out.connect(_audioMaster);
+    // Rising airy whoosh.
+    const noise = ctx.createBufferSource(); noise.buffer = _combatNoiseBuffer(ctx); noise.loop = true;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.8;
+    bp.frequency.setValueAtTime(300, now);
+    bp.frequency.exponentialRampToValueAtTime(2400, now + 0.45);
+    noise.connect(bp).connect(out);
+    // Low launch thump.
+    const sub = ctx.createOscillator(); sub.type = 'sine';
+    sub.frequency.setValueAtTime(140, now);
+    sub.frequency.exponentialRampToValueAtTime(46, now + 0.22);
+    const subG = ctx.createGain(); subG.gain.setValueAtTime(0.5 * lvl, now);
+    subG.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+    sub.connect(subG).connect(out);
+    const peak = 0.26 * lvl;
+    out.gain.setValueAtTime(0.0001, now);
+    out.gain.exponentialRampToValueAtTime(peak, now + 0.03);
+    out.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+    const off = now + 0.62;
+    const v = _combatVoice([out, noise, bp, sub, subG], 2);
+    noise.onended = v.onended; sub.onended = v.onended;
+    try { noise.start(now, Math.random() * 0.6); noise.stop(off); } catch (_) { v.finish(); return; }
+    try { sub.start(now); sub.stop(off); } catch (_) {}
+  }
+
+  function combatExplosion(opts) {
+    const ctx = ensureAudioCtx(); if (!ctx) return;
+    const lvl = _combatLevel(opts); if (lvl <= 0) return;
+    if (_combatVoices >= COMBAT_VOICE_CAP) return;
+    resumeAudioCtxIfNeeded();
+    const now = ctx.currentTime;
+    const out = ctx.createGain(); out.gain.value = 0.0001; out.connect(_audioMaster);
+    // Rumble: broadband noise driven through a downward-sweeping lowpass.
+    const noise = ctx.createBufferSource(); noise.buffer = _combatNoiseBuffer(ctx); noise.loop = true;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.6;
+    lp.frequency.setValueAtTime(900, now);
+    lp.frequency.exponentialRampToValueAtTime(90, now + 0.7);
+    noise.connect(lp).connect(out);
+    // Sub-bass body thud.
+    const sub = ctx.createOscillator(); sub.type = 'sine';
+    sub.frequency.setValueAtTime(110, now);
+    sub.frequency.exponentialRampToValueAtTime(28, now + 0.5);
+    const subG = ctx.createGain(); subG.gain.setValueAtTime(0.7 * lvl, now);
+    subG.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+    sub.connect(subG).connect(out);
+    const peak = 0.5 * lvl;
+    out.gain.setValueAtTime(0.0001, now);
+    out.gain.exponentialRampToValueAtTime(peak, now + 0.006);
+    out.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
+    const off = now + 0.95;
+    const v = _combatVoice([out, noise, lp, sub, subG], 2);
+    noise.onended = v.onended; sub.onended = v.onended;
+    try { noise.start(now, Math.random() * 0.6); noise.stop(off); } catch (_) { v.finish(); return; }
+    try { sub.start(now); sub.stop(off); } catch (_) {}
+  }
+
+  function combatImpact(opts) {
+    const ctx = ensureAudioCtx(); if (!ctx) return;
+    const lvl = _combatLevel(opts); if (lvl <= 0) return;
+    if (_combatVoices >= COMBAT_VOICE_CAP) return;
+    resumeAudioCtxIfNeeded();
+    const now = ctx.currentTime;
+    const out = ctx.createGain(); out.gain.value = 0.0001; out.connect(_audioMaster);
+    // Metallic hit: a short bandpass noise transient for the "clank".
+    const noise = ctx.createBufferSource(); noise.buffer = _combatNoiseBuffer(ctx);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass';
+    bp.frequency.value = 2600 + Math.random() * 900; bp.Q.value = 3.4;
+    const nG = ctx.createGain();
+    nG.gain.setValueAtTime(0.5 * lvl, now);
+    nG.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+    noise.connect(bp).connect(nG).connect(out);
+    // Two detuned resonant partials give the "ding" ring on the hull.
+    const f1 = 3100 + Math.random() * 520;
+    const p1 = ctx.createOscillator(); p1.type = 'sine'; p1.frequency.value = f1;
+    const p2 = ctx.createOscillator(); p2.type = 'sine'; p2.frequency.value = f1 * 1.48;
+    const pG = ctx.createGain();
+    pG.gain.setValueAtTime(0.26 * lvl, now);
+    pG.gain.exponentialRampToValueAtTime(0.0001, now + 0.19);
+    p1.connect(pG); p2.connect(pG); pG.connect(out);
+    const peak = 0.3 * lvl;
+    out.gain.setValueAtTime(0.0001, now);
+    out.gain.exponentialRampToValueAtTime(peak, now + 0.003);
+    out.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+    const off = now + 0.22;
+    const v = _combatVoice([out, noise, bp, nG, p1, p2, pG], 3);
+    noise.onended = v.onended; p1.onended = v.onended; p2.onended = v.onended;
+    try { noise.start(now, Math.random() * 0.5); noise.stop(off); } catch (_) { v.finish(); return; }
+    try { p1.start(now); p1.stop(off); } catch (_) {}
+    try { p2.start(now); p2.stop(off); } catch (_) {}
+  }
+
+  window.__flightCombatAudio = {
+    gun: combatGun,
+    missile: combatMissile,
+    explosion: combatExplosion,
+    impact: combatImpact,
+  };
+
   // First-gesture initialiser — Web Audio contexts can't start until the
   // page has been interacted with. We piggy-back the existing music
   // autostart by listening for the same first gesture.

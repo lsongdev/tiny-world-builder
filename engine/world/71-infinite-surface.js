@@ -22,9 +22,19 @@
 
     // ---- placement (matches the poser surface so the two seas are coplanar) ----
     const SEA_Y = -60.3;          // poser DROP is -60; sit a hair below to avoid z-fight
-    const PLANE = 600, SEGS = 300; // 600u wide, 2u per segment
-    const SNAP = 4;               // recenter grid = 2 segments (integer multiple; no swim)
-    const FOG_NEAR = 120, FOG_FAR = 420;  // in-shader fog, independent of the poser's scene.fog
+    // TWO co-planar layers give a truly limitless horizon with no visible plane
+    // edge: a detailed NEAR layer that fades to transparent at its rim, revealing
+    // a huge coarse FAR layer behind it that itself dissolves into the sky. Both
+    // sample the SAME world-anchored noise, so the distant land lines up exactly
+    // with the near land — one continuous world receding into haze.
+    const LAYERS = [
+      // near: fine detail; fully transparent by fogFar (< half-extent 450) so its
+      // rim never shows as an edge. depthWrite off so the far layer reads through.
+      { plane: 900,  segs: 240, snap: 4,  yOff: 0.0,  order: -2, fadeToAlpha: 1, fogNear: 200, fogFar: 430, transparent: true,  depthWrite: false },
+      // far: vast + coarse; melts to sky by fogFar (< half-extent 3000) so the
+      // horizon has hazy distant landmasses and no boundary is ever reached.
+      { plane: 6000, segs: 200, snap: 24, yOff: -0.8, order: -3, fadeToAlpha: 0, fogNear: 430, fogFar: 2700, transparent: false, depthWrite: true },
+    ];
 
     // ---- shared-scene references (in-scope for engine <script> modules) ----
     function parentNode() {
@@ -49,14 +59,44 @@
       '  for (int i = 0; i < 5; i++){ s += a*vnoise(p); p *= 2.02; a *= 0.5; }',
       '  return s;',   // ~[0,1]
       '}',
-      // continent field -> world elevation (water near 0, islands rise). Shared by
-      // vertex displacement and the fragment normal so both agree exactly.
-      'uniform float uFreq; uniform float uHeight; uniform float uSea; uniform float uTime;',
+      // continent field -> world elevation. The GRAVITANIUM lore drives three
+      // looks selected by uTheme (0 flooded scar-world, 1 ocean + survivors,
+      // 2 crust + crater holes). Shared by vertex displacement and the fragment
+      // normal/colour so all three agree exactly.
+      'uniform float uFreq; uniform float uHeight; uniform float uSea; uniform float uTime; uniform float uTheme;',
+      // sea threshold shifts how much of the field is crust vs flooded:
+      //   theme 2 (crust world) -> lower threshold, mostly land
+      //   theme 1 (ocean world) -> higher threshold, mostly water
+      'float seaThreshold(){',
+      '  if (uTheme > 1.5) return uSea - 0.18;',
+      '  if (uTheme > 0.5) return uSea + 0.22;',
+      '  return uSea;',
+      '}',
+      // blast craters: sparse second field punched only into the crust theme,
+      // where gravitanium tore out of the surface leaving empty holes.
+      'float craterPit(vec2 wp){',
+      '  if (uTheme < 1.5) return 0.0;',
+      '  float hole = fbm(wp * uFreq * 0.7 + vec2(19.3, 7.1));',
+      '  return smoothstep(0.60, 0.78, hole);',
+      '}',
+      // land mask (theme-aware): crust where the continent field clears the sea
+      // threshold, minus any crater interior (those read as flooded holes).
+      'float landMask(vec2 wp){',
+      '  float cont = fbm(wp * uFreq);',
+      '  float seaT = seaThreshold();',
+      '  float land = smoothstep(seaT, seaT + 0.05, cont);',
+      '  return land * (1.0 - craterPit(wp));',
+      '}',
       'float terrainH(vec2 wp){',
       '  float cont = fbm(wp * uFreq);',
-      '  float land = smoothstep(uSea, uSea + 0.05, cont);',
-      '  float elev = max(0.0, cont - uSea) * uHeight;',
-      '  elev += fbm(wp * uFreq * 4.0) * land * (uHeight * 0.22);',   // ridged detail on land only
+      '  float seaT = seaThreshold();',
+      '  float land = smoothstep(seaT, seaT + 0.05, cont);',
+      '  float elev = max(0.0, cont - seaT) * uHeight;',
+      '  elev += fbm(wp * uFreq * 4.0) * land * (uHeight * 0.30);',            // broken crust
+      '  elev += abs(fbm(wp * uFreq * 8.0) - 0.5) * land * (uHeight * 0.24);', // jagged gravitanium ridges
+      '  float pit = craterPit(wp);',
+      '  elev = mix(elev, -uHeight * 0.40, pit);',                             // carve the crater down
+      '  land *= (1.0 - pit);',
       '  float wave = sin(wp.x*0.35 + uTime*1.3)*0.06 + sin(wp.y*0.31 - uTime*1.1)*0.05;',
       '  return mix(wave, elev, land);',
       '}',
@@ -74,7 +114,7 @@
       '  float hz = terrainH(wp + vec2(0.0, e));',
       '  vNormal = normalize(vec3(-(hx - h) / e, 1.0, -(hz - h) / e));',
       '  vCont = fbm(wp * uFreq);',
-      '  vLand = smoothstep(uSea, uSea + 0.05, vCont);',
+      '  vLand = landMask(wp);',
       '  vec3 dp = position; dp.y += h;',                  // displace in local space (plane is flat)
       '  vec4 world = modelMatrix * vec4(dp, 1.0);',
       '  vWorldPos = world.xyz;',
@@ -86,32 +126,33 @@
       NOISE_GLSL,
       'varying vec3 vWorldPos; varying vec3 vNormal; varying float vCont; varying float vLand;',
       'uniform vec3 uSunDir; uniform vec3 uSunColor; uniform vec3 uAmbient; uniform vec3 uSky;',
-      'uniform float uFogNear; uniform float uFogFar;',
+      'uniform float uFogNear; uniform float uFogFar; uniform float uFadeToAlpha;',
       'void main(){',
       '  float e = vWorldPos.y;',                           // world elevation (water ~0, islands up)
       '  vec3 col;',
-      '  if (vLand < 0.5){',                                // ---- water ----
-      '    float depth = clamp((uSea - vCont) * 6.0, 0.0, 1.0);',
-      '    vec3 deep = vec3(0.02, 0.14, 0.24);',
-      '    vec3 shallow = vec3(0.08, 0.44, 0.52);',
+      '  if (vLand < 0.5){',                                // ---- water (flooded craters / ocean) ----
+      '    float depth = clamp((seaThreshold() - vCont) * 6.0, 0.0, 1.0);',
+      '    vec3 deep = vec3(0.02, 0.11, 0.20);',
+      '    vec3 shallow = vec3(0.07, 0.40, 0.48);',
       '    col = mix(shallow, deep, depth);',
       '    float sp = vnoise(vWorldPos.xz*1.6 + vec2(uTime*0.17, uTime*0.11));',
       '    float sp2 = vnoise(vWorldPos.xz*3.4 - vec2(uTime*0.12, uTime*0.19));',
       '    float spark = pow(clamp(1.0 - abs(sin(sp*6.2831)+sin(sp2*6.2831))*0.5, 0.0, 1.0), 4.0);',
-      '    col += spark * vec3(0.22, 0.28, 0.30);',
-      '  } else {',                                          // ---- land ----
-      // Low ground uses the dark island-underside gravel tone (matches
-      // M.islandUnder 0x34373b) instead of a bright sandy beach, which read as
-      // an overblown yellow. Grass/rock/snow climb from there with elevation.
-      '    vec3 shore = vec3(0.205, 0.216, 0.231);',
-      '    vec3 grass = vec3(0.22, 0.44, 0.20);',
-      '    vec3 rock = vec3(0.34, 0.32, 0.30);',
-      '    vec3 snow = vec3(0.90, 0.92, 0.96);',
-      '    col = shore;',
-      '    col = mix(col, grass, smoothstep(0.35, 1.1, e));',
-      '    col = mix(col, rock, smoothstep(3.0, 6.0, e));',
-      '    col = mix(col, snow, smoothstep(7.0, 10.0, e));',
-      '    col *= 0.92 + fbm(vWorldPos.xz*0.5)*0.16;',       // gentle tonal variation
+      '    col += spark * vec3(0.20, 0.26, 0.28);',
+      '  } else {',                                          // ---- gravitanium crust (dead, inhospitable) ----
+      // The surface is scarred gravitanium, NOT lush terrain — the only green
+      // lives on the survivor islands (separate meshes). Dark crystalline crust
+      // with jagged lighter ridges, mineral glints, and a faint violet vein glow.
+      '    vec3 crust = vec3(0.085, 0.088, 0.115);',
+      '    vec3 ridge = vec3(0.26, 0.25, 0.30);',
+      '    vec3 vein = vec3(0.22, 0.62, 0.72);',
+      '    col = crust;',
+      '    col = mix(col, ridge, smoothstep(1.0, 6.0, e));',
+      '    float glint = pow(vnoise(vWorldPos.xz*2.2), 8.0);',
+      '    col += glint * vec3(0.30, 0.40, 0.52) * 0.5;',    // crystalline sparkle
+      '    float veinM = smoothstep(0.58, 0.76, fbm(vWorldPos.xz*0.8));',
+      '    col = mix(col, vein, veinM * 0.22);',             // gravitanium glow in the cracks
+      '    col *= 0.90 + fbm(vWorldPos.xz*0.5)*0.18;',       // tonal variation
       '  }',
       // foam ribbon hugging the waterline (both sides of the coast transition)
       '  float foam = (1.0 - smoothstep(0.0, 0.06, abs(vLand - 0.5))) * 0.6;',
@@ -120,16 +161,31 @@
       // Lambert diffuse from the live sun + day/night ambient
       '  float diff = max(dot(normalize(vNormal), normalize(uSunDir)), 0.0);',
       '  col = col * (uAmbient + uSunColor * diff);',
-      // fog: melt the far edge into the sky (independent of scene.fog)
+      // Distance blend. Two layers share this shader: the NEAR detailed layer
+      // fades to TRANSPARENT at its edge (uFadeToAlpha=1) so the huge coarse FAR
+      // layer shows through behind it; the FAR layer fades to sky (uFadeToAlpha=0)
+      // so the horizon dissolves with no visible plane edge. Result: layered
+      // landscape receding endlessly into haze.
       '  float dist = distance(cameraPosition, vWorldPos);',
       '  float fog = smoothstep(uFogNear, uFogFar, dist);',
-      '  col = mix(col, uSky, fog);',
-      '  gl_FragColor = vec4(col, 1.0);',
+      '  if (uFadeToAlpha > 0.5){',
+      '    if (fog > 0.985) discard;',                       // don\'t write depth where fully faded -> far layer shows
+      '    gl_FragColor = vec4(col, 1.0 - fog);',
+      '  } else {',
+      '    col = mix(col, uSky, fog);',
+      '    gl_FragColor = vec4(col, 1.0);',
+      '  }',
       '}',
     ].join('\n');
 
     // ===================== state =====================
-    let mesh = null, mat = null, built = false, raf = null;
+    // Surface theme: 0 = flooded scar-world (default), 1 = ocean + survivors,
+    // 2 = crust + crater holes. Switchable at runtime (setTheme / cycle key)
+    // so the look can be chosen by eye in flight.
+    const THEME_NAMES = ['flooded scar-world', 'ocean + survivors', 'crust + crater holes'];
+    let _theme = 0;
+    let layers = [];              // [{ mesh, mat, cfg }] near-first
+    let built = false, raf = null;
     let sunLight = null, sunSearched = false;
     let last = 0, tSec = 0;
     const _sky = new THREE.Color(0x9fb8d0);
@@ -138,33 +194,40 @@
     const _sunDir = new THREE.Vector3(0.4, 1.0, 0.3).normalize();
 
     function build() {
-      if (built) return mesh;
-      const geo = new THREE.PlaneGeometry(PLANE, PLANE, SEGS, SEGS);
-      geo.rotateX(-Math.PI / 2);
-      mat = new THREE.ShaderMaterial({
-        uniforms: {
-          uTime: { value: 0 },
-          uFreq: { value: 0.012 },
-          uHeight: { value: 11.0 },
-          uSea: { value: 0.52 },
-          uSunDir: { value: _sunDir },
-          uSunColor: { value: _sunC },
-          uAmbient: { value: _amb },
-          uSky: { value: _sky },
-          uFogNear: { value: FOG_NEAR },
-          uFogFar: { value: FOG_FAR },
-        },
-        vertexShader: VERT,
-        fragmentShader: FRAG,
-        fog: false,   // all fog is in-shader; ignore the poser's short scene.fog
+      if (built) return layers;
+      layers = LAYERS.map((cfg, i) => {
+        const geo = new THREE.PlaneGeometry(cfg.plane, cfg.plane, cfg.segs, cfg.segs);
+        geo.rotateX(-Math.PI / 2);
+        const mat = new THREE.ShaderMaterial({
+          uniforms: {
+            uTime: { value: 0 },
+            uTheme: { value: _theme },
+            uFreq: { value: 0.012 },
+            uHeight: { value: 11.0 },
+            uSea: { value: 0.52 },
+            uSunDir: { value: _sunDir },
+            uSunColor: { value: _sunC },
+            uAmbient: { value: _amb },
+            uSky: { value: _sky },
+            uFogNear: { value: cfg.fogNear },
+            uFogFar: { value: cfg.fogFar },
+            uFadeToAlpha: { value: cfg.fadeToAlpha },
+          },
+          vertexShader: VERT,
+          fragmentShader: FRAG,
+          transparent: cfg.transparent,
+          depthWrite: cfg.depthWrite,
+          fog: false,   // all fog is in-shader; ignore the poser's short scene.fog
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.name = i === 0 ? 'infiniteSurface' : 'infiniteSurfaceFar';
+        mesh.frustumCulled = false;   // recenters every frame; bounds would be stale
+        mesh.renderOrder = cfg.order; // behind the detailed poser sea/islands near centre
+        mesh.visible = false;
+        return { mesh, mat, cfg };
       });
-      mesh = new THREE.Mesh(geo, mat);
-      mesh.name = 'infiniteSurface';
-      mesh.frustumCulled = false;   // it recenters every frame; bounds would be stale
-      mesh.renderOrder = -2;        // behind the detailed poser sea/islands near centre
-      mesh.visible = false;
       built = true;
-      return mesh;
+      return layers;
     }
 
     // The day/night sun is the one shadow-casting directional light (02-cameras-
@@ -187,7 +250,7 @@
     }
 
     function updateUniforms() {
-      if (!mat) return;
+      if (!layers.length) return;
       const sc = sceneRef();
       // sky / fog colour from the live day-night background (dark blue at night,
       // bright at midday) — the single source that makes the surface obey the clock.
@@ -212,20 +275,25 @@
         Math.min(1, _sky.g * 1.15 + 0.05),
         Math.min(1, _sky.b * 1.15 + 0.06),
       );
-      mat.uniforms.uTime.value = tSec;
+      // _sky/_sunC/_amb/_sunDir are shared uniform object refs across both layers,
+      // so mutating them updates both; only uTime is per-material.
+      for (const L of layers) L.mat.uniforms.uTime.value = tSec;
     }
 
     function recenter() {
       const cam = cameraRef();
-      if (!mesh || !cam) return;
-      const cx = Math.round(cam.position.x / SNAP) * SNAP;
-      const cz = Math.round(cam.position.z / SNAP) * SNAP;
-      mesh.position.set(cx, SEA_Y, cz);
+      if (!cam || !layers.length) return;
+      for (const L of layers) {
+        const snap = L.cfg.snap;
+        const cx = Math.round(cam.position.x / snap) * snap;
+        const cz = Math.round(cam.position.z / snap) * snap;
+        L.mesh.position.set(cx, SEA_Y + L.cfg.yOff, cz);
+      }
     }
 
     // Self-driven tick (like the poser sea). Also exposed for 34 to call if it wants.
     function tick(now) {
-      if (!mesh || !mesh.visible) return;
+      if (!isActive()) return;
       const t = (typeof now === 'number') ? now
         : ((performance && performance.now) ? performance.now() : Date.now());
       if (!last) last = t;
@@ -247,9 +315,8 @@
       build();
       const par = parentNode();
       if (!par) return false;
-      if (mesh.parent !== par) par.add(mesh);
+      for (const L of layers) { if (L.mesh.parent !== par) par.add(L.mesh); L.mesh.visible = true; }
       recenter();
-      mesh.visible = true;
       updateUniforms();
       startTick();
       return true;
@@ -257,19 +324,36 @@
 
     function hide() {
       stopTick();
-      if (mesh) {
-        if (mesh.parent) mesh.parent.remove(mesh);
-        if (mesh.geometry) mesh.geometry.dispose();
-        if (mesh.material) mesh.material.dispose();
-        mesh.visible = false;
+      for (const L of layers) {
+        if (L.mesh.parent) L.mesh.parent.remove(L.mesh);
+        if (L.mesh.geometry) L.mesh.geometry.dispose();
+        if (L.mat) L.mat.dispose();
+        L.mesh.visible = false;
       }
       // reset lazy-build state so a re-show rebuilds fresh GPU buffers
-      mesh = null; mat = null; built = false;
+      layers = []; built = false;
       sunLight = null; sunSearched = false;
       tSec = 0; last = 0;
     }
 
-    function isActive() { return !!(mesh && mesh.visible); }
+    function isActive() { return !!(layers[0] && layers[0].mesh.visible); }
 
-    window.__tinyworldInfiniteSurface = { show, hide, tick, isActive };
+    function setTheme(n) {
+      _theme = ((n % 3) + 3) % 3;               // clamp/wrap to 0..2
+      for (const L of layers) L.mat.uniforms.uTheme.value = _theme;
+      if (typeof window.toast === 'function' && isActive()) {
+        window.toast('Surface: ' + THEME_NAMES[_theme]);
+      }
+      return _theme;
+    }
+    function getTheme() { return _theme; }
+    function cycleTheme() { return setTheme(_theme + 1); }
+
+    // Dev/testing: press T while the surface is showing to cycle the look.
+    window.addEventListener('keydown', (e) => {
+      if (!isActive()) return;
+      if ((e.key === 't' || e.key === 'T') && !e.metaKey && !e.ctrlKey && !e.altKey) cycleTheme();
+    });
+
+    window.__tinyworldInfiniteSurface = { show, hide, tick, isActive, setTheme, getTheme, cycleTheme };
   })();

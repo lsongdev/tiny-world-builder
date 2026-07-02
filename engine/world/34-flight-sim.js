@@ -905,6 +905,8 @@
     // inside the infinite ocean and z-fought at the same depth. Show only the
     // infinite surface while flying; the poser stays for on-foot surface roam.
     if (window.__tinyworldInfiniteSurface) window.__tinyworldInfiniteSurface.show();
+    // Endless scatter of the detailed survivor isles across the flooded scar.
+    if (window.__tinyworldSurvivorIslands) window.__tinyworldSurvivorIslands.show();
   }
 
   function flightEndVeil() {
@@ -913,6 +915,7 @@
     if (typeof window.__setPlanetLandscapeNearView === 'function') window.__setPlanetLandscapeNearView(false);
     if (window.__tinyworldPoserSurface) window.__tinyworldPoserSurface.hide();
     if (window.__tinyworldInfiniteSurface) window.__tinyworldInfiniteSurface.hide();
+    if (window.__tinyworldSurvivorIslands) window.__tinyworldSurvivorIslands.hide();
     if (flightVeilManaged && typeof setCloudSeaEnabled === 'function') {
       setCloudSeaEnabled(flightVeilCloudWasEnabled);
       flightVeilManaged = false;
@@ -938,6 +941,15 @@
       flightEndVeil();
     }
   }
+
+  // Gun recoil, applied by 41-flight-combat when a wing gun fires. It is a brief
+  // speed bleed only — like a quick tap of the brake — with no roll or pitch: each
+  // shot knocks a small percentage off the current velocity, which the engine
+  // thrust recovers once firing stops. Same effect for either gun or both.
+  window.__flightRecoil = function () {
+    if (!flightActive) return;
+    flightPlane.vel.multiplyScalar(0.98);
+  };
 
   // -------- per-frame tick (called from animate) --------
   const _fljetScenePos = new THREE.Vector3();
@@ -1064,6 +1076,10 @@
     if (window.__flightCombat && typeof window.__flightCombat.onEnter === 'function') {
       window.__flightCombat.onEnter(jet);
     }
+    // Spawn the AI target-practice drones for this flight (module 73). It
+    // self-manages its own rAF + lazy asset load and tears everything down on
+    // stop, so nothing leaks after Esc.
+    if (typeof window.__flightTargetPlanesStart === 'function') window.__flightTargetPlanesStart();
     if (window.__flightEngineAudio && typeof window.__flightEngineAudio.start === 'function') {
       window.__flightEngineAudio.start();
     }
@@ -1175,6 +1191,29 @@
     return jet;
   }
 
+  // Builds a stand-alone stunt-plane group tinted by colorHex, reusing the same
+  // GLB + texture as the player jet. The tint is a CLONE of flightSpawnMaterial
+  // with its (white) .color set to colorHex, so the Lambert map*color multiply
+  // keeps the texture but recolours it. Returns an already centred/scaled Group
+  // (via normalizeFlightSpawnModel, applied once to the shared master), or null
+  // when the GLB has not finished loading yet — in which case the load is kicked
+  // off so a later call succeeds. Used by 73-target-planes.js for the AI drones.
+  // Does not touch the player-jet build path.
+  window.__flightBuildTintedPlane = function (colorHex) {
+    if (!flightSpawnScene || !flightSpawnMaterial) {
+      ensureFlightSpawnAssets(function () {});   // kick off async load; retry later
+      return null;
+    }
+    const model = flightSpawnScene.clone();
+    const tintMat = flightSpawnMaterial.clone();
+    if (colorHex != null) tintMat.color.setHex(colorHex);
+    model.traverse(o => { if (o.isMesh) o.material = tintMat; });
+    const jet = new THREE.Group();
+    jet.name = 'tw_flight_tinted_plane';
+    jet.add(model);
+    return jet;
+  };
+
   // Spawns a temp stunt plane at `scenePos` (world/scene space, e.g. the
   // current orbit target) with its nose along `lookDir` (world-space, XZ,
   // normalised) and immediately enters flight. Has no parking-spot cell, so
@@ -1216,6 +1255,8 @@
     if (window.__flightCombat && typeof window.__flightCombat.onExit === 'function') {
       window.__flightCombat.onExit();
     }
+    // Remove the AI drones + stop their rAF so no meshes/loops leak after exit.
+    if (typeof window.__flightTargetPlanesStop === 'function') window.__flightTargetPlanesStop();
     showFlightHud(false);
     hideFlightViewPanel();
     // Remove this flight's airborne mesh. The lobby cell already respawns a
@@ -1255,7 +1296,7 @@
     if (flightHudEl) {
       // Status updates arrive per-frame while grounded — only touch the DOM
       // when the composed string actually changed.
-      const html = '<b>' + flightHudStatus + '</b> &middot; W down / S or X up &middot; A/D roll &middot; Q/E yaw &middot; Shift/Ctrl throttle &middot; B brake &middot; <b>Esc</b> exit';
+      const html = '<b>' + flightHudStatus + '</b> &middot; W down / S or X up &middot; A/D roll &middot; Q/E yaw &middot; Shift/Ctrl throttle &middot; , / . guns &middot; B brake &middot; <b>Esc</b> exit';
       if (html !== flightHudLastHtml) {
         flightHudEl.innerHTML = html;
         flightHudLastHtml = html;
@@ -1305,6 +1346,9 @@
     ShiftLeft: 1, ShiftRight: 1, ControlLeft: 1, ControlRight: 1,
     ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1,
     Space: 1,
+    // Per-wing gun triggers: Comma = left gun, Period = right gun, both held (or
+    // Space / left mouse) = both. 41-flight-combat reads these from flightKeys.
+    Comma: 1, Period: 1,
   };
   window.addEventListener('keydown', e => {
     if (!flightActive) return;

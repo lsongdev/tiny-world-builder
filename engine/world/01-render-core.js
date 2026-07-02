@@ -244,7 +244,10 @@
     uiTheme: 'auto',
     shadow: 'balanced',
     lighting: '0.78',
-    directionalSun: '10',
+    // Matches the tuned production/DB value (was '10', which with NoToneMapping
+    // over-exposed and blew out highlights on a fresh/offline session). This is
+    // the startup default so the lighting is correct before any DB prefs load.
+    directionalSun: '5.35',
     ambientFill: '1.00',
     frontFill: '0.48',
     sideFill: '0.40',

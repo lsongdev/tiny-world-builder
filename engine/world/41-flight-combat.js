@@ -55,16 +55,34 @@
     }
   }
 
+  // Rough distance attenuation for positional combat one-shots: full within
+  // ~20 scene units of the viewpoint, fading to a floor by ~140. Uses the
+  // camera when available (falls back to the jet), never zero so a far hit
+  // still registers faintly.
+  const _fcAudioRef = new THREE.Vector3();
+  function combatAudioGain(pos) {
+    if (!pos) return 1;
+    let ref = null;
+    if (typeof camera !== 'undefined' && camera) { camera.getWorldPosition(_fcAudioRef); ref = _fcAudioRef; }
+    else if (jet) { jet.getWorldPosition(_fcAudioRef); ref = _fcAudioRef; }
+    if (!ref) return 1;
+    const d = ref.distanceTo(pos);
+    return Math.max(0.12, Math.min(1, 1 - (d - 20) / 120));
+  }
+
   function onIncomingHit(msg) {
     if (!active) return;
     const dmg = Math.max(0, Number(msg.damage) || 0);
     health = Math.max(0, Math.min(MAX_HEALTH, health - dmg));
+    // Local player took a hit: metallic clank on the hull, full level.
+    if (window.__flightCombatAudio) window.__flightCombatAudio.impact();
     if (jet) { jet.getWorldPosition(_fcSparkTmp); spawnHitSparks(_fcSparkTmp); }
     if (health <= 0) { health = 0; doDeathAndRelaunch(); }
   }
   function spawnExplosionFX(pos) {
     ensureSparkPool();
     ensureExplosionPool();
+    if (window.__flightCombatAudio) window.__flightCombatAudio.explosion({ gain: combatAudioGain(pos) });
     for (let k = 0; k < 2; k++) spawnHitSparks(pos);
     for (let k = 0; k < 5; k++) spawnExplosionParticle(pos, 'fire');
     for (let k = 0; k < 9; k++) spawnExplosionParticle(pos, 'smoke');
@@ -94,7 +112,11 @@
         for (const id of Array.from(_prevGhostPos.keys())) if (!live.has(id)) _prevGhostPos.delete(id);
       }
     }
-    // world-cell targets appended in a later task
+    // AI target-practice drones (module 73). Exposed as an array (or a function
+    // returning one) of the same target adapter shape; only live ones are shot.
+    const dp = window.__flightTargetPlanes;
+    const arr = typeof dp === 'function' ? dp() : dp;
+    if (Array.isArray(arr)) for (const t of arr) if (t && t.isAlive && t.isAlive()) targets.push(t);
   }
 
   // ---- tracers ----
@@ -156,19 +178,26 @@
     }
   }
 
-  function fireGuns() {
+  // side: 'left' fires the left wing gun, 'right' the right, anything else both.
+  function fireGuns(side) {
     if (!jet || gunAmmo <= 0) return;
     const dir = window.__flightSceneForward
       ? window.__flightSceneForward(_fireDir)
       : _fireDir.set(0, 0, -1);
-    for (const local of [gunMuzzleL, gunMuzzleR]) {
+    const muzzles = side === 'left' ? [gunMuzzleL]
+      : side === 'right' ? [gunMuzzleR]
+      : [gunMuzzleL, gunMuzzleR];
+    for (const local of muzzles) {
       _muzzleWorld.copy(local);
       jet.localToWorld(_muzzleWorld);
       spawnTracer(_muzzleWorld, dir);
       attemptInstantHit(_muzzleWorld, dir);
     }
-    gunAmmo = Math.max(0, gunAmmo - 2);
+    gunAmmo = Math.max(0, gunAmmo - muzzles.length);
     shotsFired++;
+    if (window.__flightCombatAudio) window.__flightCombatAudio.gun();
+    // Recoil: a brief speed dip (handled in 34), no roll/pitch.
+    if (window.__flightRecoil) window.__flightRecoil();
   }
 
   // ---- hitscan ----
@@ -195,7 +224,11 @@
     if (best) {
       best.getWorldPos(_fcHitPos);
       best.applyDamage(GUN_DAMAGE, _fcHitPos, 'gun');
+      // Guns don't normally boom, but a target that this shot destroys (e.g. a
+      // drone) explodes — the missile path already does this on its own hits.
+      if (!best.isAlive()) spawnExplosionFX(_fcHitPos);
       spawnHitSparks(_fcHitPos);
+      if (window.__flightCombatAudio) window.__flightCombatAudio.impact({ gain: combatAudioGain(_fcHitPos) });
       gunHits++;
     } else {
       attemptSceneryHit(origin, dir, GUN_DAMAGE);
@@ -277,6 +310,9 @@
     }
     hp -= damage;
     spawnHitSparks(hitPoint);
+    // Real projectile striking scenery: metallic impact. If this shot destroys
+    // the cell, destroyCell -> spawnExplosionFX plays the boom instead.
+    if (hp > 0 && window.__flightCombatAudio) window.__flightCombatAudio.impact({ gain: combatAudioGain(hitPoint) });
     if (hp <= 0) { cellHealth.delete(key); destroyCell(x, z, hitPoint); }
     else cellHealth.set(key, hp);
   }
@@ -742,6 +778,7 @@
     m.mesh.visible = true; m.mesh.position.copy(m.pos);
     m.mesh.quaternion.copy(_fcMq.setFromUnitVectors(_projForward, dir));
     spawnHitSparks(m.pos); // launch puff
+    if (window.__flightCombatAudio) window.__flightCombatAudio.missile();
   }
   function deactivateMissile(m) { m.active = false; m.mesh.visible = false; m.targetId = ''; }
 
@@ -917,9 +954,17 @@
     if (!muzzlesReady) muzzlesReady = deriveMuzzles();
     collectTargets(dt);
     const keys = window.__flightKeys || {};
-    const firing = !!keys['Space'] || !!window.__flightFireHeld;
-    if (firing && fireCooldown <= 0) {
-      fireGuns();
+    // Per-wing triggers: Comma = left gun, Period = right gun, both held (or
+    // Space / left mouse) = both barrels.
+    const bothTrigger = !!keys['Space'] || !!window.__flightFireHeld;
+    const leftTrigger = !!keys['Comma'];
+    const rightTrigger = !!keys['Period'];
+    let fireSide = null;
+    if (bothTrigger || (leftTrigger && rightTrigger)) fireSide = 'both';
+    else if (leftTrigger) fireSide = 'left';
+    else if (rightTrigger) fireSide = 'right';
+    if (fireSide && fireCooldown <= 0) {
+      fireGuns(fireSide);
       fireCooldown = FIRE_COOLDOWN;
     }
     const missilePressed = !!window.__flightMissilePressed;
