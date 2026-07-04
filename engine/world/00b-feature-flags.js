@@ -26,6 +26,8 @@
     'settingsCrowd',
     'settingsAi',
     'thirdPersonView',
+    'dbAssets',
+    'buildV2',
   ];
 
   const TW_FEATURE_FLAG_META = {
@@ -55,6 +57,8 @@
     settingsCrowd: { label: 'Settings · Crowd', hint: 'Crowd tab inside Settings' },
     settingsAi: { label: 'Settings · AI', hint: 'AI config tab inside Settings' },
     thirdPersonView: { label: 'Third-person View', hint: 'Third-person walk camera option in the view picker' },
+    dbAssets: { label: 'DB asset store', hint: 'Per-asset cloud persistence (e.g. custom voxel stamps) via /api/assets' },
+    buildV2: { label: 'Build v2', hint: 'Overhauled build UX: capability-accurate menus, contextual suggestions, pen tools' },
   };
 
   const TW_SETTINGS_SECTION_FLAG_IDS = {
@@ -94,6 +98,8 @@
     settingsCrowd: { everyone: false, admin: false },
     settingsAi: { everyone: false, admin: false },
     thirdPersonView: { everyone: false, admin: false },
+    dbAssets: { everyone: false, admin: true },
+    buildV2: { everyone: false, admin: true },
   };
 
   const TW_FEATURE_FLAG_TOOL_IDS = {
@@ -102,6 +108,9 @@
     connections: 'mooring',
     lamps: 'lamp-post',
     lava: 'lava',
+    // Build v2 slice 4 (plans/build-v2/04-PLAN.md): the pen tool exists in
+    // TOOLS (19-tools-toolbar.js) but is hidden whenever `buildV2` is off.
+    buildV2: 'pen',
   };
 
   const TW_WORLD_ADMIN_EMAILS = [

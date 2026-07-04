@@ -278,7 +278,9 @@
     floorOpacity: '0',
     objectOpacity: '0',
     voxelGap: '0',
-    voxelBevel: '0.018',
+    // Bevel is OFF by default (owner directive, Build v2): flat voxel faces
+    // everywhere unless the user opts in via the rendering settings slider.
+    voxelBevel: '0',
     voxelTerrain: '1',
     texturedGrass: '1',
     showCrowns: '0',
@@ -519,6 +521,12 @@
   let renderObjectOpacity = 0;
   let renderVoxelGap = 0;
   let renderVoxelBevel = storedNumber(RENDER_LS.voxelBevel, parseFloat(RENDER_DEFAULTS.voxelBevel), 0, 0.06);
+  // Bevel-off migration (owner directive): a stored 0.018 is the OLD default,
+  // not a user choice — the bulk settings-save (21:~694) used to write every
+  // key including untouched ones, and prefs-sync replicates it across devices.
+  // Coerce at read time (no LS write — avoids fighting the remote-wins prefs
+  // pull); any other stored value is a deliberate slider choice and is kept.
+  if (renderVoxelBevel === 0.018) renderVoxelBevel = 0;
   let renderVoxelTerrain = localStorage.getItem(RENDER_LS.voxelTerrain) !== '0';
   let renderTexturedGrass = localStorage.getItem(RENDER_LS.texturedGrass) !== '0';
   let renderSurfaceLinkedMaterials = localStorage.getItem(RENDER_LS.surfaceLinkedMaterials) !== '0';

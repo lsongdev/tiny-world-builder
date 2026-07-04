@@ -369,6 +369,7 @@
         if (bType === 'skyscraper')   mesh = makeSkyscraper(Math.max(floors, 4));
         else if (bType === 'manor')   mesh = makeManor(floors);
         else if (bType === 'tower')   mesh = makeStoneTower(Math.max(floors, 2), towerPaletteWithAppearance(getMergedBuildingPalette(hx, hz, 'tower'), cell.appearance));
+        else if (bType === 'watchtower') mesh = makeStoneTower(Math.max(floors, 2), towerPaletteWithAppearance(getMergedBuildingPalette(hx, hz, 'tower'), cell.appearance), { variant: 'watchtower' });
         else if (bType === 'turret')  mesh = makeTurret(floors);
         else {
           const cluster = findHouseCluster(hx, hz);
@@ -443,6 +444,7 @@
       const bt = v && v.buildingType;
       if      (bt === 'manor')      mesh = makeManor(1);
       else if (bt === 'tower')      mesh = makeStoneTower(2);
+      else if (bt === 'watchtower') mesh = makeStoneTower(2, null, { variant: 'watchtower' });
       else if (bt === 'turret')     mesh = makeTurret(1);
       else if (bt === 'skyscraper') mesh = makeSkyscraper(4);
       else                          mesh = makeHouse(1);

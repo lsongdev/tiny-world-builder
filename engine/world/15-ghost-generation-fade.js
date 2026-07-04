@@ -572,7 +572,10 @@
     else if (cell.kind === 'fence')     mesh = makeVoxelFence(normalizeFenceSide(cell.fenceSide), level, false, false, 'x', typeof fenceStyleForCell === 'function' ? fenceStyleForCell(cell) : 'wood');
     else if (cell.kind === 'house') {
       if (cell.buildingType === 'manor') mesh = makeVoxelManor(level);
-      else if (cell.buildingType === 'tower') mesh = makeVoxelStoneTower(Math.max(level, 2));
+      // Graceful degradation: no dedicated voxel watchtower builder exists
+      // (09b is a separate hand-duplicated set) — preview as a plain voxel
+      // tower during construction fade-in; the real render is the full variant.
+      else if (cell.buildingType === 'tower' || cell.buildingType === 'watchtower') mesh = makeVoxelStoneTower(Math.max(level, 2));
       else if (cell.buildingType === 'turret') mesh = makeVoxelTurret(level, false);
       else if (cell.buildingType === 'skyscraper') mesh = makeVoxelSkyscraper(Math.max(level, 4));
       else mesh = makeVoxelLinearHouse(1, 'z', level);

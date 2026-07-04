@@ -31,7 +31,7 @@
     else if (k === 'house') {
       const bt = obj.userData.buildingType;
       if (bt === 'skyscraper')                                base = 12;
-      else if (bt === 'manor' || bt === 'tower' || bt === 'turret') base = 8;
+      else if (bt === 'manor' || bt === 'tower' || bt === 'turret' || bt === 'watchtower') base = 8;
       else                                                    base = 5;
     }
     const floors = (obj.userData && (obj.userData.level || obj.userData.floors)) || 1;
@@ -61,7 +61,7 @@
     else if (k === 'house') {
       const bt = obj.userData.buildingType;
       if (bt === 'skyscraper') base = 11;
-      else if (bt === 'manor' || bt === 'tower' || bt === 'turret') base = 7;
+      else if (bt === 'manor' || bt === 'tower' || bt === 'turret' || bt === 'watchtower') base = 7;
       else base = 4;
     }
     const floors = obj.userData.level || obj.userData.floors || 1;
@@ -349,14 +349,27 @@
   // existing setCell adjacency refresh, extended below to include the whole
   // fence component on changes.
   // Castle/turret AUTO-promotion. Disabled: placed fences and houses must not
-  // morph into castle walls / turrets based on what's placed next to them.
-  // The explicit Castle house variant (buildingType 'turret' -> makeTurret) and
-  // fence wall/boundary levels (makeFence) are unaffected by this flag.
-  // Castle auto-promotion (fence→castle-wall, house→turret based on fence adjacency)
-  // is permanently disabled. The functions remain as no-ops so call sites in
-  // 09b/17/18/07 don't need changes, but the expensive neighbor scans are gone.
-  function isTurretHouse(x, z) { return false; }
-  function isCastleFence(x, z) { return false; }
+  // morph into castle walls / turrets just from being adjacent to each other —
+  // that inference is what's permanently off, not the concepts themselves.
+  // Both functions below are real, opt-in detectors: they read an explicit
+  // field the player (or an explicit suggestion-accept) already set, never
+  // adjacency alone, so nothing morphs silently as the player paints.
+  //
+  // Turret: recognizes the buildingType a player already chose via the Castle
+  // toolbar option (19-tools-toolbar.js -> makeTurret); no promotion happens
+  // here, this only lets castle-wall segments know which neighbours are real
+  // towers to connect to (getCastleWallNeighbors above).
+  function isTurretHouse(x, z) {
+    const cell = getWorldCell(x, z);
+    return !!(cell && cell.kind === 'house' && cell.buildingType === 'turret');
+  }
+  // Castle wall: recognizes fenceStyle 'castle' (FENCE_STYLES below), which is
+  // only ever set by an explicit accept action (33c-build-suggestions.js
+  // FENCE-NEAR-TOWER rule) — never inferred from adjacency by this function.
+  function isCastleFence(x, z) {
+    const cell = getWorldCell(x, z);
+    return !!(cell && cell.kind === 'fence' && fenceStyleForCell(cell) === 'castle');
+  }
 
   function isClusterableHouseCell(cell) {
     return !!(cell && cell.kind === 'house' && !cell.buildingType);
@@ -659,7 +672,7 @@
     return (normalized === 'n' || normalized === 's' || normalized === 'center-x') ? 'x' : 'z';
   }
 
-  const FENCE_STYLES = new Set(['wood', 'garden', 'gate']);
+  const FENCE_STYLES = new Set(['wood', 'garden', 'gate', 'castle']);
 
   function normalizeFenceStyle(style) {
     return FENCE_STYLES.has(style) ? style : 'wood';

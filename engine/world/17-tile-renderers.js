@@ -394,6 +394,13 @@
         // tower next to a manor switches from grey stone to brick). Per-cell
         // appearance then overrides body/top colours for direct editing.
         mesh = makeStoneTower(Math.max(floors, 2), towerPaletteWithAppearance(getMergedBuildingPalette(x, z, 'tower'), cell.appearance));
+      } else if (bType === 'watchtower') {
+        // Slice 6b variant — same tower family, same adjacency/palette merge
+        // as 'tower' (getMergedBuildingPalette has no separate branch for
+        // either, so the selfType string only matters for same-type skip),
+        // glazed shaft + open battlements + spiral stair instead of the cone
+        // roof (makeStoneTower opts.variant).
+        mesh = makeStoneTower(Math.max(floors, 2), towerPaletteWithAppearance(getMergedBuildingPalette(x, z, 'tower'), cell.appearance), { variant: 'watchtower' });
       } else if (bType === 'turret') {
         mesh = makeTurret(floors);
       } else {

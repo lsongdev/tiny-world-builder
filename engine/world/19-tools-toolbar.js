@@ -18,6 +18,12 @@
         { id: 'tower',      label: 'Tower',     buildingType: 'tower',      hint: 'stone tower w/ conical roof' },
         { id: 'turret',     label: 'Castle',    buildingType: 'turret',     hint: 'castle turret / keep' },
         { id: 'highrise',   label: 'High-rise', buildingType: 'skyscraper', hint: 'glass tower' },
+        // Build v2 slice 6b (plans/build-v2/04-PLAN.md) — glazed tower with an
+        // external spiral stair climbing to an open battlements top instead of
+        // a cone roof. Geometry (07-house-primitives.js makeStoneTower) is
+        // flag-independent; only this picker entry is buildV2-gated (filtered
+        // out in renderToolGroupFlyout/renderFlyout below when the flag is off).
+        { id: 'watchtower', label: 'Watchtower', buildingType: 'watchtower', hint: 'spiral stair to an open battlements top', requiresFlag: 'buildV2' },
       ],
     },
     { id: 'tree',   label: 'Tree',   kind: 'tree',  color: '#6fb442', shortcut: '6', group: 'nature' },
@@ -35,6 +41,12 @@
     { id: 'lamp-post', label: 'Lamp', kind: 'lamp-post', color: '#f0b45a', group: 'infra' },
     { id: 'spotlight', label: 'Spotlight', kind: 'spotlight', color: '#ffd280', group: 'infra' },
     { id: 'mooring', label: 'Connect', mooring: true, color: '#171b20', shortcut: 'm', group: 'infra' },
+    // Build v2 slice 4 (plans/build-v2/04-PLAN.md). Visibility is entirely
+    // flag-driven — twApplyFeatureFlagTools (00b-feature-flags.js
+    // TW_FEATURE_FLAG_TOOL_IDS.buildV2) sets .hidden from the `buildV2` flag
+    // and rebuilds the toolbar, same as spotlight/mooring/lamp-post/lava. No
+    // shortcut: 'p' is already bound to togglePerspective() below.
+    { id: 'pen', label: 'Pen', pen: true, color: '#c9932f', group: 'infra' },
     { id: 'crop',      label: 'Crop',      kind: 'crop',      terrainOverride: 'dirt', color: '#86c544', shortcut: 'g', group: 'crops' },
     { id: 'corn',      label: 'Corn',      kind: 'corn',      terrainOverride: 'dirt', color: '#f2c849', shortcut: 'n', group: 'crops' },
     { id: 'wheat',     label: 'Wheat',     kind: 'wheat',     terrainOverride: 'dirt', color: '#e6c354', shortcut: 'w', group: 'crops' },
@@ -53,7 +65,7 @@
   const TOOL_GROUPS = [
     { id: 'terrain', label: 'Terrain', toolIds: ['grass', 'path', 'dirt', 'water', 'stone', 'lava', 'sand', 'snow', 'rock', 'mesh-terrain'], iconTool: 'grass' },
     { id: 'plants', label: 'Plants', toolIds: ['tree', 'tuft', 'flower', 'bush'], iconTool: 'tree' },
-    { id: 'infra', label: 'Infra', toolIds: ['fence', 'bridge', 'lamp-post', 'spotlight', 'mooring'], iconTool: 'fence' },
+    { id: 'infra', label: 'Infra', toolIds: ['fence', 'bridge', 'lamp-post', 'spotlight', 'mooring', 'pen'], iconTool: 'fence' },
     { id: 'farm', label: 'Farm', toolIds: ['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower'], iconTool: 'wheat' },
     { id: 'life', label: 'Life', toolIds: ['cow', 'sheep', 'pig'], iconTool: 'cow' },
   ];
@@ -80,6 +92,18 @@
 
   function groupForTool(tool) {
     return TOOL_GROUPS.find(g => g.toolIds.includes(tool.id)) || null;
+  }
+
+  // Build v2 slice 6b: a variant can be gated by a feature flag (e.g. the
+  // 'watchtower' house shape) without hiding the whole TOOLS entry — the
+  // TOOLS literal stays static (so 17b-object-capabilities.js's
+  // houseBuildingTypes() keeps inheriting every variant automatically) and
+  // only the flyout render sites below filter it out while the flag is off.
+  function variantFlagAllowed(v) {
+    if (!v || !v.requiresFlag) return true;
+    return !!(window.__tinyworldFeatureFlagsApi
+      && typeof window.__tinyworldFeatureFlagsApi.isEnabled === 'function'
+      && window.__tinyworldFeatureFlagsApi.isEnabled(v.requiresFlag));
   }
 
   const DEFAULT_TOOL = TOOLS.find(t => t.id === 'select') || TOOLS.find(t => t.id === 'tree');
@@ -269,7 +293,12 @@
       const v = tool.activeVariant;
       const bType = v && v.buildingType;
       if (bType === 'manor')      return makeVoxelManor(2);
-      if (bType === 'tower')      return makeVoxelStoneTower(2);
+      // No dedicated voxel watchtower builder exists (09b's makeVoxel* set is
+      // a separate, hand-duplicated implementation from 07's real geometry —
+      // see plans/build-v2/03-proportions-audit.md); fall back to the plain
+      // voxel tower for the thumbnail, same graceful-degradation choice made
+      // at every other voxel-only dispatch site below.
+      if (bType === 'tower' || bType === 'watchtower') return makeVoxelStoneTower(2);
       if (bType === 'turret')     return makeVoxelTurret(2, false);
       if (bType === 'skyscraper') return makeVoxelSkyscraper(4);
       return makeVoxelLinearHouse(1, 'z', 2);
@@ -317,7 +346,7 @@
     if (tool.kind === 'house') {
       if (houseType === 'skyscraper') {
         thumbFrame = { left: -1.7, right: 1.7, top: 2.6, bottom: -1.0, lookAtY: 1.0 };
-      } else if (houseType === 'tower' || houseType === 'turret') {
+      } else if (houseType === 'tower' || houseType === 'turret' || houseType === 'watchtower') {
         thumbFrame = { left: -1.58, right: 1.58, top: 2.15, bottom: -0.95, lookAtY: 0.85 };
       } else if (houseType === 'manor') {
         thumbFrame = { left: -1.48, right: 1.48, top: 1.9, bottom: -0.95, lookAtY: 0.68 };
@@ -1524,7 +1553,10 @@
       "mooring": "mooring"
   };
   // House variants get distinct building glyphs so they stay easy to tell apart.
-  const HOUSE_VARIANT_GLYPH = { cottage: 'house', manor: 'family-house', tower: 'watchtower', turret: 'castle', skyscraper: 'modern-city' };
+  // No dedicated open-battlements glyph exists yet — reuse the same
+  // 'watchtower' icon the plain tower already uses (a battlement silhouette
+  // reads fine for both).
+  const HOUSE_VARIANT_GLYPH = { cottage: 'house', manor: 'family-house', tower: 'watchtower', turret: 'castle', skyscraper: 'modern-city', watchtower: 'watchtower' };
   function glyphSvgForTool(t) {
     if (!t) return '';
     let name = null;
@@ -1942,6 +1974,10 @@
 
   function selectTool(t) {
     twPerfMark('selectTool:start:' + (t && t.id ? t.id : 'unknown'));
+    // Switching tools cancels any in-progress pen stroke or open chooser
+    // (plans/build-v2/04-PLAN.md slice 4). Harmless no-op when neither is
+    // active, and safe to call even while switching TO the pen tool itself.
+    if (typeof window.cancelPenStroke === 'function') window.cancelPenStroke();
     selectedTool = t;
     if (!(t && t.mooring) && pendingMooringAnchor) clearPendingMooringAnchor();
     updateToolActiveStates();
@@ -1983,6 +2019,7 @@
     if (t.auto) return { cls: 'build', label: window.t('mode.auto.label'), sub: window.t('mode.auto.sub') };
     if (t.island) return { cls: 'build', label: window.t('mode.island.label'), sub: window.t('mode.island.sub') };
     if (t.mooring) return { cls: 'build', label: window.t('mode.connect.label'), sub: window.t('mode.connect.sub') };
+    if (t.pen) return { cls: 'build', label: window.t('mode.pen.label'), sub: window.t('mode.pen.sub') };
     const variant = t.activeVariant && t.activeVariant.label ? ' · ' + t.activeVariant.label : '';
     const noun = t.terrain ? window.t('mode.painting') : window.t('mode.building');
     const brush = window.__tinyworldBrushModes && window.__tinyworldBrushModes.label ? ' · ' + window.__tinyworldBrushModes.label() : '';
@@ -2011,6 +2048,7 @@
       // was grouped.
       if (((group.id === 'build' && tool.id === 'house') || (group.id === 'infra' && tool.id === 'fence')) && tool.variants) {
         tool.variants.forEach(v => {
+          if (!variantFlagAllowed(v)) return;
           const previewTool = Object.assign({}, tool, {
             id: tool.id + ':' + v.id,
             label: v.label,
@@ -2035,6 +2073,7 @@
     el.innerHTML = '';
     el.style.gridTemplateColumns = '';
     tool.variants.forEach(v => {
+      if (!variantFlagAllowed(v)) return;
       const item = document.createElement('button');
       item.className = 'flyout-item' + (v === tool.activeVariant ? ' active' : '');
       item.textContent = v.label;

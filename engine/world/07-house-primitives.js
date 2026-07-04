@@ -5,13 +5,160 @@
   // primitive parts. Both solo and cluster houses go through the same path,
   // so adding new shapes (L-cluster, square, etc.) only needs new plans.
 
-  const H = {
-    WALL_W: 0.82,        // short-axis wall width
-    WALL_H: 0.55,        // wall height to eaves
-    PEAK_Y: 0.87,        // ridge apex
-    T:      0.06,        // roof slab thickness
-    ROOF_OVERHANG: 0.3,  // roof depth = WALL_D + this (extends past long-axis ends)
+  // Two proportions tables (slice 6a, plans/build-v2/03-proportions-audit.md).
+  // V1 is today's exact geometry — every world already built keeps rendering
+  // with these numbers. V2 is the retuned scale from the audit's §3 proposal:
+  // DOOR_H anchored to 1.12x the max avatar height (0.61, from the height
+  // slider — 53-voxel-avatar.js:532), WALL_H/PEAK_Y/window sill+head scaled by
+  // the same ~1.42x factor (0.78/0.55) so today's internal fill ratios
+  // (door/wall, sill/wall) are preserved, only the absolute scale changes.
+  // Doors that today sit at unrelated heights (manor/tower/skyscraper/turret:
+  // 0.46/0.46/0.32/0.36) converge on the single DOOR_H per the audit. Wheat/
+  // flower use the audit's flagged -38%/-35% reductions (finding #9).
+  //
+  // `H` used to be a plain object with 5 keys, closed over by every Parts.*
+  // function. It's now a live-resolving accessor: reading H.ANY_KEY looks up
+  // the active table on every read, so every existing call site (H.WALL_W
+  // etc.) keeps working unmodified, and the literals that used to bypass H
+  // entirely (manor/tower/skyscraper doors, castle wall, turret door, wheat/
+  // flower) move into the same versioned lookup instead of staying as
+  // separate magic numbers. Selection is buildV2-flag driven; flipping the
+  // flag only affects geometry built after the flip (existing meshes don't
+  // retroactively change).
+  const TW_PROPORTIONS_V1 = {
+    WALL_W: 0.82,               // short-axis wall width
+    WALL_H: 0.55,                // wall height to eaves, per floor
+    PEAK_Y: 0.87,                 // roof ridge apex
+    T: 0.06,                       // roof slab thickness
+    ROOF_OVERHANG: 0.3,             // roof depth = WALL_D + this
+    DOOR_H: 0.48,                    // cottage/farmhouse door height (Parts.door)
+    WINDOW_Y: 0.32,                   // ground-floor window frame centre height
+    WINDOW_FRAME_LARGE: 0.24,          // Parts.window size='large' frame side
+    WINDOW_FRAME_SMALL: 0.20,           // Parts.window size='small' frame side
+    MANOR_DOOR_H: 0.46,                  // makeManor front door height
+    TOWER_DOOR_H: 0.46,                   // makeStoneTower front door height
+    TOWER_DOOR_SILL: 0.16,                 // tower door sill height above grade (floats)
+    SKY_FLOOR_H: 0.30,                      // skyscraper per-floor height
+    SKY_LOBBY_H: 0.30,                       // ground-floor height (v1: same as any floor)
+    SKY_DOOR_H: 0.32,                         // skyscraper ground door height
+    CASTLE_WALL_H: 0.50,                       // castle wall segment height
+    CASTLE_MERLON_H: 0.10,                      // castle merlon height
+    TURRET_DOOR_H: 0.36,                         // voxel turret door height (09b)
+    WHEAT_STALK_BASE: 0.36,                       // makeWheat stalk base height
+    WHEAT_STALK_RAND: 0.06,                        // makeWheat stalk random range
+    FLOWER_STEM_H: 0.14,                            // makeFlower stem height
+
+    // Slice 6c (plans/build-v2/03-proportions-audit.md finding #6): animal
+    // size hierarchy. Two independent implementations exist — makeCow/
+    // makeSheep/makePig below (the real in-world render, per 17-tile-
+    // renderers.js/18-scene-pick-xr.js/28a-floating-agent.js) are each fully
+    // hardcoded with no shared scale lever, so their fix is a per-species
+    // *_RENDER_SCALE applied as a uniform group scale (scales the whole
+    // animal, doesn't reshape any part). makeVoxelAnimal (09b, ghost-preview
+    // + toolbar icon only) already had a per-species animalScale ternary and
+    // ternary-branched body/head dims — those are promoted into ANIMAL_*
+    // keys below unchanged in V1/V2 except the *_SCALE values, which are
+    // retuned the same way. Real-render heights measured from mesh literals
+    // in makeCow/makeSheep/makePig (tallest point of each: cow horn nub top
+    // 0.425, sheep wool-puff top 0.39, pig tail top 0.355); voxel-path
+    // heights measured pre-scale from makeVoxelAnimal literals (cow horn nub
+    // 0.455, sheep wool-puff 0.415, pig head top 0.375) then multiplied by
+    // the existing animalScale.
+    ANIMAL_COW_RENDER_SCALE: 1.0,                    // makeCow — reference, unchanged
+    ANIMAL_SHEEP_RENDER_SCALE: 1.0,                   // makeSheep — v1: no scale lever existed
+    ANIMAL_PIG_RENDER_SCALE: 1.0,                      // makePig — v1: no scale lever existed
+    ANIMAL_COW_SCALE: 0.80,                             // makeVoxelAnimal cow group scale
+    ANIMAL_SHEEP_SCALE: 0.70,                            // makeVoxelAnimal sheep group scale
+    ANIMAL_PIG_SCALE: 0.72,                               // makeVoxelAnimal pig group scale
+    ANIMAL_COW_BODY_W: 0.42,                               // makeVoxelAnimal cow body box
+    ANIMAL_COW_BODY_H: 0.26,
+    ANIMAL_COW_BODY_D: 0.24,
+    ANIMAL_SHEEP_BODY_W: 0.34,                              // makeVoxelAnimal sheep body box
+    ANIMAL_SHEEP_BODY_H: 0.24,
+    ANIMAL_SHEEP_BODY_D: 0.22,
+    ANIMAL_PIG_BODY_W: 0.40,                                // makeVoxelAnimal pig body box
+    ANIMAL_PIG_BODY_H: 0.27,
+    ANIMAL_PIG_BODY_D: 0.30,
+    ANIMAL_COW_HEAD_W: 0.18,                                // makeVoxelAnimal cow head box
+    ANIMAL_COW_HEAD_H: 0.16,
+    ANIMAL_COW_HEAD_D: 0.16,
+    ANIMAL_SHEEP_HEAD_W: 0.14,                              // makeVoxelAnimal sheep head box
+    ANIMAL_SHEEP_HEAD_H: 0.14,
+    ANIMAL_SHEEP_HEAD_D: 0.12,
+    ANIMAL_PIG_HEAD_W: 0.17,                                // makeVoxelAnimal pig head box
+    ANIMAL_PIG_HEAD_H: 0.15,
+    ANIMAL_PIG_HEAD_D: 0.17,
   };
+
+  const TW_PROPORTIONS_V2 = {
+    WALL_W: 0.82,               // unchanged — audit doesn't propose scaling wall width
+    WALL_H: 0.78,
+    PEAK_Y: 1.234,               // 0.87 * (0.78/0.55) ~= 1.2338, preserves roof-pitch fill ratio
+    T: 0.06,                      // unchanged — slab thickness, not part of the height fix
+    ROOF_OVERHANG: 0.3,            // unchanged — horizontal roof depth, not a height ratio
+    DOOR_H: 0.68,                    // 1.12 x MAX_AVATAR_H (0.61)
+    WINDOW_Y: 0.454,                  // 0.32 * (0.78/0.55) ~= 0.4538 -> sill 0.284/head 0.624
+    WINDOW_FRAME_LARGE: 0.340,         // 0.24 * (0.78/0.55)
+    WINDOW_FRAME_SMALL: 0.284,          // 0.20 * (0.78/0.55)
+    MANOR_DOOR_H: 0.68,                  // converges on shared DOOR_H per audit §3
+    TOWER_DOOR_H: 0.68,                   // converges on shared DOOR_H
+    TOWER_DOOR_SILL: 0.16,                  // unchanged — the fix is an added stair run (below), not a sill move
+    SKY_FLOOR_H: 0.30,                        // unchanged — upper office floors keep today's height
+    SKY_LOBBY_H: 0.714,                        // max(2*0.30, 0.68*1.05) -- doubled ground floor fits the new door
+    SKY_DOOR_H: 0.68,                            // converges on shared DOOR_H, now fits inside SKY_LOBBY_H
+    CASTLE_WALL_H: 0.68,                          // 1.12 x MAX_AVATAR_H (0.61), same headroom logic as DOOR_H
+    CASTLE_MERLON_H: 0.12,                         // wall + 0.12 per audit's merlon-top target (0.80)
+    TURRET_DOOR_H: 0.68,                            // converges on shared DOOR_H (was the shortest door in the game)
+    WHEAT_STALK_BASE: 0.223,                         // 0.36 * 0.62 (-38%)
+    WHEAT_STALK_RAND: 0.037,                          // 0.06 * 0.62 (-38%)
+    FLOWER_STEM_H: 0.091,                              // 0.14 * 0.65 (-35%)
+
+    // Animal size hierarchy retune (finding #6). Cow stays the reference at
+    // both scales (0.425 real / 0.364 voxel-post-scale); pig -> 0.85x cow,
+    // sheep -> 0.70x cow, keeping every species' own body/head dims
+    // untouched (scaling the whole animal, not reshaping it).
+    ANIMAL_COW_RENDER_SCALE: 1.0,                       // reference: 0.425 * 1.0 = 0.425
+    ANIMAL_SHEEP_RENDER_SCALE: 0.7628,                   // 0.70*0.425/0.39 -> 0.39*0.7628 = 0.2975 (70% of cow)
+    ANIMAL_PIG_RENDER_SCALE: 1.0176,                     // 0.85*0.425/0.355 -> 0.355*1.0176 = 0.36125 (85% of cow)
+    ANIMAL_COW_SCALE: 0.80,                              // unchanged — reference: 0.455*0.80 = 0.364
+    ANIMAL_SHEEP_SCALE: 0.614,                            // 0.70*0.364/0.415 -> 0.415*0.614 = 0.2548 (70% of cow)
+    ANIMAL_PIG_SCALE: 0.8251,                             // 0.85*0.364/0.375 -> 0.375*0.8251 = 0.3094 (85% of cow)
+    ANIMAL_COW_BODY_W: 0.42,                              // unchanged — not reshaping, only scaling
+    ANIMAL_COW_BODY_H: 0.26,
+    ANIMAL_COW_BODY_D: 0.24,
+    ANIMAL_SHEEP_BODY_W: 0.34,
+    ANIMAL_SHEEP_BODY_H: 0.24,
+    ANIMAL_SHEEP_BODY_D: 0.22,
+    ANIMAL_PIG_BODY_W: 0.40,
+    ANIMAL_PIG_BODY_H: 0.27,
+    ANIMAL_PIG_BODY_D: 0.30,
+    ANIMAL_COW_HEAD_W: 0.18,
+    ANIMAL_COW_HEAD_H: 0.16,
+    ANIMAL_COW_HEAD_D: 0.16,
+    ANIMAL_SHEEP_HEAD_W: 0.14,
+    ANIMAL_SHEEP_HEAD_H: 0.14,
+    ANIMAL_SHEEP_HEAD_D: 0.12,
+    ANIMAL_PIG_HEAD_W: 0.17,
+    ANIMAL_PIG_HEAD_H: 0.15,
+    ANIMAL_PIG_HEAD_D: 0.17,
+  };
+
+  function twProportionsVersion() {
+    return (window.__tinyworldFeatureFlagsApi
+      && typeof window.__tinyworldFeatureFlagsApi.isEnabled === 'function'
+      && window.__tinyworldFeatureFlagsApi.isEnabled('buildV2')) ? 2 : 1;
+  }
+  function twProportions() {
+    return twProportionsVersion() === 2 ? TW_PROPORTIONS_V2 : TW_PROPORTIONS_V1;
+  }
+
+  const H = {};
+  for (const twPropKey of Object.keys(TW_PROPORTIONS_V1)) {
+    Object.defineProperty(H, twPropKey, {
+      enumerable: true,
+      get() { return twProportions()[twPropKey]; },
+    });
+  }
 
   const Parts = {
     // Wall volume — rounded box covering the cluster's long-axis extent.
@@ -100,24 +247,26 @@
     // place a door by setting its position to where the door's centre projects on the floor.
     door(orientation) {
       const g = new THREE.Group();
+      const dH = H.DOOR_H;
+      const dY = dH / 2;
       if (orientation === 'gable') {
-        const door = new THREE.Mesh(getBoxGeometryPrecise(0.2, 0.48, 0.04), M.door);
-        door.position.set(0, 0.24, 0); g.add(door);
-        const trimV = getBoxGeometry(0.04, 0.48, 0.04);
-        const aL = new THREE.Mesh(trimV, M.woodTrim); aL.position.set(-0.10, 0.24, 0.01); g.add(aL);
-        const aR = new THREE.Mesh(trimV, M.woodTrim); aR.position.set( 0.10, 0.24, 0.01); g.add(aR);
-        const aT = new THREE.Mesh(getBoxGeometry(0.24, 0.04, 0.04), M.woodTrim); aT.position.set(0, 0.50, 0.01); g.add(aT);
+        const door = new THREE.Mesh(getBoxGeometryPrecise(0.2, dH, 0.04), M.door);
+        door.position.set(0, dY, 0); g.add(door);
+        const trimV = getBoxGeometry(0.04, dH, 0.04);
+        const aL = new THREE.Mesh(trimV, M.woodTrim); aL.position.set(-0.10, dY, 0.01); g.add(aL);
+        const aR = new THREE.Mesh(trimV, M.woodTrim); aR.position.set( 0.10, dY, 0.01); g.add(aR);
+        const aT = new THREE.Mesh(getBoxGeometry(0.24, 0.04, 0.04), M.woodTrim); aT.position.set(0, dH + 0.02, 0.01); g.add(aT);
         const knob = new THREE.Mesh(getSphereGeometry(0.022, 8, 8), M.knob);
-        knob.position.set(0.08, 0.24, 0.03); g.add(knob);
+        knob.position.set(0.08, dY, 0.03); g.add(knob);
       } else {
-        const door = new THREE.Mesh(getBoxGeometryPrecise(0.04, 0.48, 0.2), M.door);
-        door.position.set(0, 0.24, 0); g.add(door);
-        const trimV = getBoxGeometry(0.04, 0.48, 0.04);
-        const aL = new THREE.Mesh(trimV, M.woodTrim); aL.position.set(0.01, 0.24, -0.10); g.add(aL);
-        const aR = new THREE.Mesh(trimV, M.woodTrim); aR.position.set(0.01, 0.24,  0.10); g.add(aR);
-        const aT = new THREE.Mesh(getBoxGeometry(0.04, 0.04, 0.24), M.woodTrim); aT.position.set(0.01, 0.50, 0); g.add(aT);
+        const door = new THREE.Mesh(getBoxGeometryPrecise(0.04, dH, 0.2), M.door);
+        door.position.set(0, dY, 0); g.add(door);
+        const trimV = getBoxGeometry(0.04, dH, 0.04);
+        const aL = new THREE.Mesh(trimV, M.woodTrim); aL.position.set(0.01, dY, -0.10); g.add(aL);
+        const aR = new THREE.Mesh(trimV, M.woodTrim); aR.position.set(0.01, dY,  0.10); g.add(aR);
+        const aT = new THREE.Mesh(getBoxGeometry(0.04, 0.04, 0.24), M.woodTrim); aT.position.set(0.01, dH + 0.02, 0); g.add(aT);
         const knob = new THREE.Mesh(getSphereGeometry(0.022, 8, 8), M.knob);
-        knob.position.set(0.03, 0.24, 0.05); g.add(knob);
+        knob.position.set(0.03, dY, 0.05); g.add(knob);
       }
       return g;
     },
@@ -127,7 +276,7 @@
     // frame's centre should sit on the wall surface.
     window(orientation, size = 'large') {
       const g = new THREE.Group();
-      const f = size === 'small' ? 0.20 : 0.24; // frame
+      const f = size === 'small' ? H.WINDOW_FRAME_SMALL : H.WINDOW_FRAME_LARGE; // frame
       const p = f * windowGlassRatio();         // glass / cross length (bigger ratio = more glass, thinner wood)
       if (orientation === 'gable') {
         const wf = new THREE.Mesh(getBoxGeometry(f, f, 0.04), M.woodTrim); wf.position.set(0, 0, 0); g.add(wf);
@@ -160,9 +309,9 @@
     // from the part's origin (placed at the bottom-front of the lowest step).
     // 6 steps; each step is full stepRise tall (no y overlap) but 1.4x wide
     // in depth so consecutive steps visually overlap in z.
-    externalStairs(rise) {
+    externalStairs(rise, steps = 6) {
       const g = new THREE.Group();
-      const N = 6;
+      const N = steps;
       const stepRise = rise / N;
       const stepRun  = 0.10;
       const width    = 0.22;
@@ -189,6 +338,77 @@
       const aT = new THREE.Mesh(getBoxGeometry(0.04, 0.04, 0.22), M.woodTrim); aT.position.set(0.01, 0.44, 0); g.add(aT);
       const knob = new THREE.Mesh(getSphereGeometry(0.020, 8, 8), M.knob);
       knob.position.set(0.03, 0.21, 0.05); g.add(knob);
+      return g;
+    },
+
+    // Glazed tower window (slice 6b, plans/build-v2/03-proportions-audit.md
+    // section 4a) — same flush-mount anchor the tower's arrow slit already
+    // uses (a flat pane against one facet of the 16-sided shaft, positioned
+    // via rotation.y = angle around a local z-offset), but a real glass
+    // opening instead of an opaque slit box: a stone frame flush against the
+    // shaft, then a glass pane proud of it. `radius` is the shaft radius the
+    // caller is mounting against; `angle` matches the slit loop's 0/PI
+    // alternation (and PI/2 for the side window).
+    towerWindow(radius, y, angle, frameMat, glassMat = M.windowB) {
+      const g = new THREE.Group();
+      const winW = 0.14, winH = 0.30; // ~1.4x/1.7x the arrow-slit's 0.10x0.18 -- reads as a real opening but still fits one facet's ~0.168 flat width
+      const frame = new THREE.Mesh(getBoxGeometry(winW + 0.03, winH + 0.03, 0.02), frameMat);
+      frame.position.set(0, y, radius + 0.008);
+      g.add(frame);
+      const glass = new THREE.Mesh(getBoxGeometry(winW, winH, 0.03), glassMat);
+      glass.position.set(0, y, radius + 0.02);
+      g.add(glass);
+      g.rotation.y = angle;
+      return g;
+    },
+
+    // External spiral staircase (slice 6b section 4b) — orbits a shaft at
+    // fixed `radius`, climbing from y=0 to `totalRise` over `steps` treads.
+    // Treads advance a fixed ANGLE_PER_STEP (~16deg) rather than a fixed
+    // total sweep, so a short climb (small tower) reads close to the audit's
+    // "~270 degrees" example (17 steps * 16deg ~= 272deg) while a tall climb
+    // (max floors) naturally spirals through more full turns instead of
+    // crowding more steps into one turn. Tread run (stepRun*1.4) reuses
+    // externalStairs' depth constant; radial thickness is narrower than
+    // externalStairs' 0.22 (a straight-wall part) so treads clear the curved
+    // shaft without overlapping their neighbours at this angular spacing.
+    spiralStair(totalRise, radius, steps) {
+      const g = new THREE.Group();
+      const N = Math.max(1, steps);
+      const stepRise = totalRise / N;
+      const ANGLE_PER_STEP = 16 * Math.PI / 180;
+      const stepRun = 0.10;
+      const treadRadialThickness = 0.16;
+      for (let i = 0; i < N; i++) {
+        const angle = i * ANGLE_PER_STEP;
+        const y = stepRise * (i + 0.5);
+        const tread = new THREE.Mesh(
+          getBoxGeometryPrecise(treadRadialThickness, stepRise, stepRun * 1.4),
+          M.step
+        );
+        tread.position.set(Math.sin(angle) * radius, y, Math.cos(angle) * radius);
+        tread.rotation.y = angle;
+        g.add(tread);
+      }
+      return g;
+    },
+
+    // Open-battlements merlon ring (slice 6b section 4c) — replaces the
+    // tower's thin railing posts for the watchtower variant. Reuses the
+    // castle wall's own merlon block dims (H.CASTLE_MERLON_H tall, 0.09x0.09
+    // footprint — see makeCastleWallSegment below) alternating merlon/gap
+    // around the same 12-slot loop the ordinary tower's railing posts use,
+    // for a 1:1 crenel:merlon ratio.
+    battlementRing(railR, y, mat) {
+      const g = new THREE.Group();
+      const merlonH = H.CASTLE_MERLON_H, merlonW = 0.09, merlonD = 0.09;
+      for (let i = 0; i < 12; i += 2) {
+        const a = (i / 12) * Math.PI * 2;
+        const merlon = new THREE.Mesh(getBoxGeometry(merlonW, merlonH, merlonD), mat);
+        merlon.position.set(Math.cos(a) * railR, y + merlonH / 2, Math.sin(a) * railR);
+        merlon.rotation.y = -a;
+        g.add(merlon);
+      }
       return g;
     },
   };
@@ -256,17 +476,17 @@
       for (let i = 0; i < length; i++) {
         const cellZ = -((length - 1) / 2) + i;
         const wR = Parts.window('side', 'small');
-        wR.position.set( halfW + 0.005, 0.32 + yOff, cellZ); g.add(wR);
+        wR.position.set( halfW + 0.005, H.WINDOW_Y + yOff, cellZ); g.add(wR);
         const wL = Parts.window('side', 'small');
-        wL.position.set(-halfW - 0.005, 0.32 + yOff, cellZ);
+        wL.position.set(-halfW - 0.005, H.WINDOW_Y + yOff, cellZ);
         wL.rotation.y = Math.PI;
         g.add(wL);
       }
       // Gable-face upper windows at cluster's two ends
       const wGF = Parts.window('gable', 'small');
-      wGF.position.set(0, 0.32 + yOff, halfD + 0.005); g.add(wGF);
+      wGF.position.set(0, H.WINDOW_Y + yOff, halfD + 0.005); g.add(wGF);
       const wGB = Parts.window('gable', 'small');
-      wGB.position.set(0, 0.32 + yOff, -halfD - 0.005);
+      wGB.position.set(0, H.WINDOW_Y + yOff, -halfD - 0.005);
       wGB.rotation.y = Math.PI;
       g.add(wGB);
     }
@@ -281,7 +501,7 @@
         const door = Parts.door('gable');
         door.position.set(-0.12, 0, halfD + 0.01); g.add(door);
         const win = Parts.window('gable');
-        win.position.set(0.2, 0.32, halfD + 0.01); g.add(win);
+        win.position.set(0.2, H.WINDOW_Y, halfD + 0.01); g.add(win);
         const step = Parts.step('gable');
         step.position.set(-0.12, 0.03, halfD + 0.08); g.add(step);
       } else if (cell.face === 'side') {
@@ -289,11 +509,11 @@
         const door = Parts.door('side');
         door.position.set(dx, 0, cellZ - 0.1); g.add(door);
         const win = Parts.window('side');
-        win.position.set(dx, 0.32, cellZ + 0.18); g.add(win);
+        win.position.set(dx, H.WINDOW_Y, cellZ + 0.18); g.add(win);
         const step = Parts.step('side');
         step.position.set(dx + 0.06, 0.03, cellZ - 0.1); g.add(step);
         const bwin = Parts.window('side', 'small');
-        bwin.position.set(-halfW - 0.005, 0.32, cellZ);
+        bwin.position.set(-halfW - 0.005, H.WINDOW_Y, cellZ);
         bwin.rotation.y = Math.PI;
         g.add(bwin);
       }
@@ -427,18 +647,18 @@
     const door = Parts.door('gable');
     door.position.set(0, 0, halfSide + 0.01); g.add(door);
     const winR = Parts.window('gable');
-    winR.position.set( 0.45, 0.32, halfSide + 0.01); g.add(winR);
+    winR.position.set( 0.45, H.WINDOW_Y, halfSide + 0.01); g.add(winR);
     const winL = Parts.window('gable');
-    winL.position.set(-0.45, 0.32, halfSide + 0.01); g.add(winL);
+    winL.position.set(-0.45, H.WINDOW_Y, halfSide + 0.01); g.add(winL);
     const step = Parts.step('gable');
     step.position.set(0, 0.03, halfSide + 0.08); g.add(step);
 
     // Side windows along -x and back -z faces (one per side, ground floor)
     const wB = Parts.window('side');
-    wB.position.set(-halfSide - 0.005, 0.32, 0); g.add(wB);
+    wB.position.set(-halfSide - 0.005, H.WINDOW_Y, 0); g.add(wB);
     wB.rotation.y = Math.PI;
     const wRside = Parts.window('side');
-    wRside.position.set( halfSide + 0.005, 0.32, -0.45); g.add(wRside);
+    wRside.position.set( halfSide + 0.005, H.WINDOW_Y, -0.45); g.add(wRside);
 
     // Per-floor windows on all 4 faces for upper floors
     for (let f = 1; f < floors; f++) {
@@ -455,7 +675,7 @@
       ];
       for (const p of upperWindows) {
         const w = Parts.window(p.side ? 'side' : 'gable', 'small');
-        w.position.set(p.x, 0.32 + yOff, p.z);
+        w.position.set(p.x, H.WINDOW_Y + yOff, p.z);
         w.rotation.y = p.rot;
         g.add(w);
       }
@@ -571,8 +791,9 @@
     const g = new THREE.Group();
     const f = Math.max(4, floors);
     const W = 0.78, D = 0.78;
-    const floorH = 0.30;
-    const totalH = floorH * f;
+    const floorH = H.SKY_FLOOR_H;
+    const lobbyH = H.SKY_LOBBY_H;
+    const totalH = lobbyH + floorH * (f - 1);
 
     // Body — main steel/concrete column
     const body = new THREE.Mesh(roundedBox(W, totalH, D, 0.025), M.skyBody);
@@ -580,8 +801,11 @@
     g.add(body);
 
     // Glass strips per floor, slightly recessed on each face — read as window bands.
+    // Floor 0 is the (possibly double-height) lobby; floors 1..f-1 sit above it
+    // at the regular floorH. At V1 (lobbyH === floorH) this reduces to the
+    // original (i + 0.5) * floorH for every floor.
     for (let i = 0; i < f; i++) {
-      const yMid = (i + 0.5) * floorH;
+      const yMid = i === 0 ? lobbyH / 2 : lobbyH + (i - 0.5) * floorH;
       const glassH = 0.16;
       const sxe = new THREE.Mesh(getBoxGeometry(0.04, glassH, D - 0.18), M.skyGlass);
       sxe.position.set( W / 2 - 0.005, yMid, 0); g.add(sxe);
@@ -607,8 +831,9 @@
     g.add(ant);
 
     // Ground-floor entrance — wood door for some warmth
-    const door = new THREE.Mesh(getBoxGeometryPrecise(0.20, 0.32, 0.04), M.door);
-    door.position.set(0, 0.16, D / 2 + 0.01);
+    const doorH = H.SKY_DOOR_H;
+    const door = new THREE.Mesh(getBoxGeometryPrecise(0.20, doorH, 0.04), M.door);
+    door.position.set(0, doorH / 2, D / 2 + 0.01);
     g.add(door);
 
     g.userData = { kind: 'house', chimneyTops: [] };
@@ -693,11 +918,13 @@
     g.add(ped);
 
     // Front door (under the portico)
-    const door = new THREE.Mesh(getBoxGeometryPrecise(0.26, 0.46, 0.04), M.door);
-    door.position.set(0, 0.23, halfD + 0.005);
+    const doorH = H.MANOR_DOOR_H;
+    const doorY = doorH / 2;
+    const door = new THREE.Mesh(getBoxGeometryPrecise(0.26, doorH, 0.04), M.door);
+    door.position.set(0, doorY, halfD + 0.005);
     g.add(door);
     const doorKnob = new THREE.Mesh(getSphereGeometry(0.018, 6, 6), M.knob);
-    doorKnob.position.set(0.09, 0.23, halfD + 0.03);
+    doorKnob.position.set(0.09, doorY, halfD + 0.03);
     g.add(doorKnob);
 
     // Symmetrical sash windows on +z face — 2 left + 2 right of the portico,
@@ -792,11 +1019,21 @@
   // bigger door, and dormer windows up the shaft. Solo cluster-bypass
   // (variant 'tower'). Distinct silhouette from castle turret (which is
   // adjacency-driven and crenellated). floors scales height; min 2.
-  function makeStoneTower(floors = 2, palette = null) {
+  function makeStoneTower(floors = 2, palette = null, opts = null) {
     const g = new THREE.Group();
     const f = Math.max(2, Math.min(MAX_FLOORS, floors || 2));
     const wallH = H.WALL_H * f + 0.34;
     const radius = 0.43;
+    // Slice 6b variant (plans/build-v2/03-proportions-audit.md section 4):
+    // 'watchtower' keeps the same shaft/door/base but swaps the cone roof for
+    // an open battlements deck reached by an external spiral stair, and is
+    // always glazed — it's a brand-new buildingType, so unlike the plain
+    // 'tower' below there's no existing world/v1 rendering to preserve.
+    const isWatchtower = !!(opts && opts.variant === 'watchtower');
+    // Plain 'tower' keeps its arrow slits in V1 and only glazes them in V2
+    // (the twProportionsVersion() seam from slice 6a); watchtower is glazed
+    // in both versions.
+    const glazed = isWatchtower || twProportionsVersion() === 2;
     // Allow callers to override the tower's wall + roof palette. When the
     // tower is merged with another building (e.g. an adjacent manor) the
     // caller passes that building's palette so the tower picks up matching
@@ -826,7 +1063,7 @@
     shaft.position.y = wallH / 2 + 0.14;
     g.add(shaft);
 
-    // Balcony walkway just below the roof.
+    // Balcony walkway just below the roof (tower) / the open deck (watchtower).
     const balconyY = wallH + 0.10;
     const balcony = new THREE.Mesh(
       getCylinderGeometry(radius + 0.12, 0.07, 16),
@@ -835,53 +1072,70 @@
     balcony.position.y = balconyY;
     g.add(balcony);
     const railR = radius + 0.13;
-    for (let i = 0; i < 12; i++) {
-      const a = (i / 12) * Math.PI * 2;
-      const post = new THREE.Mesh(getBoxGeometry(0.04, 0.10, 0.04), matStone);
-      post.position.set(Math.cos(a) * railR, balconyY + 0.09, Math.sin(a) * railR);
-      post.rotation.y = -a;
-      g.add(post);
+    if (isWatchtower) {
+      // Open battlements: swap the thin railing posts for a merlon ring
+      // reusing the castle wall's own merlon dims at the same railR anchor
+      // the ordinary tower's posts use.
+      g.add(Parts.battlementRing(railR, balconyY, matStone));
+    } else {
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        const post = new THREE.Mesh(getBoxGeometry(0.04, 0.10, 0.04), matStone);
+        post.position.set(Math.cos(a) * railR, balconyY + 0.09, Math.sin(a) * railR);
+        post.rotation.y = -a;
+        g.add(post);
+      }
+      const railTop = new THREE.Mesh(
+        new THREE.CylinderGeometry(railR + 0.005, railR + 0.005, 0.025, 14, 1, true),
+        matStoneD
+      );
+      railTop.geometry.userData.ownReason = 'open-cylinder';
+      railTop.position.y = balconyY + 0.16;
+      g.add(railTop);
     }
-    const railTop = new THREE.Mesh(
-      new THREE.CylinderGeometry(railR + 0.005, railR + 0.005, 0.025, 14, 1, true),
-      matStoneD
-    );
-    railTop.geometry.userData.ownReason = 'open-cylinder';
-    railTop.position.y = balconyY + 0.16;
-    g.add(railTop);
 
-    // Purple slate roof: dark eave ring, faceted cone, and a tiny cap.
-    const roofBase = new THREE.Mesh(
-      new THREE.CylinderGeometry(radius + 0.17, radius + 0.20, 0.10, 16),
-      matRoofD
-    );
-    roofBase.geometry.userData.ownReason = 'tapered-cylinder';
-    roofBase.position.y = wallH + 0.24;
-    g.add(roofBase);
-    const cone = new THREE.Mesh(
-      getConeGeometry(radius + 0.16, 0.58, 16),
-      matRoof
-    );
-    cone.position.y = wallH + 0.58;
-    g.add(cone);
-    const roofCap = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.12, 0.18, 0.08, 8),
-      matRoofD
-    );
-    roofCap.geometry.userData.ownReason = 'tapered-cylinder';
-    roofCap.position.y = wallH + 0.86;
-    g.add(roofCap);
+    // Purple slate roof: dark eave ring, faceted cone, and a tiny cap. The
+    // watchtower variant has no roof — the balcony deck above stays open
+    // behind its battlements.
+    if (!isWatchtower) {
+      const roofBase = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius + 0.17, radius + 0.20, 0.10, 16),
+        matRoofD
+      );
+      roofBase.geometry.userData.ownReason = 'tapered-cylinder';
+      roofBase.position.y = wallH + 0.24;
+      g.add(roofBase);
+      const cone = new THREE.Mesh(
+        getConeGeometry(radius + 0.16, 0.58, 16),
+        matRoof
+      );
+      cone.position.y = wallH + 0.58;
+      g.add(cone);
+      const roofCap = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.12, 0.18, 0.08, 8),
+        matRoofD
+      );
+      roofCap.geometry.userData.ownReason = 'tapered-cylinder';
+      roofCap.position.y = wallH + 0.86;
+      g.add(roofCap);
 
-    const finialBall = new THREE.Mesh(getSphereGeometry(0.05, 8, 8), M.knob);
-    finialBall.position.y = wallH + 0.95;
-    g.add(finialBall);
-    const finialSpike = new THREE.Mesh(getConeGeometry(0.025, 0.18, 6), matStoneD);
-    finialSpike.position.y = wallH + 1.09;
-    g.add(finialSpike);
+      const finialBall = new THREE.Mesh(getSphereGeometry(0.05, 8, 8), M.knob);
+      finialBall.position.y = wallH + 0.95;
+      g.add(finialBall);
+      const finialSpike = new THREE.Mesh(getConeGeometry(0.025, 0.18, 6), matStoneD);
+      finialSpike.position.y = wallH + 1.09;
+      g.add(finialSpike);
+    }
 
-    // Bigger arched front door on +z.
-    const door = new THREE.Mesh(getBoxGeometryPrecise(0.28, 0.46, 0.04), M.door);
-    door.position.set(0, 0.39, radius + 0.02);
+    // Bigger arched front door on +z. Sill floats at TOWER_DOOR_SILL above
+    // grade in both versions (audit finding #2) — V2 grounds it with an added
+    // step run below instead of moving the sill; watchtower gets the full
+    // spiral stair below instead, so its sill stays as-is too.
+    const doorSill = H.TOWER_DOOR_SILL;
+    const doorH = H.TOWER_DOOR_H;
+    const doorY = doorSill + doorH / 2;
+    const door = new THREE.Mesh(getBoxGeometryPrecise(0.28, doorH, 0.04), M.door);
+    door.position.set(0, doorY, radius + 0.02);
     g.add(door);
     const archTop = new THREE.Mesh(
       new THREE.CylinderGeometry(0.14, 0.14, 0.05, 10, 1, false, 0, Math.PI),
@@ -890,44 +1144,80 @@
     archTop.geometry.userData.ownReason = 'partial-cylinder';
     archTop.rotation.z = Math.PI / 2;
     archTop.rotation.y = Math.PI / 2;
-    archTop.position.set(0, 0.62, radius + 0.03);
+    archTop.position.set(0, doorSill + doorH, radius + 0.03);
     g.add(archTop);
-    const frameL = new THREE.Mesh(getBoxGeometry(0.04, 0.46, 0.05), matStoneD);
-    frameL.position.set(-0.16, 0.39, radius + 0.015); g.add(frameL);
+    const frameL = new THREE.Mesh(getBoxGeometry(0.04, doorH, 0.05), matStoneD);
+    frameL.position.set(-0.16, doorY, radius + 0.015); g.add(frameL);
     const frameR = frameL.clone(); frameR.position.x = 0.16; g.add(frameR);
 
-    // Slit windows climb the shaft on alternating faces.
+    if (isWatchtower) {
+      // External spiral staircase climbing from grade to the open battlements
+      // deck (the owner's "spiral stairs to open battlements" ask) — replaces
+      // the plain tower's short V2 door-step run below rather than stacking
+      // both. Orbits at the foundation's own outer radius (radius + 0.15, the
+      // same offset the base cylinder already uses) so it reads as built
+      // against the tower's own base, terminating near the deck's railR
+      // (radius + 0.13) at the top. Per-step rise target (0.09) matches the
+      // ~0.08-0.092 rise the door stairs / upper-floor stairs already use.
+      const stairRiseTarget = 0.09;
+      const stairSteps = Math.max(8, Math.round(balconyY / stairRiseTarget));
+      const stair = Parts.spiralStair(balconyY, radius + 0.15, stairSteps);
+      g.add(stair);
+    } else if (twProportionsVersion() === 2 && doorSill > 0.001) {
+      // V2 only: ground the floating door with a short straight step run.
+      const stairSteps = 2;
+      const stepRun = 0.10;
+      const treadHalfDepth = (stepRun * 1.4) / 2;
+      const doorFrontZ = radius + 0.02;
+      const doorStairs = Parts.externalStairs(doorSill, stairSteps);
+      doorStairs.position.set(0, 0, doorFrontZ + treadHalfDepth + (stairSteps - 1) * stepRun);
+      g.add(doorStairs);
+    }
+
+    // Windows climb the shaft on alternating faces — arrow slits by default,
+    // real glazed panes when `glazed` (V2 tower, or any-version watchtower).
     for (let i = 0; i < f; i++) {
       const y = (i + 0.70) * H.WALL_H + 0.22;
       const angle = i % 2 === 0 ? 0 : Math.PI;
-      const win = new THREE.Mesh(getBoxGeometry(0.10, 0.18, 0.03), M.castleSlit);
-      win.position.set(0, y, Math.cos(angle) * (radius + 0.015));
-      win.rotation.y = angle;
-      g.add(win);
+      if (glazed) {
+        g.add(Parts.towerWindow(radius, y, angle, matStoneD));
+      } else {
+        const win = new THREE.Mesh(getBoxGeometry(0.10, 0.18, 0.03), M.castleSlit);
+        win.position.set(0, y, Math.cos(angle) * (radius + 0.015));
+        win.rotation.y = angle;
+        g.add(win);
+      }
     }
-    const sideWin = new THREE.Mesh(getBoxGeometryPrecise(0.03, 0.20, 0.10), M.castleSlit);
-    sideWin.position.set(radius + 0.015, wallH * 0.55 + 0.12, 0);
-    g.add(sideWin);
+    if (glazed) {
+      g.add(Parts.towerWindow(radius, wallH * 0.55 + 0.12, Math.PI / 2, matStoneD));
+    } else {
+      const sideWin = new THREE.Mesh(getBoxGeometryPrecise(0.03, 0.20, 0.10), M.castleSlit);
+      sideWin.position.set(radius + 0.015, wallH * 0.55 + 0.12, 0);
+      g.add(sideWin);
+    }
 
-    // Flag on top.
-    const pole = new THREE.Mesh(getBoxGeometry(0.025, 0.30, 0.025), matStoneD);
-    pole.position.y = wallH + 1.18;
-    g.add(pole);
-    const flag = new THREE.Mesh(getBoxGeometryPrecise(0.18, 0.10, 0.02), M.flagRed);
-    flag.position.set(0.11, wallH + 1.26, 0);
-    g.add(flag);
-    const beaconCup = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.095, 0.055, 8), matRoofD);
-    beaconCup.geometry.userData.ownReason = 'tapered-cylinder';
-    beaconCup.position.y = wallH + 1.40;
-    g.add(beaconCup);
-    const beacon = new THREE.Mesh(getSphereGeometry(0.065, 8, 8), M.windowLit);
-    beacon.position.y = wallH + 1.46;
-    g.add(beacon);
-    for (const side of [-1, 1]) {
-      const banner = new THREE.Mesh(getBoxGeometry(0.08, 0.34, 0.026), side < 0 ? M.flagRed : M.towerRoof);
-      banner.position.set(side * (radius + 0.14), balconyY - 0.16, 0.10);
-      banner.rotation.z = side * 0.06;
-      g.add(banner);
+    // Flag/beacon/banners are roof-top ornaments with no anchor on the open
+    // watchtower deck, so they're tower-only.
+    if (!isWatchtower) {
+      const pole = new THREE.Mesh(getBoxGeometry(0.025, 0.30, 0.025), matStoneD);
+      pole.position.y = wallH + 1.18;
+      g.add(pole);
+      const flag = new THREE.Mesh(getBoxGeometryPrecise(0.18, 0.10, 0.02), M.flagRed);
+      flag.position.set(0.11, wallH + 1.26, 0);
+      g.add(flag);
+      const beaconCup = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.095, 0.055, 8), matRoofD);
+      beaconCup.geometry.userData.ownReason = 'tapered-cylinder';
+      beaconCup.position.y = wallH + 1.40;
+      g.add(beaconCup);
+      const beacon = new THREE.Mesh(getSphereGeometry(0.065, 8, 8), M.windowLit);
+      beacon.position.y = wallH + 1.46;
+      g.add(beacon);
+      for (const side of [-1, 1]) {
+        const banner = new THREE.Mesh(getBoxGeometry(0.08, 0.34, 0.026), side < 0 ? M.flagRed : M.towerRoof);
+        banner.position.set(side * (radius + 0.14), balconyY - 0.16, 0.10);
+        banner.rotation.z = side * 0.06;
+        g.add(banner);
+      }
     }
 
     // No chimneys — towers get magic, not fireplaces. Empty chimneyTops keeps
@@ -944,7 +1234,7 @@
   // radius 0.42, leaving a gap of ~0.08 to the cell edge if we stopped flush).
   function makeCastleWallSegment(neighbors) {
     const g = new THREE.Group();
-    const wallH = 0.50;
+    const wallH = H.CASTLE_WALL_H;
     const wallT = 0.18;
     const TURRET_OVERRUN = 0.16; // extends past cell boundary into turret cell
 
@@ -991,7 +1281,7 @@
       // even when the segment overruns into a turret. This keeps merlon spacing
       // consistent across walls regardless of what they end on, and avoids
       // merlons popping out of the turret body.
-      const merlonH = 0.10, merlonW = 0.09, merlonD = 0.09;
+      const merlonH = H.CASTLE_MERLON_H, merlonW = 0.09, merlonD = 0.09;
       const count = 3;
       const inCellLen = 0.50; // always merlon over the cell's own half
       // The in-cell portion runs from centre (0) toward the far cell edge at
@@ -1304,7 +1594,7 @@
       const gz = Math.floor(i / 3) - 1;
       const x = gx * 0.20 + (Math.random() - 0.5) * 0.04;
       const z = gz * 0.20 + (Math.random() - 0.5) * 0.04;
-      const h = 0.36 + Math.random() * 0.06;
+      const h = H.WHEAT_STALK_BASE + Math.random() * H.WHEAT_STALK_RAND;
       const stalk = new THREE.Mesh(getBoxGeometry(0.03, h, 0.03), M.wheatStalk);
       stalk.position.set(x, h / 2, z);
       g.add(stalk);
@@ -1543,7 +1833,7 @@
     const palettes = [M_PLANT.petalRed, M_PLANT.petalYellow, M_PLANT.petalPurple, M_PLANT.petalWhite];
     const positions = [[-0.05, -0.04], [0.05, 0.04], [0.0, 0.0]];
     positions.forEach(([x, z], i) => {
-      const stem = new THREE.Mesh(getBoxGeometry(0.03, 0.14, 0.03), M.leavesDk);
+      const stem = new THREE.Mesh(getBoxGeometry(0.03, H.FLOWER_STEM_H, 0.03), M.leavesDk);
       stem.position.set(x, 0.10, z);
       g.add(stem);
       const petals = new THREE.Mesh(getBoxGeometryPrecise(0.10, 0.05, 0.10), palettes[i % palettes.length]);
@@ -1632,6 +1922,7 @@
       g.add(hoof);
     });
     g.userData = { kind: 'cow' };
+    g.scale.setScalar(H.ANIMAL_COW_RENDER_SCALE);
     castReceive(g);
     return g;
   }
@@ -1678,6 +1969,7 @@
       g.add(hoof);
     });
     g.userData = { kind: 'sheep' };
+    g.scale.setScalar(H.ANIMAL_SHEEP_RENDER_SCALE);
     castReceive(g);
     return g;
   }
@@ -1727,6 +2019,7 @@
       g.add(trotter);
     });
     g.userData = { kind: 'pig' };
+    g.scale.setScalar(H.ANIMAL_PIG_RENDER_SCALE);
     castReceive(g);
     return g;
   }

@@ -279,6 +279,61 @@ if (fs.existsSync(worldDir)) {
   }
 }
 
+// -------- localStorage write ratchet --------
+// Doctrine: localStorage is cache-only. Durable state must go through the DB
+// via the asset-store choke point (engine/world/00c-asset-store.js, added
+// separately — this guard must not require it to exist yet, it just also
+// exempts it once it does). We can't ban localStorage.setItem outright since
+// legitimate cache writes already exist, so instead we snapshot today's call
+// count per file in tools/localstorage-baseline.json and fail only when a
+// file's count grows past its baseline, or a brand-new file starts writing.
+// This lets existing writes stay (grandfathered) while blocking silent growth.
+const localStorageBaselinePath = path.join(root, 'tools', 'localstorage-baseline.json');
+const localStorageScanDirs = [
+  path.join(root, 'engine', 'world'),
+  path.join(root, 'engine', 'landscape'),
+  path.join(root, 'engine', 'i18n'),
+  path.join(root, 'scripts'),
+];
+const localStorageExemptFiles = new Set([
+  path.join('engine', 'world', '00-prelude.js'), // defines twSafeSetItem
+  path.join('engine', 'world', '00c-asset-store.js'), // the choke point itself
+]);
+const localStorageWritePattern = /localStorage\.setItem\(|twSafeSetItem\(/g;
+const localStorageCounts = {};
+for (const dir of localStorageScanDirs) {
+  if (!fs.existsSync(dir)) continue;
+  for (const name of fs.readdirSync(dir).sort()) {
+    if (!name.endsWith('.js')) continue;
+    const full = path.join(dir, name);
+    if (fs.statSync(full).isDirectory()) continue;
+    const rel = path.relative(root, full);
+    if (localStorageExemptFiles.has(rel)) continue;
+    const matches = readText(full).match(localStorageWritePattern);
+    localStorageCounts[rel] = matches ? matches.length : 0;
+  }
+}
+let localStorageBaseline;
+try {
+  localStorageBaseline = JSON.parse(fs.readFileSync(localStorageBaselinePath, 'utf8'));
+} catch (err) {
+  fail('tools/localstorage-baseline.json missing or invalid: ' + err.message);
+}
+const localStorageOverages = [];
+for (const [file, count] of Object.entries(localStorageCounts)) {
+  if (!count) continue;
+  const hasBaseline = Object.prototype.hasOwnProperty.call(localStorageBaseline, file);
+  const baselineCount = hasBaseline ? localStorageBaseline[file] : 0;
+  if (!hasBaseline || count > baselineCount) {
+    localStorageOverages.push(file + ': ' + count + ' (baseline ' + baselineCount + ')');
+  } else if (count < baselineCount) {
+    console.log('localStorage ratchet: ' + file + ' dropped to ' + count + ' write(s), baseline is ' + baselineCount + ' — consider lowering tools/localstorage-baseline.json');
+  }
+}
+if (localStorageOverages.length) {
+  fail("localStorage is cache-only — route durable writes through TWAssetStore (engine/world/00c-asset-store.js) or, if this is genuinely transient cache, update tools/localstorage-baseline.json in the same PR and say why. Offending files: " + localStorageOverages.join('; '));
+}
+
 let externalSchema;
 try {
   externalSchema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));

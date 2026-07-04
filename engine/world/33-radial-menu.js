@@ -66,6 +66,31 @@
         ? selectedTransformGizmoIsland : null;
     }
 
+    // Build v2 capability gate (flag-off = zero change, see 17b-object-capabilities.js).
+    // Root shows Color/Style unconditionally for any object today, which is dead for
+    // kinds that have no color/voxel-style render path (plans/build-v2/01-ux-capability-audit.md).
+    function radialBuildV2Enabled() {
+      return !!(window.__tinyworldFeatureFlagsApi
+        && typeof window.__tinyworldFeatureFlagsApi.isEnabled === 'function'
+        && window.__tinyworldFeatureFlagsApi.isEnabled('buildV2'));
+    }
+    function radialSelectedKinds() {
+      return selectedRadialWorldCoords()
+        .map(coord => (typeof world !== 'undefined' && world[coord.x]) ? world[coord.x][coord.z] : null)
+        .filter(cell => cell && cell.kind)
+        .map(cell => cell.kind);
+    }
+    // Multi-selection: an action is only shown if every selected kind supports it.
+    function radialRootCapsForSelection() {
+      const kinds = radialSelectedKinds();
+      if (!kinds.length || typeof TWObjectCaps === 'undefined') return { color: true, style: true };
+      const caps = kinds.map(k => TWObjectCaps.capsForKind(k));
+      return {
+        color: caps.every(c => c.color),
+        style: caps.every(c => c.style),
+      };
+    }
+
     let currentLevel = 'root';
     let lastIslandMode = false;
     let lastEditPartKey = null;
@@ -179,9 +204,20 @@
       if (level === 'root') {
         const island = selectedRadialIsland();
         let items = island ? ROOT.filter(b => ISLAND_ACTIONS.has(b.id)) : ROOT.slice();
+        const buildV2On = !island && radialBuildV2Enabled();
+        if (buildV2On) {
+          // Color/Style/Size move to the Context Bar (33b-context-bar.js), which
+          // gates them per-kind from the same registry. Size has no per-kind
+          // gate (it's universal, plans/build-v2/01-ux-capability-audit.md), so
+          // it's dropped unconditionally rather than cap-checked.
+          const caps = radialRootCapsForSelection();
+          items = items.filter(b => b.id !== 'size' && (b.id !== 'color' || caps.color) && (b.id !== 'style' || caps.style));
+        }
         // For editable objects (cottages / voxel-builds) the buried 'More' panel
-        // slot becomes the 'Edit' entry to the sub-object radial.
-        if (!island && subEditSupported()) {
+        // slot becomes the 'Edit' entry to the sub-object radial. Under build v2
+        // 'More' stays a plain escape hatch to the panel instead — Edit's own
+        // Move/Scale/Recolor children are now redundant with the Context Bar.
+        if (!island && !buildV2On && subEditSupported()) {
           items = items.map(b => b.id === 'more'
             ? { id: 'edit', label: window.t('radial.edit'), icon: 'edit', angle: 90, posType: 'primary' }
             : b);
@@ -504,6 +540,16 @@
       // tracks the object smoothly without per-frame layout or pixel snapping.
       root.style.transform = 'translate3d(' + cx + 'px,' + cy + 'px,0)';
       const islandMode = !!selectedRadialIsland();
+      // Build v2: the Context Bar (33b) is the ONE editing surface for board-
+      // object selections — showing both surfaces duplicated Rotate/Delete/
+      // Duplicate/Style and physically overlapped (owner dogfood screenshot,
+      // 2026-07-04). The ring stays only for islands (whole-island move/rotate
+      // has no bar equivalent). Generate/More/Close live in the bar's action
+      // row now (33b), so nothing is lost.
+      if (!islandMode && radialBuildV2Enabled()) {
+        if (!root.hidden) { root.hidden = true; if (currentLevel !== 'root') exitEditMode(); currentLevel = 'root'; lastRadialCx = lastRadialCy = null; }
+        return;
+      }
       if (root.hidden) {
         // Fresh appearance → reset to root ring and let the buttons spin in.
         renderLevel('root');
@@ -524,4 +570,8 @@
     }
 
     window.tickRadialMenu = tickRadialMenu;
+    // Exposed for the build v2 Context Bar (33b-context-bar.js), which absorbs
+    // the ring's Generate/More actions when it suppresses the ring above.
+    window.__twRadialOpenSelectionPanel = openSelectionPanel;
+    window.__twRadialOpenGenerateModal = openContextualGenerateModal;
   }());

@@ -13,6 +13,7 @@
     if (typeof tickGhostHolo === 'function') tickGhostHolo(t);
     if (typeof tickIslandPlacementHolos === 'function') tickIslandPlacementHolos(t);
     if (typeof tickRadialMenu === 'function') tickRadialMenu();
+    if (typeof tickContextBar === 'function') tickContextBar();
     if (homeTween) tickHomeTween(dt);
     tickOpacityTransitions(dt);
     tickSquashAnims(dt);
@@ -592,7 +593,8 @@
           "manor",
           "tower",
           "turret",
-          "skyscraper"
+          "skyscraper",
+          "watchtower"
         ]
       },
       "fenceSide": {
@@ -811,7 +813,8 @@
             "type": "string",
             "enum": [
               "garden",
-              "gate"
+              "gate",
+              "castle"
             ]
           }
         }

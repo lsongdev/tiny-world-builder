@@ -148,7 +148,7 @@
         if (cell.kind === 'rock') return materialHex(M.rock) || '#9b9a8f';
         if (cell.kind === 'house') {
           if (cell.buildingType === 'manor') return materialHex(M.manorRoof) || '#403b3d';
-          if (cell.buildingType === 'tower') return materialHex(M.towerRoof) || '#7563c9';
+          if (cell.buildingType === 'tower' || cell.buildingType === 'watchtower') return materialHex(M.towerRoof) || '#7563c9';
           if (cell.buildingType === 'castle') return materialHex(M.castleRoof) || '#6d5bc7';
           if (cell.buildingType === 'skyhouse') return materialHex(M.skyRoof) || '#70a8df';
           return materialHex(M.roofBlue) || '#2f8fe6';
@@ -579,6 +579,24 @@
       'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower', 'flower', 'bush',
       'cow', 'sheep', 'pig',
     ]);
+    // Build v2 capability gate (flag-off = zero change; see
+    // engine/world/17b-object-capabilities.js and plans/build-v2/01-ux-capability-audit.md).
+    // The Style row/writer used to gate on `kind !== 'voxel-build'` only, which is
+    // true (and dead) for stargate/crystal/relic/totem/ruins/artifact/asset-template.
+    function panelBuildV2Enabled() {
+      return !!(window.__tinyworldFeatureFlagsApi
+        && typeof window.__tinyworldFeatureFlagsApi.isEnabled === 'function'
+        && window.__tinyworldFeatureFlagsApi.isEnabled('buildV2'));
+    }
+    function targetHasStyleCapability(cell) {
+      if (!cell || cell.kind === 'voxel-build') return false;
+      if (!panelBuildV2Enabled()) return true;
+      return (typeof TWObjectCaps !== 'undefined') ? !!TWObjectCaps.capsForKind(cell.kind).style : true;
+    }
+    function selectionStyleVisible(targets) {
+      if (!panelBuildV2Enabled()) return targets.some(t => t.cell && t.cell.kind !== 'voxel-build');
+      return targets.length > 0 && targets.every(t => targetHasStyleCapability(t.cell));
+    }
     function isSelectionPartMaterialEditableCell(cell) {
       return !!(cell && cell.kind && cell.kind !== 'model-stamp');
     }
@@ -1234,7 +1252,7 @@
       }
       if (rowKey === 'objectStyle') {
         updateSelectedBoardObjects(target => {
-          if (!target.cell || target.cell.kind === 'voxel-build') return null;
+          if (!targetHasStyleCapability(target.cell)) return null;
           const appearance = Object.assign({}, normalizeAppearance(target.cell.appearance) || {});
           appearance.objectStyle = value === 'normal' ? 'normal' : 'voxel';
           return { appearance };
@@ -1262,7 +1280,7 @@
           setCell(x, z, { ...cell, appearance: Object.keys(appearance).length ? appearance : null, animate: false, impactDust: false });
         } else if (rowKey === 'buildingType') {
           if (cell.kind !== 'house') return;
-          const floors = value === 'tower' ? Math.max(cell.floors || 1, 2)
+          const floors = (value === 'tower' || value === 'watchtower') ? Math.max(cell.floors || 1, 2)
             : value === 'skyscraper' ? Math.max(cell.floors || 1, 4)
             : (cell.floors || 1);
           setCell(x, z, { ...cell, buildingType: value, floors, animate: false, impactDust: false });
@@ -1481,8 +1499,8 @@
           );
         }
         addRows('Appearance', appearanceRows);
-        if (selectedTargets.some(t => t.cell && t.cell.kind !== 'voxel-build')) {
-          const currentObjectStyle = uniformValue(objectCells.filter(cell => cell.kind !== 'voxel-build'), cell => {
+        if (selectionStyleVisible(selectedTargets)) {
+          const currentObjectStyle = uniformValue(objectCells.filter(cell => targetHasStyleCapability(cell)), cell => {
             const appearance = normalizeAppearance(cell.appearance) || {};
             return appearance.objectStyle === 'voxel' ? 'voxel' : 'normal';
           });
@@ -1620,13 +1638,19 @@
         })));
         if (primary === 'house') {
           const houseCells = selectedCells.filter(cell => cell.kind === 'house');
-          addRow('Appearance', { key: 'buildingType', label: 'Shape', currentValue: uniformValue(houseCells, cell => cell.buildingType || 'cottage'), options: [
+          const shapeOptions = [
             { label: 'Cottage', value: 'cottage' },
             { label: 'Manor', value: 'manor' },
             { label: 'Tower', value: 'tower' },
             { label: 'Castle', value: 'turret' },
             { label: 'High-rise', value: 'skyscraper' },
-          ] });
+          ];
+          // Slice 6b — same buildV2 gate as the toolbar picker (19-tools-toolbar.js
+          // 'watchtower' variant); geometry itself is flag-independent, only the
+          // picker is gated. Not localized: none of the other Shape options
+          // above go through tx()/t() today, so this one doesn't either.
+          if (panelBuildV2Enabled()) shapeOptions.push({ label: 'Watchtower', value: 'watchtower' });
+          addRow('Appearance', { key: 'buildingType', label: 'Shape', currentValue: uniformValue(houseCells, cell => cell.buildingType || 'cottage'), options: shapeOptions });
         }
       }
       addRow('Transform', { key: 'size', label: 'Size', currentValue: currentSize, options: [
@@ -1937,6 +1961,14 @@
     // the selection panel after a part select (renderSelection is otherwise
     // private to this IIFE).
     window.renderSelection = renderSelection;
+    // Exposed for the build v2 Context Bar (33b-context-bar.js), which reuses
+    // this same row-key writer and color-row table instead of re-deriving the
+    // dead-option matrix a third time. Also fixes a latent gap: 17b-object-
+    // capabilities.js's capsForKind() has called `selectionColorConfig` as a
+    // bare identifier since slice 1, but it was never reachable outside this
+    // IIFE — capsForKind().colorRows has always resolved to null until now.
+    window.selectionColorConfig = selectionColorConfig;
+    window.applySelectionProperty = applySelectionProperty;
     window.addEventListener('tinyworld:selection-changed', renderSelection);
     window.addEventListener('tinyworld:history-changed', () => {
       if (previewBox && !previewBox.hidden) renderSelection();

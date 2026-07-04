@@ -1466,9 +1466,228 @@
     return pasteClipboardPayloadAtTarget(state.payload, state.target, { animate: true, impactDust: true });
   }
 
-  renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
+  // -------- free object drag (build v2 slice 5) --------
+  // "Move" chip (33b-context-bar.js cbArmMove) arms a one-shot drag: the next
+  // pointerdown on the armed object starts a continuous ground-plane drag,
+  // reusing pickTile's raycast (18-scene-pick-xr.js) — the same hit-testing
+  // hover/placement already runs, including its per-hit localX/localZ
+  // sub-tile offset, so no new ground-plane math is needed here. Release
+  // re-homes the object to the tile it lands on via two ordinary setCell
+  // calls: place the destination, THEN clear the source (plans/build-v2/
+  // 02-object-tile-coupling.md §3 — so a multiplayer peer's cell.set stream
+  // never shows a frame where the object exists nowhere), or just rewrites
+  // its within-tile offset if it's dropped back on its own tile.
+  let freeObjectDragArmedTarget = null; // {x, z} — one-shot, consumed by the next pointerdown
+  let freeObjectDragState = null;
+
+  function armFreeObjectDrag(target) {
+    if (window.__tinyworldIsPlayMode && window.__tinyworldIsPlayMode()) return false;
+    if (!target || !Number.isFinite(target.x) || !Number.isFinite(target.z)) return false;
+    if (!mpEditAllowed()) return false;
+    freeObjectDragArmedTarget = { x: target.x, z: target.z };
+    if (typeof twToast === 'function') twToast(window.tx ? window.tx('contextbar.move.arm', 'Click the object and drag it to move.') : 'Click the object and drag it to move.', 'ok');
+    return true;
+  }
+
+  function freeObjectDragMeshes(x, z) {
+    const entry = cellMeshes[x + ',' + z];
+    const meshes = [];
+    if (!entry) return meshes;
+    if (entry.object) meshes.push(entry.object);
+    if (entry.extras) entry.extras.forEach(m => meshes.push(m));
+    return meshes;
+  }
+
+  // The continuous world-space point the pointer is over: the hit tile's
+  // render-anchor position plus the hit's own sub-tile local offset (the
+  // same offset resolveRaycastCell computes for every pick in
+  // 18-scene-pick-xr.js). Same coordinate space as cell.offsetX/Z.
+  function freeObjectDragPoint(hit) {
+    if (!hit || !Number.isFinite(hit.worldX) || !Number.isFinite(hit.worldZ)) return null;
+    return { x: hit.worldX + (hit.localX || 0), z: hit.worldZ + (hit.localZ || 0) };
+  }
+
+  function beginFreeObjectDrag(x, z, hit) {
+    const cell = getWorldCell(x, z);
+    if (!cell || !cell.kind) return false;
+    const meshes = freeObjectDragMeshes(x, z);
+    if (!meshes.length) return false;
+    const origin = freeObjectDragPoint(hit);
+    if (!origin) return false;
+    // One undo step for the whole drag (place + clear) — same batching the
+    // transform-gizmo drag uses below (pointerdown 'transform-gizmo' branch).
+    pushWorldHistorySnapshot();
+    worldHistoryMuted = true;
+    const pickDisabled = [];
+    const basePositions = meshes.map(mesh => {
+      // Don't let the dragged mesh itself occlude ground picks while it's
+      // following the cursor — override raycast per-mesh (standard three.js
+      // per-object opt-out) rather than hiding it, since it must stay visible.
+      mesh.traverse(o => {
+        if (o.isMesh) {
+          pickDisabled.push({ node: o, raycast: o.raycast });
+          o.raycast = function () {};
+        }
+      });
+      return { x: mesh.position.x, z: mesh.position.z };
+    });
+    freeObjectDragState = {
+      sourceX: x,
+      sourceZ: z,
+      sourceCell: Object.assign({}, cell),
+      meshes,
+      basePositions,
+      pickDisabled,
+      origin,
+      lastHit: hit,
+    };
+    return true;
+  }
+
+  function updateFreeObjectDragVisual(hit) {
+    const state = freeObjectDragState;
+    if (!state) return;
+    const point = freeObjectDragPoint(hit);
+    if (!point) return;
+    state.lastHit = hit;
+    const dx = point.x - state.origin.x;
+    const dz = point.z - state.origin.z;
+    state.meshes.forEach((mesh, i) => {
+      mesh.position.x = state.basePositions[i].x + dx;
+      mesh.position.z = state.basePositions[i].z + dz;
+    });
+  }
+
+  function restoreFreeObjectDragMeshes(state, revertPosition) {
+    state.pickDisabled.forEach(({ node, raycast }) => { node.raycast = raycast; });
+    if (revertPosition) {
+      state.meshes.forEach((mesh, i) => {
+        mesh.position.x = state.basePositions[i].x;
+        mesh.position.z = state.basePositions[i].z;
+      });
+    }
+  }
+
+  // Mirrors setCellImpl's own terrain/kind compatibility rule
+  // (17-tile-renderers.js setCellImpl, the `nextTerrain === 'water'/'lava'`
+  // branches) so a rejected drop never silently reaches setCell and has its
+  // kind swallowed there instead of bouncing back with feedback.
+  function freeObjectDragTargetTerrainOk(kind, terrain) {
+    if (terrain === 'lava') return kind === 'rock';
+    if (terrain === 'water') {
+      return kind === 'house' || kind === 'rock' || kind === 'ripple'
+        || kind === 'bridge' || kind === 'bridge-rail' || kind === 'voxel-build' || kind === 'model-stamp';
+    }
+    return true;
+  }
+
+  // Collision policy (plans/build-v2/02-object-tile-coupling.md §4): reject
+  // onto any tile that already has a kind, OR carries decorative extras
+  // (fence/tuft) — extras have no offset of their own and a blind overwrite
+  // would silently destroy them. No secondary-object slot exists today, so
+  // this stays a hard reject rather than a merge.
+  function freeObjectDragTargetOccupied(targetCell) {
+    return !!(targetCell && (targetCell.kind || (targetCell.extras && targetCell.extras.length)));
+  }
+
+  function freeObjectRehome(sourceX, sourceZ, targetX, targetZ, residual) {
+    const sourceCell = getWorldCell(sourceX, sourceZ);
+    if (!sourceCell || !sourceCell.kind) return false;
+    const targetCell = getWorldCell(targetX, targetZ);
+    if (freeObjectDragTargetOccupied(targetCell)) return false;
+    if (!freeObjectDragTargetTerrainOk(sourceCell.kind, targetCell.terrain)) return false;
+    // Place the destination BEFORE clearing the source so multiplayer sync
+    // (one cell.set broadcast per setCell — 38-multiplayer-partykit.js) never
+    // shows a peer a frame where the object exists on neither tile.
+    setCell(targetX, targetZ, {
+      terrain: targetCell.terrain,
+      terrainFloors: terrainLevelForCell(targetCell),
+      kind: sourceCell.kind,
+      floors: sourceCell.floors || 1,
+      buildingType: sourceCell.buildingType || null,
+      fenceSide: sourceCell.fenceSide || null,
+      extras: (sourceCell.extras || []).slice(),
+      rotationY: sourceCell.rotationY || 0,
+      offsetX: residual.x,
+      offsetY: sourceCell.offsetY || 0,
+      offsetZ: residual.z,
+      appearance: sourceCell.appearance || null,
+      waterFlow: sourceCell.waterFlow,
+      animate: false,
+      impactDust: false,
+    });
+    clearCellForCut(sourceX, sourceZ);
+    return true;
+  }
+
+  function commitFreeObjectDrag() {
+    const state = freeObjectDragState;
+    freeObjectDragState = null;
+    if (!state) { worldHistoryMuted = false; return; }
+    const hit = state.lastHit;
+    const coord = drawWorldCoordForHit(hit);
+    const isIsland = !!(hit && hit.editableIslandId);
+    let success = false;
+    let movedTo = null;
+    if (coord && !isIsland) {
+      const limits = transformLimitsForCell(state.sourceCell);
+      const residual = {
+        x: Math.max(-limits.xz, Math.min(limits.xz, hit.localX || 0)),
+        z: Math.max(-limits.xz, Math.min(limits.xz, hit.localZ || 0)),
+      };
+      if (coord.x === state.sourceX && coord.z === state.sourceZ) {
+        // Dropped back on the home tile: just rewrite the within-tile offset,
+        // reusing the same setCell path the keyboard nudge uses.
+        success = updateSelectedBoardObject(
+          { x: state.sourceX, z: state.sourceZ, cell: getWorldCell(state.sourceX, state.sourceZ) },
+          { offsetX: residual.x, offsetZ: residual.z }
+        );
+      } else {
+        success = freeObjectRehome(state.sourceX, state.sourceZ, coord.x, coord.z, residual);
+        if (success) movedTo = { x: coord.x, z: coord.z };
+      }
+    }
+    restoreFreeObjectDragMeshes(state, !success);
+    worldHistoryMuted = false;
+    if (!success) {
+      if (typeof twToast === 'function') twToast(window.tx ? window.tx('contextbar.move.blocked', 'Can’t move it there.') : 'Can’t move it there.', 'warn');
+    } else {
+      // Keep the object selected at its new home so the gizmo/context bar follow it.
+      if (movedTo && window.__tinyworldSelection && window.__tinyworldSelection.replaceWorldCoords) {
+        window.__tinyworldSelection.replaceWorldCoords([movedTo]);
+      }
+      notifySelectionChanged();
+    }
+  }
+
+  function cancelFreeObjectDrag() {
+    if (!freeObjectDragState) return false;
+    const state = freeObjectDragState;
+    freeObjectDragState = null;
+    restoreFreeObjectDragMeshes(state, true);
+    worldHistoryMuted = false;
+    return true;
+  }
+
+  renderer.domElement.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    if (freeObjectDragState) cancelFreeObjectDrag();
+    // Pen tool (build v2 slice 4): right-click cancels an in-progress stroke
+    // or dismisses the pending chooser. Always safe to call — a no-op when
+    // neither is active.
+    if (typeof window.cancelPenStroke === 'function' && window.cancelPenStroke() && dragMode === 'pen-stroke') {
+      dragMode = null;
+      pointerDown = null;
+      lastPointer = null;
+    }
+  });
 
   renderer.domElement.addEventListener('pointerdown', e => {
+    if (freeObjectDragState && e.button === 2) {
+      cancelFreeObjectDrag();
+      e.preventDefault();
+      return;
+    }
     if (generationViewLocked) {
       e.preventDefault();
       return;
@@ -1505,6 +1724,26 @@
       return;
     }
 
+    // Pen tool (build v2 slice 4, engine/world/20b-pen-tool.js): a full-canvas
+    // stroke-capture mode, same priority tier as mooring above it. Guarded by
+    // window.beginPenStroke (not a bare identifier) because that file is an
+    // IIFE loaded after this one — safe since this branch only runs at click
+    // time, long after every deferred script has executed.
+    if (selectedTool && selectedTool.pen && e.button === 0 && !spaceDown && !e.shiftKey && !e.metaKey && !e.ctrlKey && mpEditAllowed()) {
+      const penHit = pickTile(e.clientX, e.clientY);
+      if (penHit && typeof window.beginPenStroke === 'function' && window.beginPenStroke(penHit, e.clientX, e.clientY)) {
+        dragMode = 'pen-stroke';
+        pointerDown = { x: e.clientX, y: e.clientY };
+        lastPointer = { x: e.clientX, y: e.clientY };
+        didDrag = true;
+        hoverMesh.visible = false;
+        currentHover = null;
+        renderer.domElement.classList.add('dragging');
+        e.preventDefault();
+        return;
+      }
+    }
+
     const subGizmoActive = window.__tinyworldSubEdit && window.__tinyworldSubEdit.selectedGizmoTarget
       ? window.__tinyworldSubEdit.selectedGizmoTarget()
       : null;
@@ -1523,6 +1762,27 @@
       renderer.domElement.classList.add('dragging');
       e.preventDefault();
       return;
+    }
+
+    if (freeObjectDragArmedTarget && e.button === 0 && !spaceDown && !e.shiftKey && !e.metaKey && !e.ctrlKey && mpEditAllowed()) {
+      const armed = freeObjectDragArmedTarget;
+      freeObjectDragArmedTarget = null; // one-shot: consumed by this press whether or not it hits
+      const armHit = pickTile(e.clientX, e.clientY);
+      const armCoord = drawWorldCoordForHit(armHit);
+      const hitsArmedObject = armCoord && armCoord.x === armed.x && armCoord.z === armed.z && !(armHit && armHit.editableIslandId);
+      if (hitsArmedObject && beginFreeObjectDrag(armed.x, armed.z, armHit)) {
+        dragMode = 'free-object-drag';
+        pointerDown = { x: e.clientX, y: e.clientY };
+        lastPointer = { x: e.clientX, y: e.clientY };
+        didDrag = true;
+        hoverMesh.visible = false;
+        currentHover = null;
+        renderer.domElement.classList.add('dragging');
+        e.preventDefault();
+        return;
+      }
+      if (typeof twToast === 'function') twToast(window.tx ? window.tx('contextbar.move.miss', 'Click the selected object to move it.') : 'Click the selected object to move it.', 'warn');
+      // Falls through to normal click handling below — arm is consumed either way.
     }
 
     // Sub-object part pick: when an object is in part-edit mode, a plain click
@@ -1701,6 +1961,22 @@
       return;
     }
 
+    if (dragMode === 'free-object-drag') {
+      const hit = pickTile(e.clientX, e.clientY);
+      if (hit) updateFreeObjectDragVisual(hit);
+      lastPointer = { x: e.clientX, y: e.clientY };
+      e.preventDefault();
+      return;
+    }
+
+    if (dragMode === 'pen-stroke') {
+      const hit = pickTile(e.clientX, e.clientY);
+      if (hit && typeof window.updatePenStroke === 'function') window.updatePenStroke(hit, e.clientX, e.clientY);
+      lastPointer = { x: e.clientX, y: e.clientY };
+      e.preventDefault();
+      return;
+    }
+
     // hover update for mouse devices (touch hover handled on press)
     if (e.pointerType === 'mouse' || !pointerDown) {
       queueHoverUpdate(e.clientX, e.clientY);
@@ -1822,6 +2098,24 @@
       dragMode = null;
       selectionDragAnchor = null;
       selectionMoveDragLastCoord = null;
+      e.preventDefault();
+      return;
+    }
+
+    if (dragMode === 'free-object-drag') {
+      commitFreeObjectDrag();
+      pointerDown = null;
+      lastPointer = null;
+      dragMode = null;
+      e.preventDefault();
+      return;
+    }
+
+    if (dragMode === 'pen-stroke') {
+      if (typeof window.endPenStrokeAndShowChooser === 'function') window.endPenStrokeAndShowChooser();
+      pointerDown = null;
+      lastPointer = null;
+      dragMode = null;
       e.preventDefault();
       return;
     }
@@ -1965,6 +2259,8 @@
       selectionDragAnchor = null;
       selectionMoveDragLastCoord = null;
       cancelSelectionMoveDragPreview();
+      cancelFreeObjectDrag();
+      if (typeof window.cancelPenStroke === 'function') window.cancelPenStroke();
       _brushCancelPreview();
       drawVisitedCells.clear();
       drawChangedWorldCoords.clear();
@@ -1996,6 +2292,8 @@
       pinchPrevMid = null;
       selectionMoveDragLastCoord = null;
       cancelSelectionMoveDragPreview();
+      cancelFreeObjectDrag();
+      if (typeof window.cancelPenStroke === 'function') window.cancelPenStroke();
       _brushCancelPreview();
       drawVisitedCells.clear();
       drawChangedWorldCoords.clear();
@@ -2532,6 +2830,22 @@
     }
     if (e.code === 'Space') {
       spaceDown = true;
+      e.preventDefault();
+      return;
+    }
+    // Pen tool (build v2 slice 4): Escape cancels an in-progress stroke or
+    // dismisses the pending chooser, ahead of the other Escape handlers below.
+    if (e.key === 'Escape' && typeof window.cancelPenStroke === 'function' && window.cancelPenStroke()) {
+      if (dragMode === 'pen-stroke') { dragMode = null; pointerDown = null; lastPointer = null; }
+      e.preventDefault();
+      return;
+    }
+    if (e.key === 'Escape' && cancelFreeObjectDrag()) {
+      e.preventDefault();
+      return;
+    }
+    if (e.key === 'Escape' && freeObjectDragArmedTarget) {
+      freeObjectDragArmedTarget = null;
       e.preventDefault();
       return;
     }

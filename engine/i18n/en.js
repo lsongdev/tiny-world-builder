@@ -311,6 +311,7 @@
     'tool.lamp-post': 'Lamp',
     'tool.spotlight': 'Spotlight',
     'tool.mooring': 'Connect',
+    'tool.pen': 'Pen',
     'tool.crop': 'Crop',
     'tool.corn': 'Corn',
     'tool.wheat': 'Wheat',
@@ -331,6 +332,7 @@
     'toolVariant.tower': 'Tower',
     'toolVariant.turret': 'Castle',
     'toolVariant.highrise': 'High-rise',
+    'toolVariant.watchtower': 'Watchtower',
     'toolVariant.wood': 'Wood',
     'toolVariant.garden': 'Garden',
     // ---- variant hints (key = 'toolHint.' + variant.id) ----
@@ -339,6 +341,7 @@
     'toolHint.tower': 'stone tower w/ conical roof',
     'toolHint.turret': 'castle turret / keep',
     'toolHint.highrise': 'glass tower',
+    'toolHint.watchtower': 'spiral stair to an open battlements top',
     'toolHint.wood': 'plain timber rails',
     'toolHint.garden': 'dark orchard fence with vine and fruit',
 
@@ -361,6 +364,8 @@
     'mode.island.sub': 'Click empty space to add land',
     'mode.connect.label': 'Connect',
     'mode.connect.sub': 'Pin two anchors to link',
+    'mode.pen.label': 'Pen',
+    'mode.pen.sub': 'Drag a stroke, then choose what it becomes',
     'mode.painting': 'Painting',
     'mode.building': 'Building',
     'mode.build.sub': 'Esc to return to Select',
@@ -392,6 +397,44 @@
     'radial.edit.scale': 'Scale',
     'radial.edit.recolor': 'Recolor',
     'radial.edit.tapPart': 'Tap a part',
+
+    // ---- context bar (build v2, 33b-context-bar.js) ----
+    'contextbar.delete': 'Delete',
+    'contextbar.duplicate': 'Duplicate',
+    'contextbar.move': 'Move',
+    'contextbar.move.title': 'Drag to move to another tile',
+    'contextbar.move.multiselect': 'Select a single object to move it.',
+    'contextbar.move.arm': 'Click the object and drag it to move.',
+    'contextbar.move.miss': 'Click the selected object to move it.',
+    'contextbar.move.blocked': 'Can’t move it there.',
+    'contextbar.floors': 'Floors',
+    'contextbar.floors.decrease': 'Fewer floors',
+    'contextbar.floors.increase': 'More floors',
+    'contextbar.style.normal': 'Normal',
+    'contextbar.style.voxel': 'Voxel',
+    'contextbar.aria': 'Selection actions',
+
+    // ---- build suggestions (build v2, 33c-build-suggestions.js) ----
+    'contextbar.suggest.fenceCastle': 'Change fence run to castle wall?',
+    'contextbar.suggest.fenceCastle.action': 'Convert',
+    'contextbar.suggest.fenceGate': 'Add a gate?',
+    'contextbar.suggest.fenceGate.action': 'Add gate',
+    'contextbar.suggest.dismiss': 'Dismiss',
+
+    // ---- pen tool (build v2 slice 4, 20b-pen-tool.js) ----
+    'pen.chooser.aria': 'Make this stroke into',
+    'pen.chooser.ariaLoop': 'Make this loop into',
+    'pen.chooser.fence': 'Fence',
+    'pen.chooser.path': 'Path',
+    'pen.chooser.hedge': 'Hedge',
+    'pen.chooser.cancel': 'Cancel',
+    'pen.toast.fence': 'Fenced {n} tiles',
+    'pen.toast.fenceSkipped': 'Fenced {n} tiles, {skipped} skipped',
+    'pen.toast.path': 'Paved {n} tiles',
+    'pen.toast.pathSkipped': 'Paved {n} tiles, {skipped} skipped',
+    'pen.toast.hedge': 'Hedged {n} tiles',
+    'pen.toast.hedgeSkipped': 'Hedged {n} tiles, {skipped} skipped',
+    'pen.toast.allSkipped': 'Nothing placed — every tile was already occupied',
 
     // ---- graphics warnings / player-facing toasts (00-prelude.js, 01-render-core.js) ----
     'hardwareAccel.title': 'Graphics acceleration looks off',

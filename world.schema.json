@@ -361,7 +361,8 @@
         "manor",
         "tower",
         "turret",
-        "skyscraper"
+        "skyscraper",
+        "watchtower"
       ]
     },
     "fenceSide": {
@@ -580,7 +581,8 @@
           "type": "string",
           "enum": [
             "garden",
-            "gate"
+            "gate",
+            "castle"
           ]
         }
       }

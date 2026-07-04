@@ -1110,6 +1110,16 @@ syncTinyworldOwnerToolControls();
     'tinyworld:toolPalette.pos', 'tinyworld:stamp-panel-pos', 'tinyworld:layers-panel-pos.v1',
     'tinyworld:layers-panel-open.v1', 'tinyworld:selection-props-active-tab.v1',
     'tinyworld:selection-props-collapsed.v1',
+    // DB-first doctrine (plans/asset-schema/00-localstorage-audit.md): durable
+    // account-level state that previously lived only in this device's LS.
+    'tinyworld:multiplayer:avatar-voxel-seed', 'tinyworld:multiplayer:avatar-class',
+    'tinyworld:worlds.activeTinyverse.v1', 'tinyworld:worlds.map.pos', 'tinyworld:worlds.map.scale',
+    'tinyworld:playchat:size', 'tinyworld:build-play-mode.v1', 'tinyworld:controls:invertLookY',
+    'tinyworld:minimap.collapsed',
+    // Mesh terrain sculptor tool prefs (46-mesh-terrain.js) — small scalar UI
+    // state (vpt/toolMode/brushRadius/paintMatIndex), not the sculpt design
+    // itself (tinyworld:meshTerrain:v2, which stays local — see audit doc).
+    'tinyworld:meshTerrain:prefs:v1',
   ]);
   function twCloudIsSyncedPrefKey(key) {
     if (typeof key !== 'string') return false;
@@ -1228,6 +1238,9 @@ syncTinyworldOwnerToolControls();
       twCloudSyncPreferencesBothWays(),
       twCloudHydrateAvatar(),
     ]);
+    try {
+      if (typeof window.__tinyworldHydrateStampsFromAssetRows === 'function') window.__tinyworldHydrateStampsFromAssetRows();
+    } catch (_) {}
   }
 
   window.__tinyworldCloudApiCall = twCloudApiCall;
@@ -5247,6 +5260,29 @@ syncTinyworldOwnerToolControls();
       activeSnapshotDirty = false;
       updateActiveSnapshot();
     }, 5000);
+
+    // Flush on hide — the 800ms slot debounce (queueActiveSnapshotUpdate)
+    // and the 5s interval above can both miss an edit made just before the
+    // tab backgrounds or closes. Force the slot write (sync, localStorage)
+    // immediately so the next bootstrap sync still carries it even if the
+    // cloud push below doesn't finish. Only when something is actually
+    // dirty — an idle tab going hidden must not trigger a Neon write.
+    function flushActiveSnapshotOnHide() {
+      if (!activeSnapshotDirty) return;
+      activeSnapshotDirty = false;
+      clearTimeout(activeSnapshotTimer);
+      activeSnapshotTimer = null;
+      updateActiveSnapshot();
+      // Best-effort — no fetch keepalive (world-state bodies can exceed the
+      // 64KB keepalive cap). visibilitychange-hidden is the primary win
+      // since a backgrounded tab usually lets the request finish; pagehide
+      // is the last resort and may not complete before the page dies.
+      twCloudSyncLocalWorldsToCloud({ includeCurrent: false }).catch(() => {});
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) flushActiveSnapshotOnHide();
+    });
+    window.addEventListener('pagehide', flushActiveSnapshotOnHide);
 
     paintLabel();
     window.__tinyworldWorldMenuRefresh = () => {

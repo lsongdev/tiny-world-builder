@@ -1900,7 +1900,11 @@
     });
     vbox(g, 0.58, 0.08, 0.30, 0, 0.04, 0.53, M.manorTrim);
     vbox(g, 0.76, 0.05, 0.16, 0, 0.025, 0.76, M.manorTrim);
-    voxelDoor(g, 0, 0.41, 'z', 0.36);
+    // Door height reads the same MANOR_DOOR_H table entry as the real manor
+    // (07-house-primitives.js makeManor) so the preview matches the finished
+    // building in both proportions versions — today this is a bug fix
+    // (preview was 0.36 vs real 0.46; final building geometry is unchanged).
+    voxelDoor(g, 0, 0.41, 'z', H.MANOR_DOOR_H);
     for (const x of [-0.22, 0.22]) {
       vbox(g, 0.060, 0.46, 0.060, x, 0.27, 0.66, M.manorTrim);
       vbox(g, 0.075, 0.46, 0.035, x, 0.27, 0.405, M.manorTrim);
@@ -1931,7 +1935,12 @@
     vbox(g, 0.88, 0.08, 0.88, 0, h + 0.04, 0, M.skyRoof);
     vbox(g, 0.18, 0.12, 0.16, -0.20, h + 0.14, 0.18, M.castleStoneD);
     vbox(g, 0.035, 0.42, 0.035, 0.20, h + 0.27, -0.16, M.skyFrame);
-    voxelDoor(g, 0, 0.42, 'z', 0.32);
+    // Not explicitly requested by the slice-6a spec, but wired to the same
+    // SKY_DOOR_H entry as the real skyscraper (07-house-primitives.js
+    // makeSkyscraper) anyway: it's byte-identical in V1 (both were 0.32) and
+    // prevents a NEW preview/final mismatch from appearing once V2 changes
+    // the real door height but this literal wouldn't have moved with it.
+    voxelDoor(g, 0, 0.42, 'z', H.SKY_DOOR_H);
     g.userData = { kind: 'house', chimneyTops: [] };
     castReceive(g);
     return g;
@@ -1967,10 +1976,16 @@
       vbox(g, 0.74, 0.035, 0.74, 0, y, 0, stoneD);
     }
 
-    voxelDoor(g, 0, 0.39, 'z', 0.42);
+    // Door height reads the same TOWER_DOOR_H table entry as the real tower
+    // (07-house-primitives.js makeStoneTower) so the preview matches the
+    // finished building in both proportions versions — today this is a bug
+    // fix (preview was 0.42 vs real 0.46; final building geometry is
+    // unchanged). The flanking frame verticals share the same literal as the
+    // door height in the original code, so they're converted alongside it.
+    voxelDoor(g, 0, 0.39, 'z', H.TOWER_DOOR_H);
     vbox(g, 0.35, 0.055, 0.07, 0, 0.45, 0.42, stoneD);
-    vbox(g, 0.055, 0.42, 0.07, -0.17, 0.25, 0.415, stoneD);
-    vbox(g, 0.055, 0.42, 0.07,  0.17, 0.25, 0.415, stoneD);
+    vbox(g, 0.055, H.TOWER_DOOR_H, 0.07, -0.17, 0.25, 0.415, stoneD);
+    vbox(g, 0.055, H.TOWER_DOOR_H, 0.07,  0.17, 0.25, 0.415, stoneD);
 
     for (let i = 0; i < f; i++) {
       const y = 0.42 + i * (wallH / f);
@@ -2092,7 +2107,11 @@
       vbox(g, 0.025, 0.34, 0.025, 0.18, wallH + 0.43, 0.26, stoneD);
       vbox(g, 0.18, 0.10, 0.025, 0.29, wallH + 0.54, 0.26, M.flagRed);
     }
-    voxelDoor(g, 0, 0.405, 'z', 0.36);
+    // Turret has no 07-native equivalent — this voxel geometry IS the real,
+    // permanent in-world turret (dispatched from makeTurret). Converges on
+    // the shared TURRET_DOOR_H table entry (audit: turret had the shortest
+    // door in the game despite the thickest walls).
+    voxelDoor(g, 0, 0.405, 'z', H.TURRET_DOOR_H);
     vbox(g, 0.31, 0.055, 0.065, 0, 0.41, 0.415, stoneD);
     vbox(g, 0.055, 0.34, 0.065, -0.17, 0.23, 0.415, stoneD);
     vbox(g, 0.055, 0.34, 0.065,  0.17, 0.23, 0.415, stoneD);
@@ -2498,10 +2517,15 @@
     const cow = !sheep && !pig;
     const bodyMat = sheep ? M_ANIMAL.sheepWool : pig ? M_ANIMAL.pigPink : M_ANIMAL.cowWhite;
     const faceMat = sheep ? M_ANIMAL.sheepFace : pig ? M_ANIMAL.pigPink : M_ANIMAL.cowWhite;
-    const animalScale = sheep ? 0.70 : pig ? 0.72 : 0.80;
-    const bodyW = sheep ? 0.34 : pig ? 0.40 : 0.42;
-    const bodyH = sheep ? 0.24 : pig ? 0.27 : 0.26;
-    const bodyD = sheep ? 0.22 : pig ? 0.30 : 0.24;
+    // Size hierarchy (slice 6c, plans/build-v2/03-proportions-audit.md #6):
+    // scale + body/head dims are versioned H.ANIMAL_* keys (07-house-
+    // primitives.js) so V1 reproduces these exact literals and V2 retunes
+    // only the per-species scale (pig ~0.85x cow, sheep ~0.70x cow) without
+    // reshaping any body/head box.
+    const animalScale = sheep ? H.ANIMAL_SHEEP_SCALE : pig ? H.ANIMAL_PIG_SCALE : H.ANIMAL_COW_SCALE;
+    const bodyW = sheep ? H.ANIMAL_SHEEP_BODY_W : pig ? H.ANIMAL_PIG_BODY_W : H.ANIMAL_COW_BODY_W;
+    const bodyH = sheep ? H.ANIMAL_SHEEP_BODY_H : pig ? H.ANIMAL_PIG_BODY_H : H.ANIMAL_COW_BODY_H;
+    const bodyD = sheep ? H.ANIMAL_SHEEP_BODY_D : pig ? H.ANIMAL_PIG_BODY_D : H.ANIMAL_COW_BODY_D;
     // Body on its own pivot so it can bob gently while ambling or settle down to rest.
     const body = new THREE.Group();
     g.add(body);
@@ -2531,9 +2555,9 @@
     // reads as a long-necked dog.
     head.position.set(pig ? 0.20 : 0.24, 0.30, 0);
     body.add(head);
-    const headW = sheep ? 0.14 : pig ? 0.17 : 0.18;
-    const headH = sheep ? 0.14 : pig ? 0.15 : 0.16;
-    const headD = sheep ? 0.12 : pig ? 0.17 : 0.16;
+    const headW = sheep ? H.ANIMAL_SHEEP_HEAD_W : pig ? H.ANIMAL_PIG_HEAD_W : H.ANIMAL_COW_HEAD_W;
+    const headH = sheep ? H.ANIMAL_SHEEP_HEAD_H : pig ? H.ANIMAL_PIG_HEAD_H : H.ANIMAL_COW_HEAD_H;
+    const headD = sheep ? H.ANIMAL_SHEEP_HEAD_D : pig ? H.ANIMAL_PIG_HEAD_D : H.ANIMAL_COW_HEAD_D;
     vbox(head, headW, headH, headD, 0, 0, 0, faceMat);
     if (cow) {
       vbox(head, 0.09, 0.09, 0.11, 0.13, -0.03, 0, M_ANIMAL.cowMuzzle);
@@ -2806,7 +2830,13 @@
         mesh = makeVoxelSkyscraper(Math.max(floors, 4));
       } else if (bType === 'manor') {
         mesh = makeVoxelManor(floors);
-      } else if (bType === 'tower') {
+      } else if (bType === 'tower' || bType === 'watchtower') {
+        // Graceful degradation: 09b's makeVoxel* set is a separate,
+        // hand-duplicated builder used only for this construction/fade-in
+        // preview (plans/build-v2/03-proportions-audit.md) — it has no
+        // watchtower geometry of its own, so a watchtower cell previews as a
+        // plain voxel tower here; the real render (17-tile-renderers.js)
+        // still gets the full variant.
         mesh = makeVoxelStoneTower(Math.max(floors, 2), towerPaletteWithAppearance(getMergedBuildingPalette(x, z, 'tower'), cell.appearance));
       } else if (bType === 'turret') {
         mesh = makeVoxelTurret(floors, false);

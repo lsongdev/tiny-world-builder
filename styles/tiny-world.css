@@ -8379,6 +8379,81 @@
   body.showcase .radial-menu,
   body.xr-active .radial-menu { display: none; }
 
+  /* -------- context bar (build v2, 33b-context-bar.js) --------
+     Anchored popover on desktop (positioned via translate3d from JS, same
+     technique as .radial-menu above); docks as a bottom sheet under the
+     project's existing ~700px mobile breakpoint. Chips reuse the properties
+     panel's .selection-prop-chip / .selection-prop-swatch / .selection-prop-row
+     classes verbatim (defined earlier in this file) so the look matches the
+     rest of the selection UI without a second chip theme to maintain. */
+  .tw-context-bar {
+    position: fixed;
+    left: 0; top: 0;
+    z-index: 47;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: min(360px, calc(100vw - 24px));
+    padding: 10px 12px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.62);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.75) inset,
+      0 12px 28px -12px rgba(20, 30, 50, 0.48);
+    will-change: transform;
+  }
+  .tw-context-bar[hidden] { display: none; }
+  .tw-cb-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .tw-cb-row:empty { display: none; }
+  .tw-cb-row-color { flex-direction: column; align-items: stretch; gap: 4px; }
+  .tw-cb-suggestions:empty { display: none; }
+  .tw-cb-row-actions { justify-content: flex-end; }
+  /* -------- suggestions chip (build v2 slice 3, 33c-build-suggestions.js) --
+     One offer at a time: accept text chip + a small round dismiss "x",
+     reusing .selection-prop-chip / .icon-chip / .round-chip verbatim. */
+  .tw-cb-suggestion-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tw-cb-stepper {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tw-cb-stepper-label {
+    font-size: 11.5px;
+    font-weight: 650;
+    color: var(--ink);
+    min-width: 44px;
+    text-align: center;
+  }
+  @media (max-width: 700px) {
+    .tw-context-bar.tw-cb-sheet {
+      left: 0 !important;
+      right: 0;
+      bottom: 0;
+      top: auto !important;
+      max-width: none;
+      width: 100%;
+      border-radius: 16px 16px 0 0;
+      transform: none !important;
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
+    }
+  }
+  body.ui-theme-dark .tw-context-bar {
+    background: rgba(24, 26, 35, 0.82) !important;
+    border-color: rgba(255, 255, 255, 0.14) !important;
+  }
+
   /* -------- dark floating UI refinement -------- */
   body.ui-theme-dark .agent-input,
   body.ui-theme-dark .agent-panel {

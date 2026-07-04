@@ -115,7 +115,7 @@
     function rawYieldBuildingId(cell) {
       if (!cell || cell.kind !== 'house') return null;
       if (cell.buildingType === 'manor') return 'manor';
-      if (cell.buildingType === 'tower') return 'towers';
+      if (cell.buildingType === 'tower' || cell.buildingType === 'watchtower') return 'towers';
       return 'houses';
     }
 

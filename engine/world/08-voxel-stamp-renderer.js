@@ -463,6 +463,20 @@
     } catch (_) { return; }
     twSafeSetItem(VOXEL_BUILD_CUSTOM_LS, payload, 'Custom voxel build');
     if (typeof window.__tinyworldSyncAssetsToCloud === 'function') window.__tinyworldSyncAssetsToCloud();
+    // Mirror each custom stamp as its own asset-store row (behind the
+    // 'dbAssets' flag), on top of the legacy whole-library sync above.
+    try {
+      if (window.TWAssetStore && TWAssetStore.enabled()) {
+        VOXEL_BUILD_STAMPS.filter(s => s.custom).forEach((s) => {
+          TWAssetStore.put('stamp-' + s.id, {
+            class: 'stamp',
+            name: s.name,
+            format: 'voxel-build-stamp/1',
+            data: { id: s.id, name: s.name, voxels: s.voxels, customParts: s.customParts, footprint: s.footprint },
+          });
+        });
+      }
+    } catch (_) {}
   }
 
   function deleteCustomVoxelBuildStamp(id) {
@@ -471,6 +485,9 @@
     if (index < 0 || !VOXEL_BUILD_STAMPS[index].custom) return false;
     VOXEL_BUILD_STAMPS.splice(index, 1);
     saveCustomVoxelBuildStamps();
+    try {
+      if (window.TWAssetStore && TWAssetStore.enabled()) TWAssetStore.remove('stamp-' + stampId);
+    } catch (_) {}
     try { window.dispatchEvent(new CustomEvent('tinyworld:voxel-build-stamps-changed', { detail: { id: stampId, deleted: true } })); } catch (_) {}
     return true;
   }
@@ -502,3 +519,56 @@
     return VOXEL_BUILD_STAMPS.find(s => s.id === id) || null;
   }
   window.__tinyworldDeleteCustomVoxelBuildStamp = deleteCustomVoxelBuildStamp;
+
+  // Pulls custom voxel stamps that exist as user_assets rows (synced from
+  // another device, or lazily backfilled server-side from the legacy blob)
+  // but aren't yet in this session's in-memory VOXEL_BUILD_STAMPS/localStorage
+  // copy. Additive only — never removes or overwrites an existing stamp.
+  let twHydratingStampsFromAssetRows = false;
+  async function twHydrateStampsFromAssetRows() {
+    if (!window.TWAssetStore || !TWAssetStore.enabled()) return;
+    if (twHydratingStampsFromAssetRows) return;
+    twHydratingStampsFromAssetRows = true;
+    try {
+      const items = await TWAssetStore.list('stamp');
+      if (!Array.isArray(items) || !items.length) return;
+      let added = false;
+      for (const item of items) {
+        if (!item) continue;
+        // TWAssetStore.list() returns metadata-only rows {id,...} when served
+        // from the network, but full {data,...} records (no top-level id)
+        // when it falls back to the local cache — handle both shapes.
+        const inlineData = item.data && typeof item.data === 'object' ? item.data : null;
+        const stampId = inlineData && inlineData.id
+          ? String(inlineData.id)
+          : (item.id ? String(item.id).replace(/^stamp-/, '') : '');
+        if (!stampId || getVoxelBuildStamp(stampId)) continue;
+
+        let data = inlineData;
+        if (!data && item.id) {
+          // fetchFresh awaits the network on a cold cache (first hydration
+          // after a server-side backfill); plain get() would return null and
+          // only revalidate in the background.
+          let record = null;
+          try { record = await TWAssetStore.fetchFresh(item.id); } catch (_) { record = null; }
+          if (record && record.data && typeof record.data === 'object') data = record.data;
+        }
+        if (!data) continue;
+        if (getVoxelBuildStamp(stampId)) continue; // re-check: awaits above may race a concurrent add
+
+        const stamp = normalizeVoxelBuildStamp(Object.assign({}, data, { id: stampId, custom: true }), data.name || item.name);
+        if (!stamp || getVoxelBuildStamp(stamp.id)) continue;
+        VOXEL_BUILD_STAMPS.push(stamp);
+        added = true;
+      }
+      if (added) {
+        saveCustomVoxelBuildStamps();
+        try { window.dispatchEvent(new CustomEvent('tinyworld:voxel-build-stamps-changed', { detail: { hydrated: true } })); } catch (_) {}
+      }
+    } catch (_) {
+      // best effort — hydration failure should never block boot
+    } finally {
+      twHydratingStampsFromAssetRows = false;
+    }
+  }
+  window.__tinyworldHydrateStampsFromAssetRows = twHydrateStampsFromAssetRows;
