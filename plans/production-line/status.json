@@ -216,6 +216,11 @@
   ],
   "feed": [
     {
+      "ts": "2026-07-05T21:19:24.190Z",
+      "kind": "tick",
+      "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-07-05T21-19-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
+    },
+    {
       "ts": "2026-07-05T19:43:15.468Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-07-05T19-43-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
@@ -409,12 +414,7 @@
       "ts": "2026-07-01T23:42:38.095Z",
       "kind": "tick",
       "text": "Autonomous tick (safe scope): drafted news/tweet for \"production-line: tick drafts + dashboard refresh [skip ci]\" -> plans/production-line/drafts/2026-07-01T23-42-production-line-tick-drafts-dashboard-refresh-sk.md. No economy paths touched."
-    },
-    {
-      "ts": "2026-07-01T21:50:10.261Z",
-      "kind": "tick",
-      "text": "Autonomous tick (safe scope): drafted news/tweet for \"Harden world state and admin flows\" -> plans/production-line/drafts/2026-07-01T21-50-harden-world-state-and-admin-flows.md. ECONOMY TRIPWIRE: netlify/functions/gold-payout.mjs, netlify/functions/lib/tinyverse-access.mjs, netlify/functions/resources-sell.mjs, netlify/functions/world-remix.mjs"
     }
   ],
-  "lastTick": "2026-07-05T19:43:15.468Z"
+  "lastTick": "2026-07-05T21:19:24.190Z"
 }
